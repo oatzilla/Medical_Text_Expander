@@ -1,0 +1,6 @@
+﻿{
+  "version": "1.2.0",
+  "releaseDate": "2026-09-29",
+  "changelog": "- ปรับปรุงประสิทธิภาพ: แก้ปัญหาอาการหน่วงและประหยัดหน่วยความจำ\n- ปลดล็อก Network I/O ไม่ให้บล็อกหน้าจอ\n- เพิ่มระบบตรวจเช็คและอัปเดตโปรแกรมอัตโนมัติผ่าน GitHub",
+  "downloadUrl": "https://github.com/oatzaha/Medical_Text_Expander/releases/latest/download/Medical_Text_Expander.exe"
+}

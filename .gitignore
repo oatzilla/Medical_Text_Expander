@@ -1,0 +1,14 @@
+﻿# Binaries and temp files
+*.new.exe
+*.original.exe
+*.bak.exe
+*.bak
+*.tmp
+*.log
+update_runner.bat
+Medical_Text_Expander_New.exe
+
+# Ward local notes (personal patient data should never be on GitHub)
+bed_notes/
+ward_reminders.txt
+crash.log

@@ -1,0 +1,51 @@
+﻿name: Build and Release Medical Text Expander
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'MedicalTextExpander.cs'
+      - 'version.json'
+      - '.github/workflows/build.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET Framework MSBuild/CSC
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Compile Medical_Text_Expander.exe
+        shell: cmd
+        run: |
+          C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe /target:winexe /out:Medical_Text_Expander.exe /win32icon:medical_expander_icon.ico /r:System.Windows.Forms.dll,System.Drawing.dll,System.dll,System.Core.dll MedicalTextExpander.cs
+
+      - name: Extract Version from version.json
+        id: get_version
+        shell: powershell
+        run: |
+          $json = Get-Content version.json -Raw | ConvertFrom-Json
+          Write-Output "APP_VERSION=$($json.version)" >> $env:GITHUB_ENV
+          Write-Output "CHANGELOG=$($json.changelog)" >> $env:GITHUB_ENV
+
+      - name: Create or Update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.APP_VERSION }}
+          name: Medical Text Expander v${{ env.APP_VERSION }}
+          body: ${{ env.CHANGELOG }}
+          draft: false
+          prerelease: false
+          files: |
+            Medical_Text_Expander.exe
+            version.json
+            medical_templates.txt
+            Setup_Medical_Expander.bat
