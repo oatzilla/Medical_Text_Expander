@@ -126,7 +126,7 @@ namespace MedicalTextExpander {
     }
 
     public static class AppUpdater {
-        public const string CurrentVersion = "1.2.2";
+        public const string CurrentVersion = "1.3.0";
         public const string DefaultGitHubRepo = "oatzilla/Medical_Text_Expander";
 
         public static void CheckForUpdatesAsync(string repo, bool isManual, Form parent = null, string token = null) {
@@ -324,6 +324,147 @@ namespace MedicalTextExpander {
         }
     }
 
+
+    // ==========================================
+    // Supabase Cloud Realtime Sync Client
+    // ==========================================
+    public class SupabaseSyncClient {
+        public string Url { get; set; }
+        public string ApiKey { get; set; }
+        public bool IsEnabled { get { return !string.IsNullOrEmpty(Url) && !string.IsNullOrEmpty(ApiKey); } }
+
+        public SupabaseSyncClient(string url, string apiKey) {
+            Url = (url ?? "").Trim().TrimEnd('/');
+            ApiKey = (apiKey ?? "").Trim();
+        }
+
+        private HttpWebRequest CreateRequest(string endpoint, string method) {
+            ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls12;
+            string fullUrl = Url + "/rest/v1/" + endpoint.TrimStart('/');
+            HttpWebRequest req = (HttpWebRequest)WebRequest.Create(fullUrl);
+            req.Method = method;
+            req.Headers["apikey"] = ApiKey;
+            req.Headers["Authorization"] = "Bearer " + ApiKey;
+            req.ContentType = "application/json";
+            req.UserAgent = "MedicalTextExpander-Supabase";
+            req.Timeout = 7000;
+            return req;
+        }
+
+        public bool TestConnection() {
+            try {
+                if (!IsEnabled) return false;
+                HttpWebRequest req = CreateRequest("bed_notes?select=bed_number&limit=1", "GET");
+                using (HttpWebResponse resp = (HttpWebResponse)req.GetResponse()) {
+                    return resp.StatusCode == HttpStatusCode.OK;
+                }
+            } catch {
+                return false;
+            }
+        }
+
+        public Dictionary<int, string> FetchAllBeds() {
+            var result = new Dictionary<int, string>();
+            if (!IsEnabled) return result;
+            try {
+                HttpWebRequest req = CreateRequest("bed_notes?select=bed_number,content&order=bed_number.asc", "GET");
+                using (HttpWebResponse resp = (HttpWebResponse)req.GetResponse())
+                using (StreamReader reader = new StreamReader(resp.GetResponseStream(), Encoding.UTF8)) {
+                    string json = reader.ReadToEnd();
+                    var matches = Regex.Matches(json, @"\{""bed_number"":\s*(\d+).*?""content"":\s*""((?:\\""|[^""])*)""", RegexOptions.Singleline);
+                    foreach (Match m in matches) {
+                        int bed = int.Parse(m.Groups[1].Value);
+                        string content = UnescapeJson(m.Groups[2].Value);
+                        result[bed] = content;
+                    }
+                }
+            } catch {}
+            return result;
+        }
+
+        public bool SaveBed(int bedNum, string content) {
+            if (!IsEnabled || bedNum < 1 || bedNum > 30) return false;
+            try {
+                string body = string.Format("{{\"content\":\"{0}\",\"updated_at\":\"{1}\",\"updated_by\":\"{2}\"}}",
+                    EscapeJson(content), DateTime.UtcNow.ToString("o"), EscapeJson(Environment.MachineName));
+                byte[] data = Encoding.UTF8.GetBytes(body);
+
+                HttpWebRequest req = CreateRequest(string.Format("bed_notes?bed_number=eq.{0}", bedNum), "PATCH");
+                req.ContentLength = data.Length;
+                using (Stream stream = req.GetRequestStream()) {
+                    stream.Write(data, 0, data.Length);
+                }
+                using (HttpWebResponse resp = (HttpWebResponse)req.GetResponse()) {
+                    return resp.StatusCode == HttpStatusCode.OK || resp.StatusCode == HttpStatusCode.NoContent;
+                }
+            } catch {
+                return false;
+            }
+        }
+
+        public bool SaveHistory(int bedNum, string reason, string content) {
+            if (!IsEnabled || bedNum < 1 || bedNum > 30) return false;
+            try {
+                string body = string.Format("{{\"bed_number\":{0},\"reason\":\"{1}\",\"content\":\"{2}\",\"char_count\":{3},\"created_at\":\"{4}\"}}",
+                    bedNum, EscapeJson(reason), EscapeJson(content), (content ?? "").Length, DateTime.UtcNow.ToString("o"));
+                byte[] data = Encoding.UTF8.GetBytes(body);
+
+                HttpWebRequest req = CreateRequest("bed_history", "POST");
+                req.ContentLength = data.Length;
+                using (Stream stream = req.GetRequestStream()) {
+                    stream.Write(data, 0, data.Length);
+                }
+                using (HttpWebResponse resp = (HttpWebResponse)req.GetResponse()) {
+                    return resp.StatusCode == HttpStatusCode.OK || resp.StatusCode == HttpStatusCode.Created;
+                }
+            } catch {
+                return false;
+            }
+        }
+
+        public List<BedHistoryItem> FetchHistory(int bedNum) {
+            var list = new List<BedHistoryItem>();
+            if (!IsEnabled || bedNum < 1 || bedNum > 30) return list;
+            try {
+                HttpWebRequest req = CreateRequest(string.Format("bed_history?bed_number=eq.{0}&order=created_at.desc&limit=50", bedNum), "GET");
+                using (HttpWebResponse resp = (HttpWebResponse)req.GetResponse())
+                using (StreamReader reader = new StreamReader(resp.GetResponseStream(), Encoding.UTF8)) {
+                    string json = reader.ReadToEnd();
+                    var matches = Regex.Matches(json, @"\{""id"":(\d+),""bed_number"":(\d+),""reason"":""((?:\\""|[^""])*)"",""content"":""((?:\\""|[^""])*)"",""char_count"":(\d+),""created_at"":""((?:\\""|[^""])*)""\}", RegexOptions.Singleline);
+                    foreach (Match m in matches) {
+                        var item = new BedHistoryItem();
+                        item.BedNum = int.Parse(m.Groups[2].Value);
+                        item.Reason = UnescapeJson(m.Groups[3].Value);
+                        item.Content = UnescapeJson(m.Groups[4].Value);
+                        DateTime dt;
+                        if (DateTime.TryParse(m.Groups[6].Value, out dt)) item.Timestamp = dt.ToLocalTime();
+                        else item.Timestamp = DateTime.Now;
+                        list.Add(item);
+                    }
+                }
+            } catch {}
+            return list;
+        }
+
+        public static string EscapeJson(string s) {
+            if (string.IsNullOrEmpty(s)) return "";
+            return s.Replace("\\", "\\\\")
+                    .Replace("\"", "\\\"")
+                    .Replace("\r", "\\r")
+                    .Replace("\n", "\\n")
+                    .Replace("\t", "\\t");
+        }
+
+        public static string UnescapeJson(string s) {
+            if (string.IsNullOrEmpty(s)) return "";
+            return s.Replace("\\n", "\n")
+                    .Replace("\\r", "\r")
+                    .Replace("\\t", "\t")
+                    .Replace("\\\"", "\"")
+                    .Replace("\\\\", "\\");
+        }
+    }
+
     public class BedNotesManager {
         private string localDir;
         private string sharedDir;
@@ -337,17 +478,110 @@ namespace MedicalTextExpander {
         private volatile bool isSharedActiveCached = false;
         private System.Threading.Timer networkStatusTimer;
 
-        public BedNotesManager(string localPath, string sharedPath) {
+        // Supabase Cloud Real-time Sync
+        private SupabaseSyncClient supabaseClient;
+        public SupabaseSyncClient SupabaseClientInstance { get { return supabaseClient; } }
+        private volatile bool isSupabaseActiveCached = false;
+        private System.Threading.Timer cloudSyncTimer;
+        private Dictionary<int, DateTime> lastLocalEditTime = new Dictionary<int, DateTime>();
+
+        public BedNotesManager(string localPath, string sharedPath, string supaUrl = "", string supaKey = "", bool supaEnabled = false) {
             localDir = localPath;
             sharedDir = sharedPath;
             historyDir = Path.Combine(localDir, "history");
+            supabaseClient = new SupabaseSyncClient(supaEnabled ? supaUrl : "", supaKey);
             EnsureDirectories();
             CheckSharedDirectoryStatus();
+            CheckSupabaseStatus();
             LoadAll();
             SetupWatcher();
 
             // Periodic background check of network status (every 20s) without blocking UI thread
             networkStatusTimer = new System.Threading.Timer(_ => CheckSharedDirectoryStatus(), null, 15000, 20000);
+
+            // Periodic Supabase Cloud Polling (every 3 seconds) for real-time sync across ward PCs & mobile
+            cloudSyncTimer = new System.Threading.Timer(_ => PollSupabaseCloud(), null, 2000, 3000);
+        }
+
+        public bool IsSupabaseActive {
+            get { return supabaseClient != null && supabaseClient.IsEnabled && isSupabaseActiveCached; }
+        }
+
+        public string StatusText {
+            get {
+                if (IsSupabaseActive) {
+                    return "☁️ ซิงค์กับ Supabase Cloud เรียบร้อย (ใช้งานได้ทั้งในวอร์ดและนอก รพ.)";
+                } else if (IsSharedActive) {
+                    return "🌐 เชื่อมต่อกับโฟลเดอร์ส่วนกลางของวอร์ดเรียบร้อย (ซิงค์ทุกเครื่อง)";
+                } else {
+                    return "💻 โหมดบันทึกในเครื่องนี้ (ยังไม่ได้เชื่อมต่อระบบซิงค์ส่วนกลาง)";
+                }
+            }
+        }
+
+        public void CheckSupabaseStatus() {
+            if (supabaseClient == null || !supabaseClient.IsEnabled) {
+                isSupabaseActiveCached = false;
+                return;
+            }
+            ThreadPool.QueueUserWorkItem(_ => {
+                isSupabaseActiveCached = supabaseClient.TestConnection();
+            });
+        }
+
+        public void UpdateSupabaseConfig(string newUrl, string newKey, bool enabled) {
+            supabaseClient = new SupabaseSyncClient(enabled ? newUrl : "", newKey);
+            CheckSupabaseStatus();
+            if (supabaseClient.IsEnabled) {
+                ThreadPool.QueueUserWorkItem(_ => {
+                    PollSupabaseCloud();
+                });
+            }
+        }
+
+        private void PollSupabaseCloud() {
+            if (supabaseClient == null || !supabaseClient.IsEnabled) return;
+            try {
+                var cloudNotes = supabaseClient.FetchAllBeds();
+                if (cloudNotes == null || cloudNotes.Count == 0) return;
+                isSupabaseActiveCached = true;
+
+                foreach (var kvp in cloudNotes) {
+                    int bed = kvp.Key;
+                    string cloudContent = kvp.Value ?? "";
+
+                    // Protect against race condition: don't overwrite if local edit occurred within 6 seconds
+                    lock (syncLock) {
+                        DateTime lastEdit;
+                        if (lastLocalEditTime.TryGetValue(bed, out lastEdit)) {
+                            if ((DateTime.UtcNow - lastEdit).TotalSeconds < 6.0) {
+                                continue;
+                            }
+                        }
+                    }
+
+                    string currentLocal = "";
+                    lock (syncLock) {
+                        cache.TryGetValue(bed, out currentLocal);
+                    }
+
+                    if (currentLocal != cloudContent) {
+                        lock (syncLock) {
+                            cache[bed] = cloudContent;
+                        }
+                        // Save local backup file
+                        string path = Path.Combine(localDir, string.Format("bed_{0:D2}.txt", bed));
+                        WriteFileSafe(path, cloudContent);
+
+                        // Trigger real-time UI notification
+                        if (OnBedChanged != null) {
+                            OnBedChanged(bed, cloudContent);
+                        }
+                    }
+                }
+            } catch {
+                isSupabaseActiveCached = false;
+            }
         }
 
         private void CheckSharedDirectoryStatus() {
@@ -434,6 +668,11 @@ namespace MedicalTextExpander {
                         cache[i] = "";
                     }
                 }
+            }
+            if (supabaseClient != null && supabaseClient.IsEnabled) {
+                ThreadPool.QueueUserWorkItem(_ => {
+                    PollSupabaseCloud();
+                });
             }
         }
 
@@ -524,13 +763,23 @@ namespace MedicalTextExpander {
         public void SaveBedNote(int bedNum, string content) {
             lock (syncLock) {
                 cache[bedNum] = content;
+                lastLocalEditTime[bedNum] = DateTime.UtcNow;
             }
 
             // 1. Save local cache (UTF-8 with BOM) - Fast local disk I/O (< 1ms)
             string localFile = GetLocalFilePath(bedNum);
             WriteFileSafe(localFile, content);
 
-            // 2. Save to network share asynchronously in background thread
+            // 2. Supabase Cloud Sync in background thread (Real-time, zero UI stutter)
+            if (supabaseClient != null && supabaseClient.IsEnabled) {
+                ThreadPool.QueueUserWorkItem(_ => {
+                    try {
+                        supabaseClient.SaveBed(bedNum, content);
+                    } catch {}
+                });
+            }
+
+            // 3. Save to network share asynchronously in background thread
             // Never freeze the UI thread waiting for LAN/SMB!
             string sDir = sharedDir;
             if (isSharedActiveCached && !string.IsNullOrEmpty(sDir)) {
@@ -564,10 +813,26 @@ namespace MedicalTextExpander {
                 sb.AppendLine(content.TrimEnd());
                 sb.AppendLine("=== SNAPSHOT_END ===");
                 File.AppendAllText(histFile, sb.ToString(), SafeUtf8);
+
+                if (supabaseClient != null && supabaseClient.IsEnabled) {
+                    ThreadPool.QueueUserWorkItem(_ => {
+                        try {
+                            supabaseClient.SaveHistory(bedNum, reason, content);
+                        } catch {}
+                    });
+                }
             } catch {}
         }
 
         public List<BedHistoryItem> GetBedHistory(int bedNum) {
+            if (supabaseClient != null && supabaseClient.IsEnabled) {
+                try {
+                    var cloudHist = supabaseClient.FetchHistory(bedNum);
+                    if (cloudHist != null && cloudHist.Count > 0) {
+                        return cloudHist;
+                    }
+                } catch {}
+            }
             List<BedHistoryItem> list = new List<BedHistoryItem>();
             string histFile = Path.Combine(historyDir, string.Format("bed_{0:D2}_history.txt", bedNum));
             if (!File.Exists(histFile)) return list;
@@ -685,6 +950,22 @@ namespace MedicalTextExpander {
         public void SetGitHubToken(string token) { gitHubToken = token; SaveConfigFile(); }
         public string GetGitHubRepo() { return string.IsNullOrEmpty(gitHubRepo) ? AppUpdater.DefaultGitHubRepo : gitHubRepo; }
         public void SetGitHubRepo(string repo) { gitHubRepo = repo; SaveConfigFile(); }
+
+        private string supabaseUrl = "https://mhzpurmhrqutxdhmsday.supabase.co";
+        private string supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1oenB1cm1ocnF1dHhkaG1zZGF5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA2OTM1NjAsImV4cCI6MjEwNjI2OTU2MH0.A9a4sox0YUBKlWkEcaInqQOb8EA0yzl99uwY_cg-kyo";
+        private bool supabaseEnabled = true;
+        public string GetSupabaseUrl() { return supabaseUrl; }
+        public string GetSupabaseKey() { return supabaseKey; }
+        public bool GetSupabaseEnabled() { return supabaseEnabled; }
+        public void SetSupabaseConfig(string url, string key, bool enabled) {
+            supabaseUrl = url;
+            supabaseKey = key;
+            supabaseEnabled = enabled;
+            if (bedNotesManager != null) {
+                bedNotesManager.UpdateSupabaseConfig(supabaseUrl, supabaseKey, supabaseEnabled);
+            }
+            SaveConfigFile();
+        }
         private FileSystemWatcher watcher = null;
         private string iconPath;
         private bool isEnabled = true;
@@ -737,7 +1018,7 @@ namespace MedicalTextExpander {
             InitializePaths();
             LoadSettings();
 
-            bedNotesManager = new BedNotesManager(localBedNotesDir, sharedBedNotesDir);
+            bedNotesManager = new BedNotesManager(localBedNotesDir, sharedBedNotesDir, supabaseUrl, supabaseKey, supabaseEnabled);
             reminderManager = new WardReminderManager(appBaseDir, localBedNotesDir);
             reminderManager.OnReminderDue += HandleReminderDue;
 
@@ -914,6 +1195,15 @@ namespace MedicalTextExpander {
                             if (float.TryParse(t.Substring("FontSize=".Length).Trim(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out f) && f >= 9.0f && f <= 28.0f) {
                                 CurrentFontSize = f;
                             }
+                        } else if (t.StartsWith("SupabaseUrl=", StringComparison.OrdinalIgnoreCase)) {
+                            supabaseUrl = t.Substring("SupabaseUrl=".Length).Trim();
+                        } else if (t.StartsWith("SupabaseKey=", StringComparison.OrdinalIgnoreCase)) {
+                            supabaseKey = t.Substring("SupabaseKey=".Length).Trim();
+                        } else if (t.StartsWith("SupabaseEnabled=", StringComparison.OrdinalIgnoreCase)) {
+                            bool b;
+                            if (bool.TryParse(t.Substring("SupabaseEnabled=".Length).Trim(), out b)) {
+                                supabaseEnabled = b;
+                            }
                         }
                     }
                 } catch {}
@@ -954,6 +1244,9 @@ namespace MedicalTextExpander {
                 sb.AppendLine("FontSize=" + CurrentFontSize.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture));
                 sb.AppendLine("GitHubRepo=" + (string.IsNullOrEmpty(gitHubRepo) ? AppUpdater.DefaultGitHubRepo : gitHubRepo));
                 if (!string.IsNullOrEmpty(gitHubToken)) sb.AppendLine("GitHubToken=" + gitHubToken);
+                sb.AppendLine("SupabaseUrl=" + supabaseUrl);
+                sb.AppendLine("SupabaseKey=" + supabaseKey);
+                sb.AppendLine("SupabaseEnabled=" + supabaseEnabled.ToString().ToLower());
                 File.WriteAllText(settingsIniPath, sb.ToString(), Encoding.UTF8);
             } catch {}
         }
@@ -1586,9 +1879,7 @@ namespace MedicalTextExpander {
             pnlTop.Controls.Add(lblAppTitle);
 
             lblNetworkStatus = new Label();
-            lblNetworkStatus.Text = manager.IsSharedActive 
-                ? "🌐 เชื่อมต่อกับโฟลเดอร์ส่วนกลางของวอร์ดเรียบร้อย (ซิงค์ทุกเครื่อง)" 
-                : "💻 โหมดบันทึกในเครื่องนี้ (ยังไม่ได้เชื่อมต่อโฟลเดอร์ส่วนกลาง)";
+            lblNetworkStatus.Text = manager.StatusText;
             lblNetworkStatus.ForeColor = Color.FromArgb(204, 251, 241);
             lblNetworkStatus.Font = new Font("Segoe UI", 9f);
             lblNetworkStatus.Location = new Point(16, 32);
@@ -2357,9 +2648,7 @@ public void RefreshAllBedButtons() {
                 }
             }
 
-            lblNetworkStatus.Text = manager.IsSharedActive 
-                ? "🌐 เชื่อมต่อกับโฟลเดอร์ส่วนกลางของวอร์ดเรียบร้อย (ซิงค์ทุกเครื่อง)" 
-                : "💻 โหมดบันทึกในเครื่องนี้ (ยังไม่ได้เชื่อมต่อโฟลเดอร์ส่วนกลาง)";
+            lblNetworkStatus.Text = manager.StatusText;
         }
 
         private void FilterBeds(string query) {
@@ -3036,6 +3325,12 @@ public void RefreshAllBedButtons() {
 
     public class SyncSettingsForm : Form {
         private ExpanderContext context;
+        private CheckBox chkEnableSupabase;
+        private TextBox txtSupabaseUrl;
+        private TextBox txtSupabaseKey;
+        private Label lblSupabaseStatus;
+        private Button btnTestSupabase;
+
         private TextBox txtSharedPath;
         private TextBox txtSharedBedNotes;
         private TextBox txtGitHubRepo;
@@ -3052,8 +3347,8 @@ public void RefreshAllBedButtons() {
         }
 
         private void InitializeUI(string currentTemplatePath, string currentBedNotesPath) {
-            this.Text = "การเชื่อมต่อข้อมูลส่วนกลางของวอร์ด (Network Shared Sync)";
-            this.Size = new System.Drawing.Size(620, 440);
+            this.Text = "การเชื่อมต่อข้อมูลส่วนกลางของวอร์ด (Cloud & Network Sync)";
+            this.Size = new System.Drawing.Size(650, 710);
             this.StartPosition = FormStartPosition.CenterScreen;
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
             this.MaximizeBox = false;
@@ -3067,33 +3362,129 @@ public void RefreshAllBedButtons() {
                 try { this.Icon = new Icon(iconPath); } catch {}
             }
 
+            // ----------------------------------------------------
+            // Section 1: Supabase Cloud Realtime Sync (Recommended)
+            // ----------------------------------------------------
+            GroupBox grpSupabase = new GroupBox();
+            grpSupabase.Text = " ☁️ ระบบซิงค์ข้อมูลผ่าน Supabase Cloud (แนะนำที่สุด - ทั่วโลก & นอก รพ.) ";
+            grpSupabase.Location = new Point(16, 12);
+            grpSupabase.Size = new Size(602, 230);
+            grpSupabase.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
+            grpSupabase.ForeColor = Color.FromArgb(13, 148, 136);
+
+            chkEnableSupabase = new CheckBox();
+            chkEnableSupabase.Text = "เปิดใช้งานระบบซิงค์ Supabase Cloud (ทำงานได้ทั้งในวอร์ดและนอก รพ.)";
+            chkEnableSupabase.Location = new Point(16, 26);
+            chkEnableSupabase.Size = new Size(560, 26);
+            chkEnableSupabase.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
+            chkEnableSupabase.ForeColor = Color.FromArgb(30, 41, 59);
+            chkEnableSupabase.Checked = context.GetSupabaseEnabled();
+            grpSupabase.Controls.Add(chkEnableSupabase);
+
+            Label lblSupaUrl = new Label();
+            lblSupaUrl.Text = "Project URL:";
+            lblSupaUrl.Location = new Point(16, 58);
+            lblSupaUrl.AutoSize = true;
+            lblSupaUrl.Font = new Font("Segoe UI", 9f);
+            lblSupaUrl.ForeColor = Color.FromArgb(71, 85, 105);
+            grpSupabase.Controls.Add(lblSupaUrl);
+
+            txtSupabaseUrl = new TextBox();
+            txtSupabaseUrl.Location = new Point(16, 80);
+            txtSupabaseUrl.Size = new Size(570, 27);
+            txtSupabaseUrl.Font = new Font("Segoe UI", 9.5f);
+            txtSupabaseUrl.Text = context.GetSupabaseUrl();
+            grpSupabase.Controls.Add(txtSupabaseUrl);
+
+            Label lblSupaKey = new Label();
+            lblSupaKey.Text = "Anon Public API Key:";
+            lblSupaKey.Location = new Point(16, 114);
+            lblSupaKey.AutoSize = true;
+            lblSupaKey.Font = new Font("Segoe UI", 9f);
+            lblSupaKey.ForeColor = Color.FromArgb(71, 85, 105);
+            grpSupabase.Controls.Add(lblSupaKey);
+
+            txtSupabaseKey = new TextBox();
+            txtSupabaseKey.Location = new Point(16, 136);
+            txtSupabaseKey.Size = new Size(570, 27);
+            txtSupabaseKey.Font = new Font("Segoe UI", 9.5f);
+            txtSupabaseKey.Text = context.GetSupabaseKey();
+            grpSupabase.Controls.Add(txtSupabaseKey);
+
+            btnTestSupabase = new Button();
+            btnTestSupabase.Text = "⚡ ทดสอบการเชื่อมต่อ Cloud";
+            btnTestSupabase.Location = new Point(16, 175);
+            btnTestSupabase.Size = new Size(210, 36);
+            btnTestSupabase.BackColor = Color.FromArgb(240, 253, 244);
+            btnTestSupabase.ForeColor = Color.FromArgb(22, 101, 52);
+            btnTestSupabase.FlatStyle = FlatStyle.Flat;
+            btnTestSupabase.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
+            btnTestSupabase.Cursor = Cursors.Hand;
+            btnTestSupabase.Click += (s, e) => {
+                btnTestSupabase.Enabled = false;
+                lblSupabaseStatus.Text = "กำลังทดสอบการเชื่อมต่อ...";
+                lblSupabaseStatus.ForeColor = Color.FromArgb(100, 100, 100);
+                string url = txtSupabaseUrl.Text.Trim();
+                string key = txtSupabaseKey.Text.Trim();
+                ThreadPool.QueueUserWorkItem(_ => {
+                    var client = new SupabaseSyncClient(url, key);
+                    bool ok = client.TestConnection();
+                    if (this.IsHandleCreated && !this.IsDisposed) {
+                        this.BeginInvoke(new Action(() => {
+                            btnTestSupabase.Enabled = true;
+                            if (ok) {
+                                lblSupabaseStatus.Text = "✅ เชื่อมต่อกับ Supabase Cloud สำเร็จ 100%!";
+                                lblSupabaseStatus.ForeColor = Color.DarkGreen;
+                            } else {
+                                lblSupabaseStatus.Text = "❌ ไม่สามารถเชื่อมต่อได้ กรุณาตรวจสอบ URL/Key";
+                                lblSupabaseStatus.ForeColor = Color.Red;
+                            }
+                        }));
+                    }
+                });
+            };
+            grpSupabase.Controls.Add(btnTestSupabase);
+
+            lblSupabaseStatus = new Label();
+            lblSupabaseStatus.Location = new Point(236, 183);
+            lblSupabaseStatus.Size = new Size(350, 24);
+            lblSupabaseStatus.Text = "สถานะ: พร้อมเชื่อมต่อ";
+            lblSupabaseStatus.Font = new Font("Segoe UI", 9f);
+            lblSupabaseStatus.ForeColor = Color.FromArgb(100, 100, 100);
+            grpSupabase.Controls.Add(lblSupabaseStatus);
+
+            this.Controls.Add(grpSupabase);
+
+            // ----------------------------------------------------
+            // Section 2: LAN / Shared Folder (Windows SMB)
+            // ----------------------------------------------------
             Label lblDesc = new Label();
-            lblDesc.Text = "คุณสามารถแชร์โฟลเดอร์ส่วนกลางในวงแลนของวอร์ด เพื่อให้ทุกเครื่องในหอผู้ป่วย\n" +
-                           "ใช้ชุดเทมเพลต และข้อมูลบันทึกรายเตียง 1-30 ชุดเดียวกันแบบเรียลไทม์:";
-            lblDesc.Location = new Point(20, 14);
-            lblDesc.Size = new Size(560, 45);
+            lblDesc.Text = "📁 ทางเลือกสำรอง: แชร์โฟลเดอร์ในวงแลนของวอร์ด (Windows SMB):";
+            lblDesc.Location = new Point(16, 252);
+            lblDesc.Size = new Size(602, 24);
+            lblDesc.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
             lblDesc.ForeColor = Color.FromArgb(50, 50, 50);
             this.Controls.Add(lblDesc);
 
             // 1. Templates Path
             Label lblPath = new Label();
-            lblPath.Text = "1. ที่อยู่ไฟล์เทมเพลตส่วนกลาง (medical_templates.txt):";
-            lblPath.Location = new Point(20, 68);
+            lblPath.Text = "1. ไฟล์เทมเพลตส่วนกลาง (medical_templates.txt):";
+            lblPath.Location = new Point(16, 280);
             lblPath.AutoSize = true;
-            lblPath.Font = new Font("Segoe UI", 10f, FontStyle.Bold);
+            lblPath.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
             this.Controls.Add(lblPath);
 
             txtSharedPath = new TextBox();
-            txtSharedPath.Location = new Point(22, 95);
-            txtSharedPath.Size = new Size(450, 29);
-            txtSharedPath.Font = new Font("Segoe UI", 10f);
+            txtSharedPath.Location = new Point(18, 305);
+            txtSharedPath.Size = new Size(475, 29);
+            txtSharedPath.Font = new Font("Segoe UI", 9.5f);
             txtSharedPath.Text = currentTemplatePath;
             this.Controls.Add(txtSharedPath);
 
             btnBrowsePath = new Button();
             btnBrowsePath.Text = "เลือกไฟล์...";
-            btnBrowsePath.Location = new Point(480, 93);
-            btnBrowsePath.Size = new Size(100, 32);
+            btnBrowsePath.Location = new Point(505, 303);
+            btnBrowsePath.Size = new Size(110, 32);
             btnBrowsePath.Click += (s, e) => {
                 OpenFileDialog ofd = new OpenFileDialog();
                 ofd.Filter = "Text Files (*.txt)|*.txt|All Files (*.*)|*.*";
@@ -3110,26 +3501,26 @@ public void RefreshAllBedButtons() {
 
             // 2. Bed Notes Path
             Label lblBedPath = new Label();
-            lblBedPath.Text = "2. ที่อยู่โฟลเดอร์ข้อมูลรายเตียง 1-30 (ward_bed_notes):";
-            lblBedPath.Location = new Point(20, 138);
+            lblBedPath.Text = "2. โฟลเดอร์เตียง 1-30 (ward_bed_notes):";
+            lblBedPath.Location = new Point(16, 342);
             lblBedPath.AutoSize = true;
-            lblBedPath.Font = new Font("Segoe UI", 10f, FontStyle.Bold);
+            lblBedPath.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
             this.Controls.Add(lblBedPath);
 
             txtSharedBedNotes = new TextBox();
-            txtSharedBedNotes.Location = new Point(22, 165);
-            txtSharedBedNotes.Size = new Size(450, 29);
-            txtSharedBedNotes.Font = new Font("Segoe UI", 10f);
+            txtSharedBedNotes.Location = new Point(18, 367);
+            txtSharedBedNotes.Size = new Size(475, 29);
+            txtSharedBedNotes.Font = new Font("Segoe UI", 9.5f);
             txtSharedBedNotes.Text = currentBedNotesPath;
             this.Controls.Add(txtSharedBedNotes);
 
             btnBrowseBedNotes = new Button();
             btnBrowseBedNotes.Text = "เลือกโฟลเดอร์...";
-            btnBrowseBedNotes.Location = new Point(480, 163);
-            btnBrowseBedNotes.Size = new Size(100, 32);
+            btnBrowseBedNotes.Location = new Point(505, 365);
+            btnBrowseBedNotes.Size = new Size(110, 32);
             btnBrowseBedNotes.Click += (s, e) => {
                 FolderBrowserDialog fbd = new FolderBrowserDialog();
-                fbd.Description = "เลือกโฟลเดอร์สำหรับแชร์ข้อมูลเตียงผู้ป่วยในวอร์ด (ward_bed_notes)";
+                fbd.Description = "เลือกโฟลเดอร์บันทึกเตียง (ward_bed_notes)";
                 if (fbd.ShowDialog() == DialogResult.OK) {
                     txtSharedBedNotes.Text = fbd.SelectedPath;
                 }
@@ -3138,22 +3529,22 @@ public void RefreshAllBedButtons() {
 
             // 3. GitHub Auto-Update Repository
             Label lblGit = new Label();
-            lblGit.Text = "3. ชื่อ GitHub Repository สำหรับตรวจเช็คอัปเดตอัตโนมัติ:";
-            lblGit.Location = new Point(20, 208);
+            lblGit.Text = "3. ที่อยู่ GitHub Repository สำหรับตรวจอัปเดตอัตโนมัติ:";
+            lblGit.Location = new Point(16, 408);
             lblGit.AutoSize = true;
-            lblGit.Font = new Font("Segoe UI", 10f, FontStyle.Bold);
+            lblGit.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
             this.Controls.Add(lblGit);
 
             txtGitHubRepo = new TextBox();
-            txtGitHubRepo.Location = new Point(22, 235);
-            txtGitHubRepo.Size = new Size(340, 29);
-            txtGitHubRepo.Font = new Font("Segoe UI", 10f);
+            txtGitHubRepo.Location = new Point(18, 433);
+            txtGitHubRepo.Size = new Size(375, 29);
+            txtGitHubRepo.Font = new Font("Segoe UI", 9.5f);
             txtGitHubRepo.Text = context.GetGitHubRepo();
             this.Controls.Add(txtGitHubRepo);
 
             Button btnCheckNow = new Button();
             btnCheckNow.Text = "🚀 ตรวจสอบอัปเดตเดี๋ยวนี้";
-            btnCheckNow.Location = new Point(370, 233);
+            btnCheckNow.Location = new Point(405, 431);
             btnCheckNow.Size = new Size(210, 32);
             btnCheckNow.BackColor = Color.FromArgb(224, 231, 255);
             btnCheckNow.ForeColor = Color.FromArgb(67, 56, 202);
@@ -3166,18 +3557,19 @@ public void RefreshAllBedButtons() {
             this.Controls.Add(btnCheckNow);
 
             lblStatus = new Label();
-            lblStatus.Location = new Point(22, 275);
-            lblStatus.Size = new Size(560, 40);
+            lblStatus.Location = new Point(18, 475);
+            lblStatus.Size = new Size(600, 36);
             lblStatus.Text = string.IsNullOrEmpty(currentTemplatePath) 
-                ? "สถานะ: กำลังใช้งานข้อมูลเฉพาะในเครื่องนี้" 
-                : "สถานะ: เชื่อมต่อข้อมูลส่วนกลางของวอร์ดอยู่";
+                ? "สถานะ LAN: ไม่ได้เชื่อมต่อโฟลเดอร์ในวงแลน" 
+                : "สถานะ LAN: เชื่อมต่อข้อมูลโฟลเดอร์ในวงแลนอยู่";
             lblStatus.ForeColor = Color.FromArgb(100, 100, 100);
             this.Controls.Add(lblStatus);
 
             btnTest = new Button();
-            btnTest.Text = "🔍 ทดสอบการเชื่อมต่อ";
-            btnTest.Location = new System.Drawing.Point(22, 330);
-            btnTest.Size = new Size(160, 38);
+            btnTest.Text = "🔍 ทดสอบเชื่อมต่อ LAN";
+            btnTest.Location = new System.Drawing.Point(18, 520);
+            btnTest.Size = new Size(180, 40);
+            btnTest.Font = new Font("Segoe UI", 9.5f);
             btnTest.Click += (s, e) => {
                 string pTpl = txtSharedPath.Text.Trim();
                 string pBed = txtSharedBedNotes.Text.Trim();
@@ -3186,41 +3578,45 @@ public void RefreshAllBedButtons() {
                 bool bedOk = string.IsNullOrEmpty(pBed) || Directory.Exists(pBed);
 
                 if (tplOk && bedOk && (!string.IsNullOrEmpty(pTpl) || !string.IsNullOrEmpty(pBed))) {
-                    lblStatus.Text = "✅ เชื่อมต่อสำเร็จ! เข้าถึงไฟล์เทมเพลตและโฟลเดอร์เตียงได้ปกติ";
+                    lblStatus.Text = "✅ เชื่อมต่อ LAN สำเร็จ! เข้าถึงไฟล์เทมเพลตและโฟลเดอร์เตียงได้ปกติ";
                     lblStatus.ForeColor = Color.DarkGreen;
                 } else {
-                    lblStatus.Text = "❌ ไม่สามารถเข้าถึงที่อยู่ส่วนกลางที่ระบุได้ กรุณาตรวจสอบสิทธิ์ของวงแลน";
+                    lblStatus.Text = "❌ ไม่สามารถเข้าถึงที่อยู่ในวงแลนได้ กรุณาตรวจสอบสิทธิ์ของเครือข่าย";
                     lblStatus.ForeColor = Color.Red;
                 }
             };
             this.Controls.Add(btnTest);
 
             btnSave = new Button();
-            btnSave.Text = "💾 บันทึกและเชื่อมต่อ";
-            btnSave.Location = new System.Drawing.Point(190, 330);
-            btnSave.Size = new Size(185, 38);
+            btnSave.Text = "💾 บันทึกการตั้งค่าทั้งหมด";
+            btnSave.Location = new System.Drawing.Point(210, 520);
+            btnSave.Size = new Size(220, 40);
             btnSave.BackColor = Color.FromArgb(13, 148, 136);
             btnSave.ForeColor = Color.White;
             btnSave.FlatStyle = FlatStyle.Flat;
-            btnSave.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
+            btnSave.Font = new Font("Segoe UI", 10f, FontStyle.Bold);
             btnSave.Click += (s, e) => {
                 string pTpl = txtSharedPath.Text.Trim();
                 string pBed = txtSharedBedNotes.Text.Trim();
                 context.SaveSettings(pTpl, pBed);
                 context.SetGitHubRepo(txtGitHubRepo.Text.Trim());
-                MessageBox.Show("บันทึกการตั้งค่าเรียบร้อยแล้ว ทุกเครื่องที่ตั้งชี้มาที่โฟลเดอร์นี้จะได้รับเทมเพลตและข้อมูลเตียงชุดเดียวกันอัตโนมัติ", "สำเร็จ", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                context.SetSupabaseConfig(txtSupabaseUrl.Text.Trim(), txtSupabaseKey.Text.Trim(), chkEnableSupabase.Checked);
+                MessageBox.Show("บันทึกการตั้งค่าเรียบร้อยแล้ว! ระบบคลาวด์และวงแลนพร้อมทำงานทันที", "สำเร็จ", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 this.Close();
             };
             this.Controls.Add(btnSave);
 
             btnClear = new Button();
             btnClear.Text = "ใช้ในเครื่องนี้เท่านั้น";
-            btnClear.Location = new System.Drawing.Point(385, 330);
-            btnClear.Size = new Size(175, 38);
+            btnClear.Location = new System.Drawing.Point(442, 520);
+            btnClear.Size = new Size(175, 40);
+            btnClear.Font = new Font("Segoe UI", 9.5f);
             btnClear.Click += (s, e) => {
                 txtSharedPath.Text = "";
                 txtSharedBedNotes.Text = "";
+                chkEnableSupabase.Checked = false;
                 context.SaveSettings("", "");
+                context.SetSupabaseConfig("", "", false);
                 MessageBox.Show("ยกเลิกการเชื่อมต่อส่วนกลางแล้ว ระบบจะกลับมาใช้ข้อมูลในเครื่องนี้", "สำเร็จ", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 this.Close();
             };
