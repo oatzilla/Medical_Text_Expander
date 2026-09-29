@@ -33,8 +33,10 @@ jobs:
         shell: powershell
         run: |
           $json = Get-Content version.json -Raw | ConvertFrom-Json
-          Write-Output "APP_VERSION=$($json.version)" >> $env:GITHUB_ENV
-          Write-Output "CHANGELOG=$($json.changelog)" >> $env:GITHUB_ENV
+          "APP_VERSION=$($json.version)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "CHANGELOG<<EOF" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "$($json.changelog)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "EOF" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
       - name: Create or Update GitHub Release
         uses: softprops/action-gh-release@v2
