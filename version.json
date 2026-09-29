@@ -1,6 +1,8 @@
 {
   "version": "1.2.1",
-  "release_date": "2026-09-29",
+  "downloadUrl": "https://github.com/oatzilla/Medical_Text_Expander/releases/latest/download/Medical_Text_Expander.exe",
   "download_url": "https://github.com/oatzilla/Medical_Text_Expander/releases/latest/download/Medical_Text_Expander.exe",
-  "changelog": "- แก้ไขปัญหาการแสดงผลภาษาไทยเพี้ยนในปุ่มเตียงและแถบสถานะ (Encoding UTF-8 Codepage 65001)\n- ปรับตำแหน่งปุ่ม '🚀 อัปเดต' ให้เด่นชัดบนแถบเมนูด้านบน ไม่ชนปุ่มปิดด้านล่าง\n- เพิ่มประสิทธิภาพการทำงานและลดอาการหน่วงกระตุกในการพิมพ์และการแจ้งเตือน"
+  "releaseDate": "2026-09-29",
+  "release_date": "2026-09-29",
+  "changelog": "- แก้ไขภาษาไทยเพี้ยนในปุ่มเตียงและแถบสถานะ (UTF-8)\n- ย้ายปุ่มอัปเดตไปไว้แถบเมนูด้านบน\n- เพิ่มความลื่นไหลและลดอาการหน่วง"
 }

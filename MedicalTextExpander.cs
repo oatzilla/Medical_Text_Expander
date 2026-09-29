@@ -149,7 +149,7 @@ namespace MedicalTextExpander {
                     json = client.DownloadString(url);
                 }
 
-                UpdateInfo info = ParseVersionJson(json);
+                UpdateInfo info = ParseVersionJson(json, repo);
                 if (info == null || string.IsNullOrEmpty(info.Version)) {
                     if (isManual) {
                         ShowMessage(parent, "ไม่สามารถอ่านข้อมูลเวอร์ชันจาก GitHub ได้ กรุณาตรวจสอบชื่อ Repository ในการตั้งค่า", "ตรวจสอบการอัปเดต", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -207,13 +207,18 @@ namespace MedicalTextExpander {
             return v;
         }
 
-        private static UpdateInfo ParseVersionJson(string json) {
+        private static UpdateInfo ParseVersionJson(string json, string repo) {
             try {
                 UpdateInfo info = new UpdateInfo();
                 info.Version = ExtractJsonValue(json, "version");
                 info.ReleaseDate = ExtractJsonValue(json, "releaseDate");
+                if (string.IsNullOrEmpty(info.ReleaseDate)) info.ReleaseDate = ExtractJsonValue(json, "release_date");
                 info.Changelog = ExtractJsonValue(json, "changelog");
                 info.DownloadUrl = ExtractJsonValue(json, "downloadUrl");
+                if (string.IsNullOrEmpty(info.DownloadUrl)) info.DownloadUrl = ExtractJsonValue(json, "download_url");
+                if (string.IsNullOrEmpty(info.DownloadUrl) && !string.IsNullOrEmpty(repo)) {
+                    info.DownloadUrl = string.Format("https://github.com/{0}/releases/latest/download/Medical_Text_Expander.exe", repo);
+                }
                 return info;
             } catch {
                 return null;
