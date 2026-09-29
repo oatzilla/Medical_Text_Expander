@@ -67,7 +67,7 @@ namespace MedicalTextExpander {
                         return;
                     }
 
-                    // เธรดเบื้องหลังสำหรับรอรับสัญญาณเมื่อผู้ใช้พยายามกดเปิดโปรแกรมซ้ำ
+                    // Background thread สำหรับรอรับสัญญาณเมื่อผู้ใช้พยายามกดเปิดโปรแกรมซ้ำ
                     Thread listenerThread = new Thread(() => {
                         while (true) {
                             try {
@@ -126,7 +126,7 @@ namespace MedicalTextExpander {
     }
 
     public static class AppUpdater {
-        public const string CurrentVersion = "1.2.0";
+        public const string CurrentVersion = "1.2.1";
         public const string DefaultGitHubRepo = "oatzilla/Medical_Text_Expander";
 
         public static void CheckForUpdatesAsync(string repo, bool isManual, Form parent = null, string token = null) {
@@ -1505,6 +1505,7 @@ namespace MedicalTextExpander {
         private Button btnGoToPalette;
         private Button btnZoomOut;
         private Button btnZoomIn;
+        private Button btnCheckUpdate;
 
         private Button btnPaste;
         private Button btnCopy;
@@ -1622,6 +1623,19 @@ namespace MedicalTextExpander {
             btnZoomIn.Click += (s, e) => AdjustFontSize(1.5f);
             pnlTop.Controls.Add(btnZoomIn);
 
+            btnCheckUpdate = new Button();
+            btnCheckUpdate.Text = "🚀 อัปเดต";
+            btnCheckUpdate.Name = "btnCheckUpdate";
+            btnCheckUpdate.Size = new Size(82, 34);
+            btnCheckUpdate.BackColor = Color.FromArgb(224, 231, 255);
+            btnCheckUpdate.ForeColor = Color.FromArgb(67, 56, 202);
+            btnCheckUpdate.FlatStyle = FlatStyle.Flat;
+            btnCheckUpdate.FlatAppearance.BorderSize = 0;
+            btnCheckUpdate.Font = new Font("Segoe UI", 9f, FontStyle.Bold);
+            btnCheckUpdate.Cursor = Cursors.Hand;
+            btnCheckUpdate.Click += (s, e) => AppUpdater.CheckForUpdatesAsync(context.GetGitHubRepo(), true, this, context.GetGitHubToken());
+            pnlTop.Controls.Add(btnCheckUpdate);
+
             // Bottom Action Panel
             pnlBottom = new Panel();
             pnlBottom.Dock = DockStyle.Bottom;
@@ -1696,17 +1710,7 @@ namespace MedicalTextExpander {
             btnSyncSettings.Click += (s, e) => context.ShowSyncSettings();
             pnlBottom.Controls.Add(btnSyncSettings);
 
-            Button btnCheckUpdate = new Button();
-            btnCheckUpdate.Text = "🚀 อัปเดต";
-            btnCheckUpdate.Name = "btnCheckUpdate";
-            btnCheckUpdate.Size = new System.Drawing.Size(88, 34);
-            btnCheckUpdate.BackColor = System.Drawing.Color.FromArgb(224, 231, 255);
-            btnCheckUpdate.ForeColor = System.Drawing.Color.FromArgb(67, 56, 202);
-            btnCheckUpdate.FlatStyle = FlatStyle.Flat;
-            btnCheckUpdate.Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Bold);
-            btnCheckUpdate.Cursor = Cursors.Hand;
-            btnCheckUpdate.Click += (s, e) => AppUpdater.CheckForUpdatesAsync(context.GetGitHubRepo(), true, this, context.GetGitHubToken());
-            pnlBottom.Controls.Add(btnCheckUpdate);
+
 
             btnClose = new Button();
             btnClose.Text = "ปิด (Esc)";
@@ -2057,6 +2061,10 @@ namespace MedicalTextExpander {
                 btnZoomOut.Location = new Point(rx - btnZoomOut.Width, 11);
                 rx -= (btnZoomOut.Width + 6);
             }
+            if (btnCheckUpdate != null) {
+                btnCheckUpdate.Location = new Point(rx - btnCheckUpdate.Width, 11);
+                rx -= (btnCheckUpdate.Width + 6);
+            }
             if (btnGoToPalette != null) {
                 btnGoToPalette.Location = new Point(rx - btnGoToPalette.Width, 11);
                 rx -= (btnGoToPalette.Width + 6);
@@ -2137,10 +2145,7 @@ namespace MedicalTextExpander {
 
             btnSyncSettings.Location = new Point(lx, 9);
 
-            Control[] updateBtns = pnlBottom.Controls.Find("btnCheckUpdate", false);
-            if (updateBtns.Length > 0) {
-                updateBtns[0].Location = new System.Drawing.Point(w - btnClose.Width - 10 - updateBtns[0].Width - 6, 9);
-            }
+
             btnClose.Location = new System.Drawing.Point(w - btnClose.Width - 10, 9);
         }
 
@@ -2223,7 +2228,7 @@ namespace MedicalTextExpander {
             txtNote.Focus();
         }
 
-        public void RefreshAllBedButtons() {
+public void RefreshAllBedButtons() {
             for (int i = 1; i <= 30; i++) {
                 Button btn = bedButtons[i];
                 if (btn == null) continue;
@@ -2240,7 +2245,7 @@ namespace MedicalTextExpander {
                 if (urgent != null) {
                     TimeSpan diff = urgent.DueTime - DateTime.Now;
                     if (diff.TotalSeconds <= 0) {
-                        // เธ–เธถเธเน€เธงเธฅเธฒเนเธฅเนเธง / เน€เธเธดเธเธเธณเธซเธเธ” -> เธเธฃเธฐเธเธฃเธดเธเน€เธ•เธทเธญเธเธชเธตเนเธ”เธ (Blinking Red Alert)
+                        // ถึงเวลาแล้ว / เกินกำหนด -> กระพริบเตือนสีแดง (Blinking Red Alert)
                         if (isBlinkPhase) {
                             btn.BackColor = Color.FromArgb(239, 68, 68); // Bright red
                             btn.ForeColor = Color.White;
@@ -2248,7 +2253,7 @@ namespace MedicalTextExpander {
                             btn.FlatAppearance.BorderColor = Color.FromArgb(185, 28, 28);
                             btn.FlatAppearance.BorderSize = 2;
                             if (btn.Font != FontBedBold8) btn.Font = FontBedBold8;
-                            btn.Text = string.Format("เน€เธ•เธตเธขเธ {0:D2}\n๐จ เธ–เธถเธเน€เธงเธฅเธฒ!", i);
+                            btn.Text = string.Format("เตียง {0:D2}\n🚨 ถึงเวลา!", i);
                         } else {
                             btn.BackColor = Color.FromArgb(254, 202, 202); // Soft red
                             btn.ForeColor = Color.FromArgb(185, 28, 28);
@@ -2256,10 +2261,10 @@ namespace MedicalTextExpander {
                             btn.FlatAppearance.BorderColor = Color.FromArgb(239, 68, 68);
                             btn.FlatAppearance.BorderSize = 2;
                             if (btn.Font != FontBedBold8) btn.Font = FontBedBold8;
-                            btn.Text = string.Format("เน€เธ•เธตเธขเธ {0:D2}\nโฐ เธ–เธถเธเน€เธงเธฅเธฒ!", i);
+                            btn.Text = string.Format("เตียง {0:D2}\n⏱ ถึงเวลา!", i);
                         }
                     } else if (diff.TotalMinutes <= 15) {
-                        // เนเธเธฅเนเธ–เธถเธเน€เธงเธฅเธฒเนเธฅเนเธง (เธ เธฒเธขเนเธ 15 เธเธฒเธ—เธต) -> เธชเธตเน€เธซเธฅเธทเธญเธเธชเนเธกเนเธเนเธเน€เธ•เธทเธญเธ (Amber Warning Alert)
+                        // ใกล้ถึงเวลาแล้ว (ภายใน 15 นาที) -> สีเหลืองส้มแจ้งเตือน (Amber Warning Alert)
                         int mins = (int)Math.Max(1, Math.Ceiling(diff.TotalMinutes));
                         if (mins <= 5 && isBlinkPhase) {
                             btn.BackColor = Color.FromArgb(254, 215, 170); // Pulse warning when <= 5 min
@@ -2271,9 +2276,9 @@ namespace MedicalTextExpander {
                         btn.FlatAppearance.BorderColor = Color.FromArgb(245, 158, 11);
                         btn.FlatAppearance.BorderSize = 2;
                         if (btn.Font != FontBedBold8) btn.Font = FontBedBold8;
-                        btn.Text = string.Format("เน€เธ•เธตเธขเธ {0:D2}\nโ ๏ธ เธญเธตเธ {1}เธ.", i, mins);
+                        btn.Text = string.Format("เตียง {0:D2}\n⚠️ อีก {1}น.", i, mins);
                     } else {
-                        // เธกเธตเธเธฒเธฃเธ•เธฑเนเธเน€เธ•เธทเธญเธเธฅเนเธงเธเธซเธเนเธฒ (> 15 เธเธฒเธ—เธต)
+                        // มีการตั้งเตือนล่วงหน้า (> 15 นาที)
                         if (isSelected) {
                             btn.BackColor = theme.Primary;
                             btn.ForeColor = Color.White;
@@ -2281,7 +2286,7 @@ namespace MedicalTextExpander {
                             btn.FlatAppearance.BorderColor = theme.TextDark;
                             btn.FlatAppearance.BorderSize = 2;
                             if (btn.Font != FontBedBold8) btn.Font = FontBedBold8;
-                            btn.Text = string.Format("เน€เธ•เธตเธขเธ {0:D2}\nโฐ {1:D2}:{2:D2}", i, urgent.DueTime.Hour, urgent.DueTime.Minute);
+                            btn.Text = string.Format("เตียง {0:D2}\n⏱ {1:D2}:{2:D2}", i, urgent.DueTime.Hour, urgent.DueTime.Minute);
                         } else {
                             btn.BackColor = theme.SoftBg;
                             btn.ForeColor = theme.TextDark;
@@ -2289,11 +2294,11 @@ namespace MedicalTextExpander {
                             btn.FlatAppearance.BorderColor = theme.Border;
                             btn.FlatAppearance.BorderSize = 1;
                             if (btn.Font != FontBedBold8) btn.Font = FontBedBold8;
-                            btn.Text = string.Format("เน€เธ•เธตเธขเธ {0:D2}\nโฐ {1:D2}:{2:D2}", i, urgent.DueTime.Hour, urgent.DueTime.Minute);
+                            btn.Text = string.Format("เตียง {0:D2}\n⏱ {1:D2}:{2:D2}", i, urgent.DueTime.Hour, urgent.DueTime.Minute);
                         }
                     }
                 } else {
-                    // เนเธกเนเธกเธตเน€เธ•เธทเธญเธเธเนเธฒเธ -> เนเธชเธ”เธเธชเธตเธเธตเธกเธเธฃเธฐเธเธณเน€เธ•เธตเธขเธเธ•เธฒเธกเธเธเธ•เธด (Distinct Bed Colors)
+                    // ไม่มีเตือนค้าง -> แสดงสีธีมประจำเตียงตามปกติ (Distinct Bed Colors)
                     if (isSelected) {
                         btn.BackColor = theme.Primary;
                         btn.ForeColor = Color.White;
@@ -2301,7 +2306,7 @@ namespace MedicalTextExpander {
                         btn.FlatAppearance.BorderSize = 2;
                         btn.FlatAppearance.BorderColor = theme.TextDark;
                         if (btn.Font != FontBedBold85) btn.Font = FontBedBold85;
-                        btn.Text = string.Format("เน€เธ•เธตเธขเธ {0:D2}\nโ— เน€เธฅเธทเธญเธ", i);
+                        btn.Text = string.Format("เตียง {0:D2}\n● เลือก", i);
                     } else if (hasData) {
                         btn.BackColor = theme.SoftBg;
                         btn.ForeColor = theme.TextDark;
@@ -2309,7 +2314,7 @@ namespace MedicalTextExpander {
                         btn.FlatAppearance.BorderSize = 1;
                         btn.FlatAppearance.BorderColor = theme.Border;
                         if (btn.Font != FontBedBold8) btn.Font = FontBedBold8;
-                        btn.Text = string.Format("เน€เธ•เธตเธขเธ {0:D2}\nโ— เธกเธตเธเนเธญเธกเธนเธฅ", i);
+                        btn.Text = string.Format("เตียง {0:D2}\n● มีข้อมูล", i);
                     } else {
                         btn.BackColor = Color.FromArgb(248, 250, 252);
                         btn.ForeColor = Color.FromArgb(148, 163, 184);
@@ -2317,15 +2322,15 @@ namespace MedicalTextExpander {
                         btn.FlatAppearance.BorderSize = 1;
                         btn.FlatAppearance.BorderColor = theme.Border;
                         if (btn.Font != FontBedRegular8) btn.Font = FontBedRegular8;
-                        btn.Text = string.Format("เน€เธ•เธตเธขเธ {0:D2}\n(เธงเนเธฒเธ)", i);
+                        btn.Text = string.Format("เตียง {0:D2}\n(ว่าง)", i);
                     }
                 }
 
                 if (bedToolTip != null) {
                     string remInfo = (urgent != null) 
-                        ? string.Format("\nโฐ เธ•เธฑเธงเน€เธ•เธทเธญเธเธซเธฑเธ•เธ–เธเธฒเธฃ: {0} ({1})", urgent.Title, urgent.RemainingText) 
+                        ? string.Format("\n⏱ ตัวเตือนหัตถการ: {0} ({1})", urgent.Title, urgent.RemainingText) 
                         : "";
-                    string tipText = string.Format("เน€เธ•เธตเธขเธ {0:D2} ({1}): {2}{3}\n(เธเธตเธขเนเธฅเธฑเธ”เนเธ e-PHIS: เธเธดเธกเธเน .b{0})", 
+                    string tipText = string.Format("เตียง {0:D2} ({1}): {2}{3}\n(คีย์ลัดใน e-PHIS: พิมพ์ .b{0})", 
                         i, theme.ZoneName, manager.GetPreview(i), remInfo);
                     if (bedToolTip.GetToolTip(btn) != tipText) {
                         bedToolTip.SetToolTip(btn, tipText);
@@ -2334,8 +2339,8 @@ namespace MedicalTextExpander {
             }
 
             lblNetworkStatus.Text = manager.IsSharedActive 
-                ? "๐ เน€เธเธทเนเธญเธกเธ•เนเธญเธเธฑเธเนเธเธฅเน€เธ”เธญเธฃเนเธชเนเธงเธเธเธฅเธฒเธเธเธญเธเธงเธญเธฃเนเธ”เน€เธฃเธตเธขเธเธฃเนเธญเธข (เธเธดเธเธเนเธ—เธธเธเน€เธเธฃเธทเนเธญเธ)" 
-                : "๐’ป เนเธซเธกเธ”เธเธฑเธเธ—เธถเธเนเธเน€เธเธฃเธทเนเธญเธเธเธตเน (เธขเธฑเธเนเธกเนเนเธ”เนเน€เธเธทเนเธญเธกเธ•เนเธญเนเธเธฅเน€เธ”เธญเธฃเนเธชเนเธงเธเธเธฅเธฒเธ)";
+                ? "🌐 เชื่อมต่อกับโฟลเดอร์ส่วนกลางของวอร์ดเรียบร้อย (ซิงค์ทุกเครื่อง)" 
+                : "💻 โหมดบันทึกในเครื่องนี้ (ยังไม่ได้เชื่อมต่อโฟลเดอร์ส่วนกลาง)";
         }
 
         private void FilterBeds(string query) {
@@ -4817,8 +4822,8 @@ namespace MedicalTextExpander {
                     Label lblTime = matches.Length > 0 ? matches[0] as Label : null;
                     Label lblBed = bedMatches.Length > 0 ? bedMatches[0] as Label : null;
 
-                    if (diff.TotalSeconds <= 0) {
-                        // เธ–เธถเธเน€เธงเธฅเธฒเนเธฅเนเธง / เน€เธเธดเธเธเธณเธซเธเธ” -> เธเธฃเธฐเธเธฃเธดเธเน€เธ•เธทเธญเธเธชเธตเนเธ”เธ (Blinking Red Alert)
+if (diff.TotalSeconds <= 0) {
+                        // ถึงเวลาแล้ว / เกินกำหนด -> กระพริบเตือนสีแดง (Blinking Red Alert)
                         if (isBlinkPhase) {
                             card.BackColor = Color.FromArgb(254, 202, 202);
                             if (lblBed != null) lblBed.BackColor = Color.FromArgb(220, 38, 38);
@@ -4827,13 +4832,13 @@ namespace MedicalTextExpander {
                             if (lblBed != null) lblBed.BackColor = theme.Primary;
                         }
                         if (lblTime != null) {
-                            lblTime.Text = string.Format("{0} ({1:D2}:{2:D2} เธ.)", item.RemainingText, item.DueTime.Hour, item.DueTime.Minute);
+                            lblTime.Text = string.Format("{0} ({1:D2}:{2:D2} น.)", item.RemainingText, item.DueTime.Hour, item.DueTime.Minute);
                             lblTime.ForeColor = Color.FromArgb(185, 28, 28);
                             if (lblTime.Font != FontStickyBold85) lblTime.Font = FontStickyBold85;
                         }
                         card.Invalidate();
                     } else if (diff.TotalMinutes <= 15) {
-                        // เนเธเธฅเนเธ–เธถเธเน€เธงเธฅเธฒเนเธฅเนเธง (เธ เธฒเธขเนเธ 15 เธเธฒเธ—เธต) -> เธชเธตเน€เธซเธฅเธทเธญเธเธชเนเธกเนเธเนเธเน€เธ•เธทเธญเธ (Amber Warning Alert)
+                        // ใกล้ถึงเวลาแล้ว (ภายใน 15 นาที) -> สีเหลืองส้มแจ้งเตือน (Amber Warning Alert)
                         if (diff.TotalMinutes <= 5 && isBlinkPhase) {
                             card.BackColor = Color.FromArgb(254, 215, 170); // Pulse warning when <= 5 min
                         } else {
@@ -4841,17 +4846,17 @@ namespace MedicalTextExpander {
                         }
                         if (lblBed != null) lblBed.BackColor = theme.Primary;
                         if (lblTime != null) {
-                            lblTime.Text = string.Format("โ ๏ธ {0} ({1:D2}:{2:D2} เธ.)", item.RemainingText, item.DueTime.Hour, item.DueTime.Minute);
+                            lblTime.Text = string.Format("⚠️ {0} ({1:D2}:{2:D2} น.)", item.RemainingText, item.DueTime.Hour, item.DueTime.Minute);
                             lblTime.ForeColor = Color.FromArgb(180, 83, 9);
                             if (lblTime.Font != FontStickyBold85) lblTime.Font = FontStickyBold85;
                         }
                         card.Invalidate();
                     } else {
-                        // เธเธเธ•เธด (> 15 เธเธฒเธ—เธต)
+                        // ปกติ (> 15 นาที)
                         card.BackColor = Color.White;
                         if (lblBed != null) lblBed.BackColor = theme.Primary;
                         if (lblTime != null) {
-                            lblTime.Text = string.Format("{0} ({1:D2}:{2:D2} เธ.)", item.RemainingText, item.DueTime.Hour, item.DueTime.Minute);
+                            lblTime.Text = string.Format("{0} ({1:D2}:{2:D2} น.)", item.RemainingText, item.DueTime.Hour, item.DueTime.Minute);
                             lblTime.ForeColor = Color.FromArgb(71, 85, 105);
                             if (lblTime.Font != FontStickyRegular8) lblTime.Font = FontStickyRegular8;
                         }

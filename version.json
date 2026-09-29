@@ -1,6 +1,6 @@
-﻿{
-  "version": "1.2.0",
-  "releaseDate": "2026-09-29",
-  "changelog": "- ปรับปรุงประสิทธิภาพ: แก้ปัญหาอาการหน่วงและประหยัดหน่วยความจำ\n- ปลดล็อก Network I/O ไม่ให้บล็อกหน้าจอ\n- เพิ่มระบบตรวจเช็คและอัปเดตโปรแกรมอัตโนมัติผ่าน GitHub",
-  "downloadUrl": "https://github.com/oatzilla/Medical_Text_Expander/releases/latest/download/Medical_Text_Expander.exe"
+{
+  "version": "1.2.1",
+  "release_date": "2026-09-29",
+  "download_url": "https://github.com/oatzilla/Medical_Text_Expander/releases/latest/download/Medical_Text_Expander.exe",
+  "changelog": "- แก้ไขปัญหาการแสดงผลภาษาไทยเพี้ยนในปุ่มเตียงและแถบสถานะ (Encoding UTF-8 Codepage 65001)\n- ปรับตำแหน่งปุ่ม '🚀 อัปเดต' ให้เด่นชัดบนแถบเมนูด้านบน ไม่ชนปุ่มปิดด้านล่าง\n- เพิ่มประสิทธิภาพการทำงานและลดอาการหน่วงกระตุกในการพิมพ์และการแจ้งเตือน"
 }

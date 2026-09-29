@@ -26,7 +26,7 @@ jobs:
       - name: Compile Medical_Text_Expander.exe
         shell: cmd
         run: |
-          C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe /target:winexe /out:Medical_Text_Expander.exe /win32icon:medical_expander_icon.ico /r:System.Windows.Forms.dll,System.Drawing.dll,System.dll,System.Core.dll MedicalTextExpander.cs
+          C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe /target:winexe /out:Medical_Text_Expander.exe /win32icon:medical_expander_icon.ico /codepage:65001 /utf8output /r:System.Windows.Forms.dll,System.Drawing.dll,System.dll,System.Core.dll MedicalTextExpander.cs
 
       - name: Extract Version from version.json
         id: get_version
