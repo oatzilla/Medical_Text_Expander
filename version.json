@@ -1,8 +1,8 @@
 {
-  "version": "1.2.1",
+  "version": "1.2.2",
   "downloadUrl": "https://github.com/oatzilla/Medical_Text_Expander/releases/latest/download/Medical_Text_Expander.exe",
   "download_url": "https://github.com/oatzilla/Medical_Text_Expander/releases/latest/download/Medical_Text_Expander.exe",
   "releaseDate": "2026-09-29",
   "release_date": "2026-09-29",
-  "changelog": "- แก้ไขภาษาไทยเพี้ยนในปุ่มเตียงและแถบสถานะ (UTF-8)\n- ย้ายปุ่มอัปเดตไปไว้แถบเมนูด้านบน\n- เพิ่มความลื่นไหลและลดอาการหน่วง"
+  "changelog": "- เปิดหน้าต่างบันทึกเตียง 1-30 เด้งขึ้นมาบนหน้าจอทันทีเมื่อเปิดโปรแกรม โดยไม่ต้องกดจาก System Tray\n- ปรับปรุงระบบ Single Instance เมื่อกดเปิดโปรแกรมซ้ำ หน้าต่างจะเด้งขึ้นมาอยู่ด้านหน้าสุดทันที\n- แก้ไขปัญหาภาษาไทยเพี้ยนและปรับปรุงประสิทธิภาพการทำงาน"
 }

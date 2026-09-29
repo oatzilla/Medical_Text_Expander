@@ -126,7 +126,7 @@ namespace MedicalTextExpander {
     }
 
     public static class AppUpdater {
-        public const string CurrentVersion = "1.2.1";
+        public const string CurrentVersion = "1.2.2";
         public const string DefaultGitHubRepo = "oatzilla/Medical_Text_Expander";
 
         public static void CheckForUpdatesAsync(string repo, bool isManual, Form parent = null, string token = null) {
@@ -757,6 +757,9 @@ namespace MedicalTextExpander {
             using (ProcessModule curMod = curProc.MainModule) {
                 hookId = SetWindowsHookEx(WH_KEYBOARD_LL, hookProc, GetModuleHandle(curMod.ModuleName), 0);
             }
+
+            // เปิดหน้าต่างบันทึกเตียง 1-30 ให้ปรากฏขึ้นมาบนหน้าจอทันทีที่เปิดโปรแกรม
+            ShowBedNotes();
         }
 
         private void InitializePaths() {
@@ -786,16 +789,27 @@ namespace MedicalTextExpander {
         }
 
         public void ActivateFromOtherInstance() {
-            if (bedNotesForm != null && !bedNotesForm.IsDisposed && bedNotesForm.IsHandleCreated) {
+            Action showAct = () => {
+                ShowBedNotes();
+                if (bedNotesForm != null && !bedNotesForm.IsDisposed) {
+                    if (bedNotesForm.WindowState == FormWindowState.Minimized) {
+                        bedNotesForm.WindowState = FormWindowState.Normal;
+                    }
+                    bedNotesForm.Show();
+                    bedNotesForm.Activate();
+                    bedNotesForm.BringToFront();
+                }
+            };
+
+            if (syncContext != null) {
+                syncContext.Post(_ => showAct(), null);
+            } else if (bedNotesForm != null && !bedNotesForm.IsDisposed && bedNotesForm.IsHandleCreated) {
                 try {
-                    bedNotesForm.BeginInvoke(new Action(() => {
-                        ShowBedNotes();
-                        ShowNotification("โปรแกรมเปิดทำงานอยู่แล้วที่ System Tray\n(แสดงหน้าต่างบันทึกข้อมูลรายเตียง 1-30 ให้เรียบร้อย)");
-                    }));
-                    return;
+                    bedNotesForm.BeginInvoke(showAct);
                 } catch {}
+            } else {
+                showAct();
             }
-            ShowBedNotes();
         }
 
         private void InitializeTray() {
