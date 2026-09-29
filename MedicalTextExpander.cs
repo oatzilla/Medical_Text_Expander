@@ -129,13 +129,13 @@ namespace MedicalTextExpander {
         public const string CurrentVersion = "1.2.0";
         public const string DefaultGitHubRepo = "oatzilla/Medical_Text_Expander";
 
-        public static void CheckForUpdatesAsync(string repo, bool isManual, Form parent = null) {
+        public static void CheckForUpdatesAsync(string repo, bool isManual, Form parent = null, string token = null) {
             ThreadPool.QueueUserWorkItem(_ => {
-                CheckForUpdatesInternal(repo, isManual, parent);
+                CheckForUpdatesInternal(repo, isManual, parent, token);
             });
         }
 
-        private static void CheckForUpdatesInternal(string repo, bool isManual, Form parent) {
+        private static void CheckForUpdatesInternal(string repo, bool isManual, Form parent, string token) {
             if (string.IsNullOrEmpty(repo)) repo = DefaultGitHubRepo;
             string url = string.Format("https://raw.githubusercontent.com/{0}/main/version.json", repo.Trim());
 
@@ -168,7 +168,7 @@ namespace MedicalTextExpander {
                         
                         DialogResult dr = MessageBox.Show(parent, msg, "มีเวอร์ชันใหม่พร้อมให้อัปเดต", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
                         if (dr == DialogResult.Yes) {
-                            DownloadAndApplyUpdate(info.DownloadUrl, parent);
+                            DownloadAndApplyUpdate(info.DownloadUrl, parent, token);
                         }
                     };
 
@@ -228,7 +228,7 @@ namespace MedicalTextExpander {
             return "";
         }
 
-        private static void DownloadAndApplyUpdate(string downloadUrl, Form parent) {
+        private static void DownloadAndApplyUpdate(string downloadUrl, Form parent, string token) {
             if (string.IsNullOrEmpty(downloadUrl)) {
                 ShowMessage(parent, "ไม่พบที่อยู่ดาวน์โหลดของไฟล์อัปเดต", "ข้อผิดพลาด", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
@@ -675,6 +675,9 @@ namespace MedicalTextExpander {
         private string localBedNotesDir;
         private string sharedBedNotesDir = "";
         private string gitHubRepo = AppUpdater.DefaultGitHubRepo;
+        private string gitHubToken = "";
+        public string GetGitHubToken() { return gitHubToken; }
+        public void SetGitHubToken(string token) { gitHubToken = token; SaveConfigFile(); }
         public string GetGitHubRepo() { return string.IsNullOrEmpty(gitHubRepo) ? AppUpdater.DefaultGitHubRepo : gitHubRepo; }
         public void SetGitHubRepo(string repo) { gitHubRepo = repo; SaveConfigFile(); }
         private FileSystemWatcher watcher = null;
@@ -736,7 +739,7 @@ namespace MedicalTextExpander {
             LoadTemplates();
             // Silent background update check 8 seconds after startup
             System.Threading.Timer updateCheckTimer = new System.Threading.Timer(_ => {
-                AppUpdater.CheckForUpdatesAsync(GetGitHubRepo(), false, null);
+                AppUpdater.CheckForUpdatesAsync(GetGitHubRepo(), false, null, GetGitHubToken());
             }, null, 8000, Timeout.Infinite);
             InitializeTray();
 
@@ -885,6 +888,8 @@ namespace MedicalTextExpander {
                             sharedBedNotesDir = t.Substring("SharedBedNotesPath=".Length).Trim();
                         } else if (t.StartsWith("GitHubRepo=", StringComparison.OrdinalIgnoreCase)) {
                             gitHubRepo = t.Substring("GitHubRepo=".Length).Trim();
+                        } else if (t.StartsWith("GitHubToken=", StringComparison.OrdinalIgnoreCase)) {
+                            gitHubToken = t.Substring("GitHubToken=".Length).Trim();
                         } else if (t.StartsWith("FontSize=", StringComparison.OrdinalIgnoreCase)) {
                             float f;
                             if (float.TryParse(t.Substring("FontSize=".Length).Trim(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out f) && f >= 9.0f && f <= 28.0f) {
@@ -929,6 +934,7 @@ namespace MedicalTextExpander {
                 sb.AppendLine("SharedBedNotesPath=" + sharedBedNotesDir);
                 sb.AppendLine("FontSize=" + CurrentFontSize.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture));
                 sb.AppendLine("GitHubRepo=" + (string.IsNullOrEmpty(gitHubRepo) ? AppUpdater.DefaultGitHubRepo : gitHubRepo));
+                if (!string.IsNullOrEmpty(gitHubToken)) sb.AppendLine("GitHubToken=" + gitHubToken);
                 File.WriteAllText(settingsIniPath, sb.ToString(), Encoding.UTF8);
             } catch {}
         }
@@ -1699,7 +1705,7 @@ namespace MedicalTextExpander {
             btnCheckUpdate.FlatStyle = FlatStyle.Flat;
             btnCheckUpdate.Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Bold);
             btnCheckUpdate.Cursor = Cursors.Hand;
-            btnCheckUpdate.Click += (s, e) => AppUpdater.CheckForUpdatesAsync(context.GetGitHubRepo(), true, this);
+            btnCheckUpdate.Click += (s, e) => AppUpdater.CheckForUpdatesAsync(context.GetGitHubRepo(), true, this, context.GetGitHubToken());
             pnlBottom.Controls.Add(btnCheckUpdate);
 
             btnClose = new Button();
@@ -3131,7 +3137,7 @@ namespace MedicalTextExpander {
             btnCheckNow.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
             btnCheckNow.Cursor = Cursors.Hand;
             btnCheckNow.Click += (s, e) => {
-                AppUpdater.CheckForUpdatesAsync(txtGitHubRepo.Text.Trim(), true, this);
+                AppUpdater.CheckForUpdatesAsync(txtGitHubRepo.Text.Trim(), true, this, context.GetGitHubToken());
             };
             this.Controls.Add(btnCheckNow);
 
