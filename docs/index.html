@@ -37,6 +37,10 @@
           <span class="status-label" id="cloudStatusText">กำลังเชื่อมต่อ...</span>
         </div>
         
+        <button class="nav-templates-btn" id="openTemplateLibraryBtn" title="เปิดคลังข้อวินิจฉัยและกิจกรรมพยาบาล (Templates)">
+          <i class="fa-solid fa-book-medical"></i>
+          <span class="nav-btn-text">คลังเทมเพลต (DAR)</span>
+        </button>
         <button class="icon-btn" id="themeToggleBtn" title="สลับโหมดมืด / โหมดสว่าง" aria-label="Toggle theme">
           <i class="fa-solid fa-moon"></i>
         </button>
@@ -128,6 +132,10 @@
       <div class="modal-body">
         <!-- Quick Templates Bar -->
         <div class="quick-templates-bar">
+          <button type="button" class="btn-picker-trigger" id="btnOpenTemplatePicker" title="เปิดคลังเลือกข้อวินิจฉัยและกิจกรรมการพยาบาล">
+            <i class="fa-solid fa-book-medical"></i> เลือกข้อวินิจฉัย/DAR (62 เทมเพลต)
+          </button>
+          <span class="quick-divider">|</span>
           <span class="quick-label"><i class="fa-solid fa-bolt"></i> แทรกด่วน:</span>
           <button type="button" class="quick-tag-btn" data-snippet="[V/S] BP:  /  PR:  RR:  T:  SpO2:  % (RA)">+ V/S</button>
           <button type="button" class="quick-tag-btn" data-snippet="[Lab] CBC:  BUN/Cr:  Electrolyte:  LFT: ">+ Labs</button>
@@ -204,6 +212,100 @@
   </div>
 
   <!-- Toast Notification Container -->
+  
+  <!-- Template Catalog & DAR Picker Modal -->
+  <div class="modal-overlay" id="templateModal" aria-hidden="true">
+    <div class="modal-card modal-xl">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <div class="modal-bed-badge template-header-badge"><i class="fa-solid fa-book-medical"></i> DAR</div>
+          <div>
+            <h2 class="modal-title">คลังข้อวินิจฉัยและกิจกรรมการพยาบาล (Focus Charting: DAR)</h2>
+            <p class="modal-subtitle">62 ข้อวินิจฉัยมาตรฐานครอบคลุม TKA, UKA, THA, BHA, กระดูกสันหลัง, กระดูกหัก, ศัลยกรรม, อายุรกรรม</p>
+          </div>
+        </div>
+        <button class="modal-close-btn" id="templateModalCloseBtn" aria-label="Close template modal"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <div class="template-modal-body">
+        <!-- Search & Info Bar -->
+        <div class="template-search-row">
+          <div class="template-search-box">
+            <i class="fa-solid fa-magnifying-glass search-icon"></i>
+            <input type="text" id="templateSearchInput" placeholder="ค้นหาข้อวินิจฉัย เช่น tka, tha, bha, สันหลัง, acdf, laminectomy, sepsis, dar, แผล..." autocomplete="off">
+            <button class="clear-search-btn" id="clearTemplateSearchBtn" aria-label="ล้างคำค้น"><i class="fa-solid fa-xmark"></i></button>
+          </div>
+          <div class="template-count-badge" id="templateCountBadge">62 เทมเพลต</div>
+        </div>
+
+        <!-- Category Filter Pills (Horizontal Scroll) -->
+        <div class="template-category-pills" id="templateCategoryPills">
+          <!-- Populated by JS -->
+        </div>
+
+        <!-- Content Area: Split View -->
+        <div class="template-content-split">
+          <!-- Left: Template Cards List -->
+          <div class="template-list-pane" id="templateListPane">
+            <!-- Cards rendered by JS -->
+          </div>
+
+          <!-- Right: Full Preview & Action Panel -->
+          <div class="template-preview-pane" id="templatePreviewPane">
+            <div class="template-preview-empty" id="templatePreviewEmpty">
+              <i class="fa-solid fa-hand-pointer"></i>
+              <p>แตะหรือคลิกเลือกข้อวินิจฉัยจากรายการเพื่อดูเนื้อหาฉบับเต็มและนำไปใช้งาน</p>
+            </div>
+            
+            <div class="template-preview-content" id="templatePreviewContent" style="display: none;">
+              <div class="preview-meta-bar">
+                <div class="preview-title-group">
+                  <span class="preview-shortcut-tag" id="previewShortcutTag">.tka</span>
+                  <h3 class="preview-title" id="previewTitle">ผ่าตัดเปลี่ยนข้อเข่าเทียม (TKA)</h3>
+                </div>
+                <div class="preview-category-tag" id="previewCategoryTag">ศัลยกรรมข้อเข่าเสื่อม</div>
+              </div>
+
+              <!-- Formatted DAR View -->
+              <div class="preview-formatted-view" id="previewFormattedView"></div>
+
+              <!-- Raw Text (Hidden or for Copy) -->
+              <textarea id="templateRawText" class="template-raw-textarea" readonly></textarea>
+
+              <div class="preview-actions-bar">
+                <div class="preview-actions-left">
+                  <button type="button" class="btn btn-secondary" id="btnCopyTemplate">
+                    <i class="fa-regular fa-copy"></i> คัดลอกข้อความ
+                  </button>
+                </div>
+                <div class="preview-actions-right">
+                  <div class="bed-target-select-wrapper" id="bedTargetSelectWrapper" style="display: none;">
+                    <label for="targetBedSelect">ใส่เตียง:</label>
+                    <select id="targetBedSelect" class="form-select-sm"></select>
+                  </div>
+                  <button type="button" class="btn btn-outline" id="btnInsertTemplate">
+                    <i class="fa-solid fa-arrow-down"></i> แทรกต่อท้าย
+                  </button>
+                  <button type="button" class="btn btn-primary" id="btnApplyTemplate">
+                    <i class="fa-solid fa-file-signature"></i> ใช้เทมเพลตนี้ (แทนที่)
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <div class="template-tip">
+          <i class="fa-solid fa-circle-info"></i>
+          <span><strong>คีย์ลัดบนคอมพิวเตอร์:</strong> พิมพ์คำย่อ เช่น <code>.tka</code> <code>.tha</code> หรือกด <strong>F8</strong> ในโปรแกรม เพื่อเปิด Quick Palette</span>
+        </div>
+        <button type="button" class="btn btn-secondary" id="btnCloseTemplateModal">ปิดหน้าต่าง</button>
+      </div>
+    </div>
+  </div>
+
   <div class="toast-container" id="toastContainer"></div>
 
   <!-- Application Logic -->

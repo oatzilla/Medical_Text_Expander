@@ -76,6 +76,7 @@ document.addEventListener('DOMContentLoaded', () => {
   
   // Initial fetch and start polling every 3 seconds
   fetchAllBeds();
+  initClinicalTemplates();
   pollTimer = setInterval(fetchAllBeds, 3000);
 });
 
@@ -758,3 +759,494 @@ function showToast(message, type = 'info') {
     setTimeout(() => toast.remove(), 300);
   }, 3200);
 }
+
+
+
+/* =====================================================
+   Clinical Templates System (DAR & Nursing Guidelines)
+   ===================================================== */
+
+let templateCategories = [];
+let allTemplates = [];
+let activeTemplateCat = 'all';
+let activeTemplateSearch = '';
+let selectedTemplate = null;
+let templateModalTriggerSource = 'navbar';
+
+// Template Modal DOM Elements
+const openTemplateLibraryBtn = document.getElementById('openTemplateLibraryBtn');
+const btnOpenTemplatePicker = document.getElementById('btnOpenTemplatePicker');
+const templateModal = document.getElementById('templateModal');
+const templateModalCloseBtn = document.getElementById('templateModalCloseBtn');
+const btnCloseTemplateModal = document.getElementById('btnCloseTemplateModal');
+const templateSearchInput = document.getElementById('templateSearchInput');
+const clearTemplateSearchBtn = document.getElementById('clearTemplateSearchBtn');
+const templateCategoryPills = document.getElementById('templateCategoryPills');
+const templateListPane = document.getElementById('templateListPane');
+const templatePreviewPane = document.getElementById('templatePreviewPane');
+const templatePreviewEmpty = document.getElementById('templatePreviewEmpty');
+const templatePreviewContent = document.getElementById('templatePreviewContent');
+const previewShortcutTag = document.getElementById('previewShortcutTag');
+const previewTitle = document.getElementById('previewTitle');
+const previewCategoryTag = document.getElementById('previewCategoryTag');
+const previewFormattedView = document.getElementById('previewFormattedView');
+const templateRawText = document.getElementById('templateRawText');
+const btnCopyTemplate = document.getElementById('btnCopyTemplate');
+const btnInsertTemplate = document.getElementById('btnInsertTemplate');
+const btnApplyTemplate = document.getElementById('btnApplyTemplate');
+const bedTargetSelectWrapper = document.getElementById('bedTargetSelectWrapper');
+const targetBedSelect = document.getElementById('targetBedSelect');
+const templateCountBadge = document.getElementById('templateCountBadge');
+
+// Fetch and initialize templates
+async function initClinicalTemplates() {
+  try {
+    const res = await fetch('templates.json');
+    if (!res.ok) throw new Error('Cannot load templates.json');
+    templateCategories = await res.json();
+    
+    // Flatten templates into searchable array
+    allTemplates = [];
+    templateCategories.forEach((cat, catIdx) => {
+      cat.items.forEach(item => {
+        allTemplates.push({
+          shortcut: item.shortcut,
+          title: item.title,
+          content: item.content,
+          category: cat.category,
+          catIndex: catIdx
+        });
+      });
+    });
+
+    renderTemplateCategoryPills();
+    renderTemplatesList();
+    if (allTemplates.length > 0) {
+      selectTemplate(allTemplates[0]);
+    }
+  } catch (err) {
+    console.warn('Failed to fetch templates.json, loading fallback clinical set', err);
+    // Minimal fallback
+    templateCategories = [
+      {
+        category: "ศัลยกรรมกระดูกและข้อ",
+        items: [
+          { shortcut: ".tka", title: "ผ่าตัดเปลี่ยนข้อเข่าเทียม (TKA)", content: "Focus: Post-Op TKA\nData: V/S stable, แผลปิดสนิท, Redivac drain...\nAction: 1. CMS check ทุก 2 ชม. 2. จัดเข่าเหยียดตรง หนุนหมอนใต้ข้อเท้า 3. Cold pack 4. Ankle pumping\nResponse: CMS ปกติ ปวดลดลง" }
+        ]
+      }
+    ];
+  }
+
+  setupTemplateEventListeners();
+}
+
+// Setup Event Listeners for Templates
+function setupTemplateEventListeners() {
+  if (openTemplateLibraryBtn) {
+    openTemplateLibraryBtn.addEventListener('click', () => openTemplateModal('navbar'));
+  }
+  if (btnOpenTemplatePicker) {
+    btnOpenTemplatePicker.addEventListener('click', () => openTemplateModal('editModal'));
+  }
+  if (templateModalCloseBtn) {
+    templateModalCloseBtn.addEventListener('click', closeTemplateModal);
+  }
+  if (btnCloseTemplateModal) {
+    btnCloseTemplateModal.addEventListener('click', closeTemplateModal);
+  }
+  if (templateModal) {
+    templateModal.addEventListener('click', (e) => {
+      if (e.target === templateModal) closeTemplateModal();
+    });
+  }
+
+  if (templateSearchInput) {
+    templateSearchInput.addEventListener('input', (e) => {
+      activeTemplateSearch = e.target.value.trim().toLowerCase();
+      renderTemplatesList();
+    });
+  }
+
+  if (clearTemplateSearchBtn) {
+    clearTemplateSearchBtn.addEventListener('click', () => {
+      if (templateSearchInput) {
+        templateSearchInput.value = '';
+        activeTemplateSearch = '';
+        renderTemplatesList();
+        templateSearchInput.focus();
+      }
+    });
+  }
+
+  if (btnCopyTemplate) {
+    btnCopyTemplate.addEventListener('click', copySelectedTemplate);
+  }
+  if (btnInsertTemplate) {
+    btnInsertTemplate.addEventListener('click', () => applyTemplateToNote(false));
+  }
+  if (btnApplyTemplate) {
+    btnApplyTemplate.addEventListener('click', () => applyTemplateToNote(true));
+  }
+}
+
+// Open Template Modal
+function openTemplateModal(source = 'navbar') {
+  templateModalTriggerSource = source;
+
+  // Setup Bed Target Selector
+  if (targetBedSelect) {
+    targetBedSelect.innerHTML = '';
+    for (let b = 1; b <= 30; b++) {
+      const opt = document.createElement('option');
+      opt.value = b;
+      opt.textContent = `เตียง ${String(b).padStart(2, '0')}`;
+      if (b === activeBedNumber) opt.selected = true;
+      targetBedSelect.appendChild(opt);
+    }
+  }
+
+  if (source === 'editModal') {
+    if (bedTargetSelectWrapper) bedTargetSelectWrapper.style.display = 'none';
+    if (btnInsertTemplate) btnInsertTemplate.innerHTML = '<i class="fa-solid fa-arrow-down"></i> แทรกในบันทึกเตียงนี้';
+    if (btnApplyTemplate) btnApplyTemplate.innerHTML = '<i class="fa-solid fa-file-signature"></i> แทนที่ทั้งหมดในเตียงนี้';
+  } else {
+    if (bedTargetSelectWrapper) bedTargetSelectWrapper.style.display = 'flex';
+    if (btnInsertTemplate) btnInsertTemplate.innerHTML = '<i class="fa-solid fa-arrow-down"></i> แทรกต่อท้ายเตียงนี้';
+    if (btnApplyTemplate) btnApplyTemplate.innerHTML = '<i class="fa-solid fa-file-signature"></i> ใช้ที่เตียงที่เลือก';
+  }
+
+  if (templateModal) {
+    templateModal.classList.add('open');
+    templateModal.setAttribute('aria-hidden', 'false');
+  }
+
+  // Pre-select first or current
+  renderTemplatesList();
+  if (selectedTemplate) {
+    selectTemplate(selectedTemplate);
+  } else if (allTemplates.length > 0) {
+    selectTemplate(allTemplates[0]);
+  }
+
+  setTimeout(() => {
+    if (templateSearchInput) templateSearchInput.focus();
+  }, 100);
+}
+
+// Close Template Modal
+function closeTemplateModal() {
+  if (templateModal) {
+    templateModal.classList.remove('open');
+    templateModal.setAttribute('aria-hidden', 'true');
+  }
+}
+
+// Render Category Pills
+function renderTemplateCategoryPills() {
+  if (!templateCategoryPills) return;
+  templateCategoryPills.innerHTML = '';
+
+  // All pill
+  const allPill = document.createElement('button');
+  allPill.type = 'button';
+  allPill.className = `cat-pill ${activeTemplateCat === 'all' ? 'active' : ''}`;
+  allPill.innerHTML = `<i class="fa-solid fa-layer-group"></i> ทั้งหมด (${allTemplates.length})`;
+  allPill.addEventListener('click', () => {
+    activeTemplateCat = 'all';
+    updateCategoryPillsActiveState();
+    renderTemplatesList();
+  });
+  templateCategoryPills.appendChild(allPill);
+
+  // Category pills with friendly emojis
+  const catIcons = [
+    'fa-briefcase-medical', // 1
+    'fa-fire',             // 2 pain
+    'fa-bone',             // 3 ortho
+    'fa-heart-pulse',      // 4 med
+    'fa-shield-halved',    // 5 safe
+    'fa-droplet',          // 6 fluids
+    'fa-clipboard-user',   // 7 shift
+    'fa-bolt',             // 8 shortcuts
+    'fa-person-walking-with-cane', // 9 knee tka
+    'fa-person-booth',     // 10 hip tha
+    'fa-dna',              // 11 spine
+    'fa-bandage',          // 12 fractures
+    'fa-hospital'          // 13 surgery
+  ];
+
+  templateCategories.forEach((cat, idx) => {
+    const pill = document.createElement('button');
+    pill.type = 'button';
+    pill.className = `cat-pill ${activeTemplateCat === String(idx) ? 'active' : ''}`;
+    const iconClass = catIcons[idx % catIcons.length];
+    
+    // Shorten long category titles for pill display
+    let shortTitle = cat.category.split('(')[0].replace(/^\d+\.\s*/, '').trim();
+    if (shortTitle.length > 22) shortTitle = shortTitle.substring(0, 20) + '..';
+
+    pill.innerHTML = `<i class="fa-solid ${iconClass}"></i> ${shortTitle} (${cat.items.length})`;
+    pill.addEventListener('click', () => {
+      activeTemplateCat = String(idx);
+      updateCategoryPillsActiveState();
+      renderTemplatesList();
+    });
+    templateCategoryPills.appendChild(pill);
+  });
+}
+
+function updateCategoryPillsActiveState() {
+  if (!templateCategoryPills) return;
+  const pills = templateCategoryPills.querySelectorAll('.cat-pill');
+  pills.forEach((p, idx) => {
+    if (idx === 0) {
+      p.classList.toggle('active', activeTemplateCat === 'all');
+    } else {
+      p.classList.toggle('active', activeTemplateCat === String(idx - 1));
+    }
+  });
+}
+
+// Render Templates List (Filtered by search & category)
+function renderTemplatesList() {
+  if (!templateListPane) return;
+  templateListPane.innerHTML = '';
+
+  const filtered = allTemplates.filter(item => {
+    // Category match
+    if (activeTemplateCat !== 'all' && String(item.catIndex) !== activeTemplateCat) {
+      return false;
+    }
+    // Search match (shortcut, title, content, category)
+    if (activeTemplateSearch) {
+      const q = activeTemplateSearch;
+      const match = item.shortcut.toLowerCase().includes(q) ||
+                    item.title.toLowerCase().includes(q) ||
+                    item.category.toLowerCase().includes(q) ||
+                    item.content.toLowerCase().includes(q);
+      if (!match) return false;
+    }
+    return true;
+  });
+
+  if (templateCountBadge) {
+    templateCountBadge.textContent = `พบ ${filtered.length} เทมเพลต`;
+  }
+
+  if (filtered.length === 0) {
+    templateListPane.innerHTML = `
+      <div style="text-align: center; padding: 30px; color: var(--text-muted);">
+        <i class="fa-solid fa-magnifying-glass" style="font-size: 1.8rem; margin-bottom: 8px; opacity: 0.5;"></i>
+        <p>ไม่พบข้อวินิจฉัยที่ตรงกับ "${escapeHtml(activeTemplateSearch)}"</p>
+      </div>
+    `;
+    return;
+  }
+
+  filtered.forEach(item => {
+    const card = document.createElement('div');
+    card.className = `template-card ${selectedTemplate && selectedTemplate.shortcut === item.shortcut ? 'active' : ''}`;
+    
+    // Extract Focus line for card snippet
+    let focusSnippet = '';
+    const lines = item.content.split('\n');
+    for (const l of lines) {
+      if (l.trim().startsWith('Focus:')) {
+        focusSnippet = l.replace('Focus:', '').trim();
+        break;
+      }
+    }
+    if (!focusSnippet && lines.length > 0) {
+      focusSnippet = lines[0].substring(0, 70);
+    }
+
+    // Clean Category label
+    const shortCat = item.category.replace(/^\d+\.\s*/, '').split('(')[0].trim();
+
+    card.innerHTML = `
+      <div class="template-card-header">
+        <span class="template-card-shortcut">${escapeHtml(item.shortcut)}</span>
+        <span class="template-card-cat-label">${escapeHtml(shortCat)}</span>
+      </div>
+      <div class="template-card-title">${escapeHtml(item.title)}</div>
+      <div class="template-card-snippet">${escapeHtml(focusSnippet)}</div>
+    `;
+
+    card.addEventListener('click', () => {
+      selectTemplate(item);
+      const allCards = templateListPane.querySelectorAll('.template-card');
+      allCards.forEach(c => c.classList.remove('active'));
+      card.classList.add('active');
+    });
+
+    templateListPane.appendChild(card);
+  });
+}
+
+// Select a Template and Display DAR View
+function selectTemplate(item) {
+  selectedTemplate = item;
+  if (!templatePreviewContent || !templatePreviewEmpty) return;
+
+  templatePreviewEmpty.style.display = 'none';
+  templatePreviewContent.style.display = 'flex';
+
+  if (previewShortcutTag) previewShortcutTag.textContent = item.shortcut;
+  if (previewTitle) previewTitle.textContent = item.title;
+  if (previewCategoryTag) previewCategoryTag.textContent = item.category.replace(/^\d+\.\s*/, '');
+  if (templateRawText) templateRawText.value = item.content;
+
+  // Format DAR
+  if (previewFormattedView) {
+    previewFormattedView.innerHTML = formatDARHtml(item.content);
+  }
+}
+
+// Parse raw template text into styled DAR sections
+function formatDARHtml(content) {
+  if (!content) return '';
+  
+  const lines = content.split('\n');
+  let currentSection = 'general';
+  const sections = {
+    focus: [],
+    data: [],
+    action: [],
+    response: [],
+    general: []
+  };
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith('Focus:')) {
+      currentSection = 'focus';
+      sections.focus.push(trimmed.replace('Focus:', '').trim());
+    } else if (trimmed.startsWith('Data:')) {
+      currentSection = 'data';
+      sections.data.push(trimmed.replace('Data:', '').trim());
+    } else if (trimmed.startsWith('Action:')) {
+      currentSection = 'action';
+      sections.action.push(trimmed.replace('Action:', '').trim());
+    } else if (trimmed.startsWith('Response:')) {
+      currentSection = 'response';
+      sections.response.push(trimmed.replace('Response:', '').trim());
+    } else {
+      if (currentSection === 'focus') sections.focus.push(line);
+      else if (currentSection === 'data') sections.data.push(line);
+      else if (currentSection === 'action') sections.action.push(line);
+      else if (currentSection === 'response') sections.response.push(line);
+      else sections.general.push(line);
+    }
+  }
+
+  // If not standard DAR (e.g., .vs, .order, shortcuts), show general clean text
+  if (sections.focus.length === 0 && sections.data.length === 0 && sections.action.length === 0) {
+    return `
+      <div class="dar-section">
+        <span class="dar-tag" style="background: rgba(13, 148, 136, 0.15); color: var(--primary);">เนื้อหาข้อความ</span>
+        <div class="dar-text">${escapeHtml(content)}</div>
+      </div>
+    `;
+  }
+
+  let html = '';
+  if (sections.focus.length > 0) {
+    html += `
+      <div class="dar-section focus-sec">
+        <span class="dar-tag"><i class="fa-solid fa-bullseye"></i> Focus (ข้อวินิจฉัย/ปัญหา)</span>
+        <div class="dar-text"><strong>${escapeHtml(sections.focus.join('\n').trim())}</strong></div>
+      </div>
+    `;
+  }
+  if (sections.data.length > 0) {
+    html += `
+      <div class="dar-section data-sec">
+        <span class="dar-tag"><i class="fa-solid fa-clipboard-check"></i> Data (ข้อมูลผู้ป่วย/อาการแสดง)</span>
+        <div class="dar-text">${escapeHtml(sections.data.join('\n').trim())}</div>
+      </div>
+    `;
+  }
+  if (sections.action.length > 0) {
+    html += `
+      <div class="dar-section action-sec">
+        <span class="dar-tag"><i class="fa-solid fa-user-nurse"></i> Action (กิจกรรมการพยาบาล)</span>
+        <div class="dar-text">${escapeHtml(sections.action.join('\n').trim())}</div>
+      </div>
+    `;
+  }
+  if (sections.response.length > 0) {
+    html += `
+      <div class="dar-section response-sec">
+        <span class="dar-tag"><i class="fa-solid fa-square-check"></i> Response (การประเมินผลลัพธ์)</span>
+        <div class="dar-text">${escapeHtml(sections.response.join('\n').trim())}</div>
+      </div>
+    `;
+  }
+
+  return html;
+}
+
+// Copy Selected Template to Clipboard
+function copySelectedTemplate() {
+  if (!selectedTemplate) return;
+  const textToCopy = selectedTemplate.content;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(textToCopy).then(() => {
+      showToast(`📋 คัดลอก [${selectedTemplate.shortcut}] เรียบร้อยแล้ว`, 'success');
+    }).catch(() => {
+      fallbackCopy(textToCopy);
+    });
+  } else {
+    fallbackCopy(textToCopy);
+  }
+}
+
+function fallbackCopy(text) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  document.body.appendChild(ta);
+  ta.select();
+  document.execCommand('copy');
+  document.body.removeChild(ta);
+  showToast(`📋 คัดลอก [${selectedTemplate ? selectedTemplate.shortcut : ''}] เรียบร้อย`, 'success');
+}
+
+// Apply Template to Note (Insert at cursor / Append / Replace)
+function applyTemplateToNote(replace = false) {
+  if (!selectedTemplate) return;
+
+  const contentToApply = selectedTemplate.content;
+
+  if (templateModalTriggerSource === 'editModal') {
+    // Inside Edit Bed Note modal
+    if (replace) {
+      noteTextarea.value = contentToApply;
+    } else {
+      insertSnippet(contentToApply);
+    }
+    updateCharCount();
+    closeTemplateModal();
+    showToast(`✨ ${replace ? 'แทนที่ข้อความ' : 'แทรกข้อวินิจฉัย'} [${selectedTemplate.shortcut}] เรียบร้อย`, 'success');
+    noteTextarea.focus();
+  } else {
+    // From Navbar: Target a specific bed
+    const targetBed = targetBedSelect ? parseInt(targetBedSelect.value, 10) : activeBedNumber;
+    closeTemplateModal();
+    
+    // Open Edit Modal for target bed
+    window.openEditModal(targetBed);
+    
+    setTimeout(() => {
+      if (replace) {
+        noteTextarea.value = contentToApply;
+      } else {
+        const curText = noteTextarea.value.trim();
+        noteTextarea.value = curText ? `${curText}\n\n${contentToApply}` : contentToApply;
+      }
+      updateCharCount();
+      showToast(`✨ นำข้อวินิจฉัย [${selectedTemplate.shortcut}] ใส่เตียง ${String(targetBed).padStart(2, '0')} เรียบร้อย กด "บันทึกลง Cloud" เมื่อตรวจสอบเสร็จ`, 'success');
+      noteTextarea.focus();
+    }, 150);
+  }
+}
+
