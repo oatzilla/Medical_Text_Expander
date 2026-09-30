@@ -1,8 +1,8 @@
 {
-  "version": "1.5.7",
+  "version": "1.5.8",
   "downloadUrl": "https://raw.githubusercontent.com/oatzilla/Medical_Text_Expander/main/Medical_Text_Expander.exe",
   "download_url": "https://raw.githubusercontent.com/oatzilla/Medical_Text_Expander/main/Medical_Text_Expander.exe",
   "releaseDate": "2026-10-01",
   "release_date": "2026-10-01",
-  "changelog": "- เพิ่มฟังก์ชัน 'สลับ/ย้ายเตียงผู้ป่วย' (Bed Swap & Transfer) ทั้งบนโปรแกรม Desktop และ Web/Mobile Portal\n- รองรับทั้งการย้ายข้อมูลไปยังเตียงว่าง (Move/Transfer) และการสลับเตียงระหว่างผู้ป่วย 2 เตียง (Swap Beds)\n- ระบบสำรองประวัติข้อมูลเดิมลงใน 'ประวัติเตียงย้อนหลัง' (Bed History Log) โดยอัตโนมัติ 100% ป้องกันข้อมูลสูญหาย\n- ย้าย/สลับรายการแจ้งเตือนหัตถการ (Ward Task Reminders) ประจำเตียงตามไปด้วยอัตโนมัติ\n- เพิ่มเมนูลัดคลิกขวาบนปุ่มเตียง 1-30 ในโปรแกรม Desktop เพื่อความสะดวกรวดเร็วในการทำงานของพยาบาล"
+  "changelog": "- เพิ่มฟังก์ชัน 'ลากสลับ/ย้ายเตียงผู้ป่วย (Drag & Drop Bed Swap)' ทั้งบนโปรแกรม Desktop และ Web Portal\n- ปรับลดขนาดเตียงบนหน้าเว็บและจัดตารางเตียงแบบกะทัดรัด (Compact View) ไม่ต้องเลื่อนจอเยอะ แสดงครบทุกเตียงในหน้าจอเดียว\n- เพิ่มปุ่มสลับมุมมอง 'กะทัดรัด' และ 'ขยาย' บนหน้าเว็บ พร้อมจดจำการตั้งค่าอัตโนมัติ\n- รองรับการลากด้วยเมาส์และการสัมผัส (Touch Drag) บนแท็บเล็ต iPad และสมาร์ตโฟน"
 }

@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="th">
 <head>
   <meta charset="UTF-8">
@@ -15,7 +15,7 @@
   <!-- FontAwesome Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   
-  <link rel="stylesheet" href="style.css?v=1.5.7">
+  <link rel="stylesheet" href="style.css?v=1.5.8">
 </head>
 <body>
   <!-- Top Navigation Bar -->
@@ -96,18 +96,34 @@
         <button class="clear-search-btn" id="clearSearchBtn" aria-label="ล้างคำค้นหา"><i class="fa-solid fa-xmark"></i></button>
       </div>
 
-      <div class="filter-tabs">
-        <button class="tab-btn active" data-filter="all" id="tabAll">
-          ทั้งหมด <span class="tab-count" id="countAll">30</span>
-        </button>
-        <button class="tab-btn" data-filter="occupied" id="tabOccupied">
-          มีผู้ป่วย <span class="tab-count" id="countOccupied">0</span>
-        </button>
-        <button class="tab-btn" data-filter="available" id="tabAvailable">
-          เตียงว่าง <span class="tab-count" id="countAvailable">30</span>
-        </button>
+      <div class="controls-right-group">
+        <div class="filter-tabs">
+          <button class="tab-btn active" data-filter="all" id="tabAll">
+            ทั้งหมด <span class="tab-count" id="countAll">30</span>
+          </button>
+          <button class="tab-btn" data-filter="occupied" id="tabOccupied">
+            มีผู้ป่วย <span class="tab-count" id="countOccupied">0</span>
+          </button>
+          <button class="tab-btn" data-filter="available" id="tabAvailable">
+            เตียงว่าง <span class="tab-count" id="countAvailable">30</span>
+          </button>
+        </div>
+
+        <div class="view-mode-toggle" id="viewModeToggle">
+          <button type="button" class="view-toggle-btn active" id="btnViewCompact" title="มุมมองกะทัดรัด (เห็นครบทุกเตียง ไม่ต้องเลื่อนเยอะ)">
+            <i class="fa-solid fa-table-cells"></i> กะทัดรัด
+          </button>
+          <button type="button" class="view-toggle-btn" id="btnViewExpanded" title="มุมมองขยาย (แสดงเนื้อหาขยาย)">
+            <i class="fa-solid fa-table-cells-large"></i> ขยาย
+          </button>
+        </div>
       </div>
     </section>
+
+    <!-- Drag & Drop Hint Banner -->
+    <div class="drag-hint-banner" id="dragHintBanner">
+      <span><i class="fa-solid fa-hand-pointer"></i> <strong>เทคนิคลัด:</strong> สามารถ <strong>คลิกลากเตียง</strong> ไปวางทับเตียงอื่นเพื่อ <strong>"สลับเตียง / ย้ายเตียง"</strong> ได้ทันที</span>
+    </div>
 
     <!-- Live Bed Cards Grid (Beds 1-30) -->
     <section class="beds-grid" id="bedsGrid">
@@ -404,6 +420,6 @@
   <div class="toast-container" id="toastContainer"></div>
 
   <!-- Application Logic -->
-  <script src="app.js?v=1.5.7"></script>
+  <script src="app.js?v=1.5.8"></script>
 </body>
 </html>

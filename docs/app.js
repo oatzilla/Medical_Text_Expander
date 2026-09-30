@@ -1,4 +1,34 @@
-﻿/**
+
+// ==========================================
+// View Mode Toggle (Compact vs Expanded)
+// ==========================================
+let currentViewMode = localStorage.getItem('ward_view_mode') || 'compact';
+
+function initViewMode() {
+  const btnCompact = document.getElementById('btnViewCompact');
+  const btnExpanded = document.getElementById('btnViewExpanded');
+  const grid = document.getElementById('bedsGrid');
+
+  function applyViewMode(mode) {
+    currentViewMode = mode;
+    try { localStorage.setItem('ward_view_mode', mode); } catch {}
+    if (mode === 'expanded') {
+      if (grid) grid.classList.add('view-expanded');
+      if (btnExpanded) btnExpanded.classList.add('active');
+      if (btnCompact) btnCompact.classList.remove('active');
+    } else {
+      if (grid) grid.classList.remove('view-expanded');
+      if (btnCompact) btnCompact.classList.add('active');
+      if (btnExpanded) btnExpanded.classList.remove('active');
+    }
+  }
+
+  if (btnCompact) btnCompact.addEventListener('click', () => applyViewMode('compact'));
+  if (btnExpanded) btnExpanded.addEventListener('click', () => applyViewMode('expanded'));
+
+  applyViewMode(currentViewMode);
+}
+/**
  * Ward Bed Notes - Cloud Web & Mobile Portal Client
  * Real-time Supabase integration, Offline-first cache, Responsive UI
  */
@@ -260,6 +290,9 @@ function setupEventListeners() {
     swapTargetSelect.addEventListener('change', handleTargetBedChanged);
   }
 
+  // View Mode Toggle (Compact vs Expanded)
+  initViewMode();
+
   // Keyboard Shortcuts
   window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
@@ -380,6 +413,7 @@ function renderBeds(changedBeds = new Set()) {
     card.innerHTML = `
       <div class="bed-card-header">
         <div class="bed-badge">
+          <span class="bed-drag-handle" title="ลากเพื่อสลับหรือย้ายเตียง"><i class="fa-solid fa-grip-vertical"></i></span>
           <span class="bed-number-pill">เตียง ${String(bed.bed_number).padStart(2, '0')}</span>
         </div>
         <span class="bed-status-pill ${isOccupied ? 'occupied' : 'empty'}">
@@ -415,6 +449,86 @@ function renderBeds(changedBeds = new Set()) {
         </div>
       </div>
     `;
+
+    // Enable Drag and Drop
+    card.setAttribute('draggable', 'true');
+    card.addEventListener('dragstart', (e) => {
+      e.dataTransfer.setData('text/plain', String(bed.bed_number));
+      e.dataTransfer.effectAllowed = 'move';
+      card.classList.add('is-dragging');
+    });
+
+    card.addEventListener('dragend', () => {
+      card.classList.remove('is-dragging');
+      document.querySelectorAll('.bed-card.drag-over').forEach(c => c.classList.remove('drag-over'));
+    });
+
+    card.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      card.classList.add('drag-over');
+    });
+
+    card.addEventListener('dragleave', (e) => {
+      if (!card.contains(e.relatedTarget)) {
+        card.classList.remove('drag-over');
+      }
+    });
+
+    card.addEventListener('drop', (e) => {
+      e.preventDefault();
+      card.classList.remove('drag-over');
+      const rawSrc = e.dataTransfer.getData('text/plain');
+      const sourceBedNum = parseInt(rawSrc, 10);
+      const targetBedNum = bed.bed_number;
+      if (sourceBedNum && targetBedNum && sourceBedNum !== targetBedNum) {
+        openSwapModal(sourceBedNum, targetBedNum);
+      }
+    });
+
+    // Touch Drag support for iPad & Mobile Tablets
+    const dragHandle = card.querySelector('.bed-drag-handle');
+    if (dragHandle) {
+      let touchActive = false;
+      let currentHoverCard = null;
+
+      dragHandle.addEventListener('touchstart', (e) => {
+        touchActive = true;
+        card.classList.add('is-dragging');
+      }, { passive: true });
+
+      dragHandle.addEventListener('touchmove', (e) => {
+        if (!touchActive) return;
+        const touch = e.touches[0];
+        const elem = document.elementFromPoint(touch.clientX, touch.clientY);
+        const targetCard = elem ? elem.closest('.bed-card') : null;
+
+        if (currentHoverCard && currentHoverCard !== targetCard) {
+          currentHoverCard.classList.remove('drag-over');
+        }
+
+        if (targetCard && targetCard !== card) {
+          targetCard.classList.add('drag-over');
+          currentHoverCard = targetCard;
+        } else {
+          currentHoverCard = null;
+        }
+      }, { passive: true });
+
+      dragHandle.addEventListener('touchend', () => {
+        if (!touchActive) return;
+        touchActive = false;
+        card.classList.remove('is-dragging');
+        if (currentHoverCard) {
+          currentHoverCard.classList.remove('drag-over');
+          const targetBedNum = parseInt(currentHoverCard.dataset.bed, 10);
+          if (targetBedNum && targetBedNum !== bed.bed_number) {
+            openSwapModal(bed.bed_number, targetBedNum);
+          }
+          currentHoverCard = null;
+        }
+      });
+    }
 
     bedsGrid.appendChild(card);
   });
@@ -768,7 +882,7 @@ function closeHistoryModal() {
 // ==========================================
 let swapSourceBed = 1;
 
-window.openSwapModal = function(bedNum) {
+window.openSwapModal = function(bedNum, defaultTargetBed = null) {
   swapSourceBed = bedNum;
   const sourceBedData = bedsData.find(b => b.bed_number === bedNum) || { content: '' };
   const sourceContent = sourceBedData.content || '';
@@ -808,9 +922,11 @@ window.openSwapModal = function(bedNum) {
         opt.textContent = `เตียง ${String(i).padStart(2, '0')} [มีข้อมูลผู้ป่วย - ${bContent.length} ตัวอักษร]`;
       } else {
         opt.textContent = `เตียง ${String(i).padStart(2, '0')} [ว่าง ✨]`;
-        if (firstSelectIdx === 0 && isSourceOccupied) {
-          firstSelectIdx = optCount;
-        }
+      }
+      if (defaultTargetBed && i === defaultTargetBed) {
+        firstSelectIdx = optCount;
+      } else if (!defaultTargetBed && !bContent && firstSelectIdx === 0 && isSourceOccupied) {
+        firstSelectIdx = optCount;
       }
       select.appendChild(opt);
       optCount++;

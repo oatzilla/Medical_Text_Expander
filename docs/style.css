@@ -1,4 +1,4 @@
-﻿/* =====================================================
+/* =====================================================
    Ward Bed Notes - Cloud Web & Mobile Portal Stylesheet
    Modern, Clean, Clinical, Responsive Design System
    ===================================================== */
@@ -319,7 +319,7 @@ body {
 }
 
 .stat-value {
-  font-size: 1.35rem;
+  font-size: 1.15rem;
   font-weight: 700;
   line-height: 1.1;
   color: var(--text-main);
@@ -337,8 +337,8 @@ body {
 .controls-section {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  margin-bottom: 18px;
+  gap: 8px;
+  margin-bottom: 8px;
 }
 
 @media (min-width: 640px) {
@@ -347,6 +347,66 @@ body {
     justify-content: space-between;
     align-items: center;
   }
+}
+
+.controls-right-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.view-mode-toggle {
+  display: inline-flex;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-full);
+  padding: 2px;
+  box-shadow: var(--shadow-sm);
+}
+
+.view-toggle-btn {
+  background: none;
+  border: none;
+  padding: 5px 11px;
+  border-radius: var(--radius-full);
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-family);
+  transition: all var(--transition-fast);
+}
+
+.view-toggle-btn:hover {
+  color: var(--text-main);
+}
+
+.view-toggle-btn.active {
+  background-color: var(--primary);
+  color: #ffffff;
+  box-shadow: 0 1px 5px rgba(13, 148, 136, 0.35);
+}
+
+.drag-hint-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px;
+  margin-bottom: 10px;
+  background: rgba(79, 70, 229, 0.05);
+  border: 1px dashed rgba(79, 70, 229, 0.25);
+  border-radius: var(--radius-md);
+  color: #4338ca;
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+.drag-hint-banner i {
+  color: #4f46e5;
+  font-size: 0.85rem;
 }
 
 .search-box {
@@ -453,29 +513,45 @@ body {
   color: #ffffff;
 }
 
-/* Beds Grid */
+/* Beds Grid (Compact Multi-Column Layout) */
 .beds-grid {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 14px;
+  gap: 8px;
 }
 
-@media (min-width: 600px) {
+@media (min-width: 480px) {
   .beds-grid {
     grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
   }
 }
 
-@media (min-width: 960px) {
+@media (min-width: 720px) {
   .beds-grid {
     grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
   }
 }
 
-@media (min-width: 1280px) {
+@media (min-width: 980px) {
   .beds-grid {
     grid-template-columns: repeat(4, 1fr);
-    gap: 16px;
+    gap: 8px;
+  }
+}
+
+@media (min-width: 1220px) {
+  .beds-grid {
+    grid-template-columns: repeat(5, 1fr);
+    gap: 10px;
+  }
+}
+
+@media (min-width: 1480px) {
+  .beds-grid {
+    grid-template-columns: repeat(6, 1fr);
+    gap: 10px;
   }
 }
 
@@ -505,19 +581,40 @@ body {
 .bed-card {
   background-color: var(--bg-card);
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
+  border-radius: var(--radius-md);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
   display: flex;
   flex-direction: column;
   transition: transform var(--transition-fast), box-shadow var(--transition-fast), border-color var(--transition-fast);
   position: relative;
   overflow: hidden;
+  user-select: none;
+  cursor: grab;
 }
 
 .bed-card:hover {
-  transform: translateY(-3px);
-  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-sm);
   border-color: var(--border-strong);
+}
+
+.bed-card:active {
+  cursor: grabbing;
+}
+
+.bed-card.is-dragging {
+  opacity: 0.45;
+  border: 2px dashed #4f46e5 !important;
+  transform: scale(0.97);
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.2);
+}
+
+.bed-card.drag-over {
+  border: 2px solid #4f46e5 !important;
+  background: rgba(79, 70, 229, 0.08) !important;
+  transform: scale(1.02);
+  box-shadow: 0 0 16px rgba(79, 70, 229, 0.35);
+  z-index: 10;
 }
 
 /* Occupied Card Highlight */
@@ -543,11 +640,27 @@ body {
 }
 
 .bed-card-header {
-  padding: 12px 14px 10px;
+  padding: 6px 10px;
   display: flex;
   justify-content: space-between;
   align-items: center;
   border-bottom: 1px dashed var(--border-subtle);
+  background: rgba(0, 0, 0, 0.01);
+}
+
+.bed-drag-handle {
+  color: var(--text-dim);
+  cursor: grab;
+  padding: 2px 4px;
+  border-radius: 3px;
+  font-size: 0.8rem;
+  display: flex;
+  align-items: center;
+  margin-right: 2px;
+}
+.bed-drag-handle:hover {
+  color: var(--primary);
+  background: rgba(79, 70, 229, 0.1);
 }
 
 .bed-badge {
@@ -596,7 +709,7 @@ body {
 }
 
 .bed-card-body {
-  padding: 12px 14px;
+  padding: 6px 10px;
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -604,14 +717,17 @@ body {
 }
 
 .bed-note-content {
-  font-size: 0.88rem;
+  font-size: 0.82rem;
   color: var(--text-main);
   white-space: pre-wrap;
   word-break: break-word;
-  max-height: 140px;
+  max-height: 52px;
   overflow: hidden;
   position: relative;
-  line-height: 1.45;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
 }
 
 .bed-card.empty .bed-note-content {
@@ -620,7 +736,22 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px 0;
+  padding: 4px 0;
+  font-size: 0.78rem;
+}
+
+/* Expanded View Mode Modifier */
+.beds-grid.view-expanded .bed-note-content {
+  max-height: 140px;
+  font-size: 0.88rem;
+  -webkit-line-clamp: 8;
+  display: block;
+}
+.beds-grid.view-expanded .bed-card-body {
+  padding: 10px 12px;
+}
+.beds-grid.view-expanded .bed-card.empty .bed-note-content {
+  padding: 18px 0;
 }
 
 .bed-note-content.has-overflow::after {
@@ -639,36 +770,36 @@ body {
 }
 
 .bed-card-meta {
-  margin-top: 10px;
+  margin-top: 4px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 0.72rem;
+  font-size: 0.68rem;
   color: var(--text-dim);
 }
 
 .bed-card-footer {
-  padding: 8px 14px 10px;
+  padding: 4px 8px;
   background: rgba(0, 0, 0, 0.015);
   border-top: 1px solid var(--border-subtle);
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
 }
 
 .btn-card-action {
   background: var(--bg-surface);
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  padding: 5px 10px;
-  font-size: 0.78rem;
+  border-radius: 4px;
+  padding: 3px 6px;
+  font-size: 0.72rem;
   color: var(--text-muted);
   font-weight: 500;
   cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 3px;
   font-family: var(--font-family);
   transition: all var(--transition-fast);
 }

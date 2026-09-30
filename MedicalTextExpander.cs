@@ -196,7 +196,7 @@ namespace MedicalTextExpander {
     }
 
     public static class AppUpdater {
-        public const string CurrentVersion = "1.5.7";
+        public const string CurrentVersion = "1.5.8";
         public const string DefaultGitHubRepo = "oatzilla/Medical_Text_Expander";
 
         public static void CheckForUpdatesAsync(string repo, bool isManual, Form parent = null, string token = null) {
@@ -2179,6 +2179,14 @@ namespace MedicalTextExpander {
         }
     }
 
+    [Serializable]
+    public class BedDragDropData {
+        public int SourceBed { get; set; }
+        public BedDragDropData(int sourceBed) {
+            SourceBed = sourceBed;
+        }
+    }
+
     public class BedNotesForm : Form {
         private ExpanderContext context;
         private BedNotesManager manager;
@@ -2199,6 +2207,8 @@ namespace MedicalTextExpander {
         private IntPtr lastActiveWindow = IntPtr.Zero;
         private float currentFontSize = 13.0f;
         private ToolTip bedToolTip;
+        private Point bedDragStart = Point.Empty;
+        private int bedDragSource = 0;
 
         // Reusable static fonts to prevent GDI resource leaks and GC stutter
         private static readonly Font FontBedBold8 = new Font("Segoe UI", 8f, FontStyle.Bold);
@@ -2554,6 +2564,54 @@ namespace MedicalTextExpander {
                 ctx.Items.Add(new ToolStripSeparator());
                 ctx.Items.Add(itmClear);
                 btn.ContextMenuStrip = ctx;
+
+                btn.AllowDrop = true;
+                btn.MouseDown += (s, e) => {
+                    if (e.Button == MouseButtons.Left) {
+                        bedDragStart = e.Location;
+                        bedDragSource = bedNum;
+                    }
+                };
+                btn.MouseMove += (s, e) => {
+                    if (e.Button == MouseButtons.Left && bedDragSource == bedNum) {
+                        int dx = Math.Abs(e.X - bedDragStart.X);
+                        int dy = Math.Abs(e.Y - bedDragStart.Y);
+                        if (dx > SystemInformation.DragSize.Width || dy > SystemInformation.DragSize.Height) {
+                            int src = bedDragSource;
+                            bedDragSource = 0;
+                            btn.DoDragDrop(new BedDragDropData(src), DragDropEffects.Move);
+                        }
+                    }
+                };
+                btn.MouseUp += (s, e) => {
+                    bedDragSource = 0;
+                };
+                btn.DragEnter += (s, e) => {
+                    if (e.Data.GetDataPresent(typeof(BedDragDropData))) {
+                        BedDragDropData data = (BedDragDropData)e.Data.GetData(typeof(BedDragDropData));
+                        if (data != null && data.SourceBed != bedNum) {
+                            e.Effect = DragDropEffects.Move;
+                            btn.BackColor = Color.FromArgb(224, 231, 255);
+                            btn.ForeColor = Color.FromArgb(67, 56, 202);
+                            return;
+                        }
+                    }
+                    e.Effect = DragDropEffects.None;
+                };
+                btn.DragLeave += (s, e) => {
+                    RefreshAllBedButtons();
+                };
+                btn.DragDrop += (s, e) => {
+                    RefreshAllBedButtons();
+                    if (e.Data.GetDataPresent(typeof(BedDragDropData))) {
+                        BedDragDropData data = (BedDragDropData)e.Data.GetData(typeof(BedDragDropData));
+                        if (data != null && data.SourceBed != bedNum) {
+                            int src = data.SourceBed;
+                            int tgt = bedNum;
+                            HandleBedDragDrop(src, tgt);
+                        }
+                    }
+                };
 
                 bedButtons[i] = btn;
                 flowBeds.Controls.Add(btn);
@@ -3427,15 +3485,19 @@ public void RefreshAllBedButtons() {
         }
 
         private void ShowSwapBedDialog() {
+            HandleBedDragDrop(currentBed, 0);
+        }
+
+        private void HandleBedDragDrop(int sourceBed, int targetBed) {
             FlushSave();
-            using (BedSwapDialog dlg = new BedSwapDialog(currentBed, manager, context)) {
+            using (BedSwapDialog dlg = new BedSwapDialog(sourceBed, manager, context, targetBed)) {
                 if (dlg.ShowDialog(this) == DialogResult.OK) {
-                    int targetBed = dlg.TargetBed;
+                    int resTarget = dlg.TargetBed;
                     bool isSwap = dlg.IsSwap;
-                    SelectBed(targetBed);
+                    SelectBed(resTarget);
                     lblAutoSave.Text = isSwap 
-                        ? string.Format("🔄 สลับเตียง {0} ⮂ เตียง {1} เรียบร้อยแล้ว (สำรองประวัติแล้ว)", currentBed, targetBed)
-                        : string.Format("➡️ ย้ายข้อมูลมาที่เตียง {0} เรียบร้อยแล้ว (เตียงเดิมว่างลง)", targetBed);
+                        ? string.Format("🔄 สลับเตียง {0} ⮂ เตียง {1} เรียบร้อยแล้ว (สำรองประวัติแล้ว)", sourceBed, resTarget)
+                        : string.Format("➡️ ย้ายข้อมูลมาที่เตียง {0} เรียบร้อยแล้ว (เตียงเดิมว่างลง)", resTarget);
                     lblAutoSave.ForeColor = Color.FromArgb(67, 56, 202);
                 }
             }
@@ -3571,10 +3633,13 @@ public void RefreshAllBedButtons() {
             public override string ToString() { return DisplayText; }
         }
 
-        public BedSwapDialog(int fromBed, BedNotesManager bedMgr, ExpanderContext ctx) {
+        private int defaultTargetBed = 0;
+
+        public BedSwapDialog(int fromBed, BedNotesManager bedMgr, ExpanderContext ctx, int defaultTarget = 0) {
             sourceBed = fromBed;
             manager = bedMgr;
             context = ctx;
+            defaultTargetBed = defaultTarget;
 
             this.Text = "🔄 สลับหรือย้ายเตียงผู้ป่วย";
             this.Size = new Size(540, 485);
@@ -3670,7 +3735,9 @@ public void RefreshAllBedButtons() {
                     DisplayText = txt,
                     HasData = hasData
                 });
-                if (firstSelectIdx == 0 && !hasData && srcHasData) {
+                if (defaultTargetBed > 0 && i == defaultTargetBed) {
+                    firstSelectIdx = curIdx;
+                } else if (defaultTargetBed == 0 && firstSelectIdx == 0 && !hasData && srcHasData) {
                     firstSelectIdx = curIdx;
                 }
                 curIdx++;
