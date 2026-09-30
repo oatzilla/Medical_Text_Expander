@@ -1447,6 +1447,47 @@ namespace MedicalTextExpander {
                 if (!string.IsNullOrEmpty(curShortcut) && curContent.Length > 0) {
                     templates.Add(new TemplateItem(curShortcut, curTitle, curCategory, curContent.ToString().TrimEnd()));
                 }
+
+                // Auto-upgrade templates if missing new orthopedic/spine/specialized categories
+                if (templates.Count < 50) {
+                    try {
+                        string tplUrl = "https://raw.githubusercontent.com/oatzilla/Medical_Text_Expander/main/medical_templates.txt";
+                        using (WebClient wc = new WebClient()) {
+                            wc.Encoding = Encoding.UTF8;
+                            string remoteTpls = wc.DownloadString(tplUrl);
+                            if (!string.IsNullOrEmpty(remoteTpls) && remoteTpls.Contains("[9.") && remoteTpls.Contains("[11.")) {
+                                File.WriteAllText(localConfigPath, remoteTpls, Encoding.UTF8);
+                                // Reload with upgraded templates
+                                templates.Clear();
+                                string[] upLines = File.ReadAllLines(localConfigPath, Encoding.UTF8);
+                                string uShortcut = "", uTitle = "", uCategory = "ทั่วไป";
+                                StringBuilder uContent = new StringBuilder();
+                                foreach (string l in upLines) {
+                                    string tr = l.Trim();
+                                    if (tr.StartsWith("#") || string.IsNullOrEmpty(tr)) continue;
+                                    if (tr.StartsWith("[") && tr.EndsWith("]")) { uCategory = tr.Substring(1, tr.Length - 2); continue; }
+                                    if (tr.StartsWith("---")) {
+                                        if (!string.IsNullOrEmpty(uShortcut) && uContent.Length > 0) {
+                                            templates.Add(new TemplateItem(uShortcut, uTitle, uCategory, uContent.ToString().TrimEnd()));
+                                        }
+                                        uShortcut = ""; uTitle = ""; uContent.Clear();
+                                        continue;
+                                    }
+                                    int eq = l.IndexOf('=');
+                                    if (eq > 0 && string.IsNullOrEmpty(uShortcut)) {
+                                        uShortcut = l.Substring(0, eq).Trim();
+                                        uTitle = l.Substring(eq + 1).Trim();
+                                    } else {
+                                        uContent.AppendLine(l);
+                                    }
+                                }
+                                if (!string.IsNullOrEmpty(uShortcut) && uContent.Length > 0) {
+                                    templates.Add(new TemplateItem(uShortcut, uTitle, uCategory, uContent.ToString().TrimEnd()));
+                                }
+                            }
+                        }
+                    } catch {}
+                }
             } catch (Exception ex) {
                 Debug.WriteLine("Template read error: " + ex.Message);
             }
@@ -3923,17 +3964,17 @@ public void RefreshAllBedButtons() {
             string c = item.Category.ToLower();
             string s = item.Shortcut.ToLower();
 
-            if (catKey == "knee") return c.Contains("ข้อเข่า") || c.Contains("knee") || s == ".tka" || s == ".uka" || s == ".tkarehab" || s == ".arthro";
-            if (catKey == "hip") return c.Contains("ข้อสะโพก") || c.Contains("hip") || s == ".tha" || s == ".bha" || s == ".hipcare";
-            if (catKey == "spine") return c.Contains("กระดูกสันหลัง") || c.Contains("spine") || s == ".laminectomy" || s == ".plif" || s == ".acdf" || s == ".csfleak" || s == ".discectomy" || s == ".spinerehab";
-            if (catKey == "fracture") return c.Contains("กระดูกหัก") || c.Contains("trauma") || s == ".orif" || s == ".cast" || s == ".traction" || s == ".exfix" || s == ".amputation";
-            if (catKey == "surgery") return c.Contains("ศัลยกรรมเฉพาะทาง") || c.Contains("specialized") || s == ".appendectomy" || s == ".lapchole" || s == ".mastectomy";
-            if (catKey == "med") return c.Contains("อายุรกรรม") || c.Contains("internal") || s == ".sepsis" || s == ".stroke" || s == ".dka" || s == ".chf" || s == ".pneumonia";
-            if (catKey == "pain") return c.Contains("ปวด") || c.Contains("pain");
-            if (catKey == "safe") return c.Contains("ความปลอดภัย") || c.Contains("ป้องกัน");
-            if (catKey == "fluid") return c.Contains("สารน้ำ") || c.Contains("ขับถ่าย");
-            if (catKey == "shift") return c.Contains("รับใหม่") || c.Contains("ส่งเวร") || c.Contains("จำหน่าย");
-            if (catKey == "shortcut") return c.Contains("สัญลักษณ์") || c.Contains("คีย์ลัด");
+            if (catKey == "knee") return c.Contains("9.") || c.Contains("knee") || c.Contains("ข้อเข่า") || s == ".tka" || s == ".uka" || s == ".tkarehab" || s == ".arthro";
+            if (catKey == "hip") return c.Contains("10.") || c.Contains("hip") || c.Contains("ข้อสะโพก") || s == ".tha" || s == ".bha" || s == ".hipcare";
+            if (catKey == "spine") return c.Contains("11.") || c.Contains("spine") || c.Contains("สันหลัง") || c.Contains("กระดูกสันหลัง") || s == ".laminectomy" || s == ".plif" || s == ".acdf" || s == ".csfleak" || s == ".discectomy" || s == ".spinerehab";
+            if (catKey == "fracture") return c.Contains("12.") || c.Contains("trauma") || c.Contains("fracture") || c.Contains("กระดูกหัก") || s == ".orif" || s == ".cast" || s == ".traction" || s == ".exfix" || s == ".amputation";
+            if (catKey == "surgery") return c.Contains("13.") || c.Contains("specialized") || c.Contains("ผ่าตัดเฉพาะทาง") || c.Contains("ศัลยกรรมเฉพาะทาง") || s == ".appendectomy" || s == ".lapchole" || s == ".mastectomy";
+            if (catKey == "med") return c.Contains("4.") || c.Contains("internal") || c.Contains("อายุรกรรม") || s == ".sepsis" || s == ".stroke" || s == ".dka" || s == ".chf" || s == ".pneumonia" || s == ".acs" || s == ".htn" || s == ".copd";
+            if (catKey == "pain") return c.Contains("2.") || c.Contains("pain") || c.Contains("ปวด") || s.StartsWith(".pain");
+            if (catKey == "safe") return c.Contains("5.") || c.Contains("ความปลอดภัย") || c.Contains("ป้องกัน") || s == ".fall" || s == ".pressure" || s == ".infection" || s == ".dvt";
+            if (catKey == "fluid") return c.Contains("6.") || c.Contains("สารน้ำ") || c.Contains("ขับถ่าย") || s == ".iv" || s == ".foley" || s == ".constipation" || s == ".nausea";
+            if (catKey == "shift") return c.Contains("7.") || c.Contains("รับใหม่") || c.Contains("ส่งเวร") || c.Contains("จำหน่าย") || s == ".nsadm" || s == ".shift" || s == ".transfer" || s == ".dc";
+            if (catKey == "shortcut") return c.Contains("8.") || c.Contains("สัญลักษณ์") || c.Contains("คีย์ลัด") || s == ".vs" || s == ".order" || s == ".dt" || s == ".d";
             return true;
         }
 
