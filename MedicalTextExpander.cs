@@ -126,7 +126,7 @@ namespace MedicalTextExpander {
     }
 
     public static class AppUpdater {
-        public const string CurrentVersion = "1.3.0";
+        public const string CurrentVersion = "1.3.1";
         public const string DefaultGitHubRepo = "oatzilla/Medical_Text_Expander";
 
         public static void CheckForUpdatesAsync(string repo, bool isManual, Form parent = null, string token = null) {
@@ -484,6 +484,8 @@ namespace MedicalTextExpander {
         private volatile bool isSupabaseActiveCached = false;
         private System.Threading.Timer cloudSyncTimer;
         private Dictionary<int, DateTime> lastLocalEditTime = new Dictionary<int, DateTime>();
+        public event Action<int, bool> OnCloudSaveCompleted;
+        public event Action<bool> OnCloudStatusChanged;
 
         public BedNotesManager(string localPath, string sharedPath, string supaUrl = "", string supaKey = "", bool supaEnabled = false) {
             localDir = localPath;
@@ -510,11 +512,11 @@ namespace MedicalTextExpander {
         public string StatusText {
             get {
                 if (IsSupabaseActive) {
-                    return "☁️ ซิงค์กับ Supabase Cloud เรียบร้อย (ใช้งานได้ทั้งในวอร์ดและนอก รพ.)";
+                    return "🟢 ☁️ เชื่อมต่อฐานข้อมูล Supabase Cloud เรียบร้อย (ออนไลน์)";
                 } else if (IsSharedActive) {
-                    return "🌐 เชื่อมต่อกับโฟลเดอร์ส่วนกลางของวอร์ดเรียบร้อย (ซิงค์ทุกเครื่อง)";
+                    return "🟢 🌐 เชื่อมต่อกับโฟลเดอร์ส่วนกลางของวอร์ดเรียบร้อย (LAN ออนไลน์)";
                 } else {
-                    return "💻 โหมดบันทึกในเครื่องนี้ (ยังไม่ได้เชื่อมต่อระบบซิงค์ส่วนกลาง)";
+                    return "🔴 💻 โหมดบันทึกในเครื่องนี้ (ออฟไลน์ / ยังไม่ได้เชื่อมต่อระบบคลาวด์)";
                 }
             }
         }
@@ -522,10 +524,18 @@ namespace MedicalTextExpander {
         public void CheckSupabaseStatus() {
             if (supabaseClient == null || !supabaseClient.IsEnabled) {
                 isSupabaseActiveCached = false;
+                if (OnCloudStatusChanged != null) {
+                    try { OnCloudStatusChanged(false); } catch {}
+                }
                 return;
             }
             ThreadPool.QueueUserWorkItem(_ => {
-                isSupabaseActiveCached = supabaseClient.TestConnection();
+                bool ok = supabaseClient.TestConnection();
+                bool changed = (isSupabaseActiveCached != ok);
+                isSupabaseActiveCached = ok;
+                if (changed && OnCloudStatusChanged != null) {
+                    try { OnCloudStatusChanged(ok); } catch {}
+                }
             });
         }
 
@@ -544,7 +554,11 @@ namespace MedicalTextExpander {
             try {
                 var cloudNotes = supabaseClient.FetchAllBeds();
                 if (cloudNotes == null || cloudNotes.Count == 0) return;
+                bool wasActive = isSupabaseActiveCached;
                 isSupabaseActiveCached = true;
+                if (!wasActive && OnCloudStatusChanged != null) {
+                    try { OnCloudStatusChanged(true); } catch {}
+                }
 
                 foreach (var kvp in cloudNotes) {
                     int bed = kvp.Key;
@@ -580,7 +594,11 @@ namespace MedicalTextExpander {
                     }
                 }
             } catch {
+                bool wasActive = isSupabaseActiveCached;
                 isSupabaseActiveCached = false;
+                if (wasActive && OnCloudStatusChanged != null) {
+                    try { OnCloudStatusChanged(false); } catch {}
+                }
             }
         }
 
@@ -773,9 +791,13 @@ namespace MedicalTextExpander {
             // 2. Supabase Cloud Sync in background thread (Real-time, zero UI stutter)
             if (supabaseClient != null && supabaseClient.IsEnabled) {
                 ThreadPool.QueueUserWorkItem(_ => {
+                    bool ok = false;
                     try {
-                        supabaseClient.SaveBed(bedNum, content);
+                        ok = supabaseClient.SaveBed(bedNum, content);
                     } catch {}
+                    if (OnCloudSaveCompleted != null) {
+                        try { OnCloudSaveCompleted(bedNum, ok); } catch {}
+                    }
                 });
             }
 
@@ -1842,6 +1864,28 @@ namespace MedicalTextExpander {
 
             if (manager != null) {
                 manager.OnBedChanged += Manager_OnBedChanged;
+                manager.OnCloudSaveCompleted += (bNum, success) => {
+                    if (this.IsDisposed || !this.IsHandleCreated) return;
+                    this.BeginInvoke(new Action(() => {
+                        if (bNum == currentBed && !isDirty) {
+                            if (success) {
+                                lblAutoSave.Text = "☁️ บันทึกลงฐานข้อมูล Cloud สำเร็จแล้ว (" + DateTime.Now.ToString("HH:mm:ss") + " น.)";
+                                lblAutoSave.ForeColor = Color.FromArgb(13, 148, 136);
+                            } else {
+                                lblAutoSave.Text = "💾 บันทึกลงเครื่องแล้ว (⚠️ เน็ตหลุด/รอซิงค์ขึ้น Cloud)";
+                                lblAutoSave.ForeColor = Color.FromArgb(217, 119, 6);
+                            }
+                            RepositionNoteHeaderControls();
+                        }
+                    }));
+                };
+                manager.OnCloudStatusChanged += (active) => {
+                    if (this.IsDisposed || !this.IsHandleCreated) return;
+                    this.BeginInvoke(new Action(() => {
+                        lblNetworkStatus.Text = manager.StatusText;
+                        lblNetworkStatus.ForeColor = active ? Color.FromArgb(167, 243, 208) : Color.FromArgb(254, 202, 202);
+                    }));
+                };
             }
         }
 
@@ -2702,8 +2746,14 @@ public void RefreshAllBedButtons() {
                 autoSaveTimer.Stop();
                 manager.SaveBedNote(currentBed, txtNote.Text);
                 isDirty = false;
-                lblAutoSave.Text = "💾 บันทึกอัตโนมัติแล้ว (" + DateTime.Now.ToString("HH:mm:ss") + " น.)";
-                lblAutoSave.ForeColor = Color.FromArgb(21, 128, 61);
+                if (manager.IsSupabaseActive) {
+                    lblAutoSave.Text = "💾 บันทึกลงเครื่องแล้ว... กำลังส่งขึ้น Cloud ☁️";
+                    lblAutoSave.ForeColor = Color.FromArgb(37, 99, 235);
+                } else {
+                    lblAutoSave.Text = "💾 บันทึกอัตโนมัติแล้ว (" + DateTime.Now.ToString("HH:mm:ss") + " น.)";
+                    lblAutoSave.ForeColor = Color.FromArgb(21, 128, 61);
+                }
+                RepositionNoteHeaderControls();
                 RefreshAllBedButtons();
             }
         }
@@ -2924,8 +2974,8 @@ public void RefreshAllBedButtons() {
                     isSuppressingEvents = true;
                     txtNote.Text = content;
                     isSuppressingEvents = false;
-                    lblAutoSave.Text = "🔄 อัปเดตข้อมูลจากเครื่องอื่นในวอร์ดแล้ว (" + DateTime.Now.ToString("HH:mm:ss") + " น.)";
-                    lblAutoSave.ForeColor = Color.FromArgb(37, 99, 235);
+                    lblAutoSave.Text = "🔄 ซิงค์ข้อมูลล่าสุดจาก Cloud แล้ว (" + DateTime.Now.ToString("HH:mm:ss") + " น.)";
+                    lblAutoSave.ForeColor = Color.FromArgb(13, 148, 136);
                     UpdateCharCount();
                 } else {
                     lblAutoSave.Text = "⚠️ มีการแก้ไขเตียงนี้จากเครื่องอื่นในวอร์ด";
