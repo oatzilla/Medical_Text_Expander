@@ -133,7 +133,7 @@ namespace MedicalTextExpander {
     }
 
     public static class AppUpdater {
-        public const string CurrentVersion = "1.3.2";
+        public const string CurrentVersion = "1.4.0";
         public const string DefaultGitHubRepo = "oatzilla/Medical_Text_Expander";
 
         public static void CheckForUpdatesAsync(string repo, bool isManual, Form parent = null, string token = null) {
@@ -1807,6 +1807,113 @@ namespace MedicalTextExpander {
         }
     }
 
+    
+    // ==========================================
+    // Mobile & Web Portal QR Code Dialog
+    // ==========================================
+    public class MobilePortalDialog : Form {
+        public MobilePortalDialog() {
+            this.Text = "📱 ใช้งานบนมือถือ & แท็บเล็ต (Mobile & Web Portal)";
+            this.Size = new Size(460, 520);
+            this.StartPosition = FormStartPosition.CenterParent;
+            this.FormBorderStyle = FormBorderStyle.FixedDialog;
+            this.MaximizeBox = false;
+            this.MinimizeBox = false;
+            this.BackColor = Color.White;
+            this.Font = new Font("Segoe UI", 9.5f);
+
+            string portalUrl = "https://oatzilla.github.io/Medical_Text_Expander/";
+
+            Label lblTitle = new Label();
+            lblTitle.Text = "สแกน QR Code เพื่อเปิดดูบนมือถือ";
+            lblTitle.Font = new Font("Segoe UI", 12f, FontStyle.Bold);
+            lblTitle.ForeColor = Color.FromArgb(15, 23, 42);
+            lblTitle.Location = new Point(20, 16);
+            lblTitle.Size = new Size(400, 28);
+            lblTitle.TextAlign = ContentAlignment.MiddleCenter;
+            this.Controls.Add(lblTitle);
+
+            Label lblDesc = new Label();
+            lblDesc.Text = "แพทย์และพยาบาลสามารถเปิดกล้องมือถือสแกนรูปด้านล่าง\nเพื่อดูและลงบันทึกเตียง 1-30 จากที่บ้านหรือนอก รพ. ได้ทันที";
+            lblDesc.Font = new Font("Segoe UI", 9f);
+            lblDesc.ForeColor = Color.FromArgb(100, 116, 139);
+            lblDesc.Location = new Point(20, 48);
+            lblDesc.Size = new Size(400, 40);
+            lblDesc.TextAlign = ContentAlignment.MiddleCenter;
+            this.Controls.Add(lblDesc);
+
+            PictureBox picQr = new PictureBox();
+            picQr.Location = new Point(130, 96);
+            picQr.Size = new Size(180, 180);
+            picQr.SizeMode = PictureBoxSizeMode.Zoom;
+            picQr.BorderStyle = BorderStyle.FixedSingle;
+            this.Controls.Add(picQr);
+
+            ThreadPool.QueueUserWorkItem(_ => {
+                try {
+                    ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls12;
+                    string qrApi = "https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=" + Uri.EscapeDataString(portalUrl);
+                    HttpWebRequest req = (HttpWebRequest)WebRequest.Create(qrApi);
+                    req.Timeout = 6000;
+                    using (var resp = req.GetResponse())
+                    using (var stream = resp.GetResponseStream()) {
+                        Image img = Image.FromStream(stream);
+                        if (this.IsHandleCreated && !this.IsDisposed) {
+                            this.BeginInvoke(new Action(() => picQr.Image = img));
+                        }
+                    }
+                } catch {}
+            });
+
+            TextBox txtUrl = new TextBox();
+            txtUrl.Text = portalUrl;
+            txtUrl.ReadOnly = true;
+            txtUrl.Location = new Point(35, 295);
+            txtUrl.Size = new Size(375, 27);
+            txtUrl.Font = new Font("Segoe UI", 9.5f);
+            txtUrl.TextAlign = HorizontalAlignment.Center;
+            this.Controls.Add(txtUrl);
+
+            Button btnCopyLink = new Button();
+            btnCopyLink.Text = "📋 คัดลอกลิงก์";
+            btnCopyLink.Location = new Point(45, 340);
+            btnCopyLink.Size = new Size(160, 38);
+            btnCopyLink.BackColor = Color.FromArgb(241, 245, 249);
+            btnCopyLink.FlatStyle = FlatStyle.Flat;
+            btnCopyLink.Cursor = Cursors.Hand;
+            btnCopyLink.Click += (s, e) => {
+                try {
+                    Clipboard.SetText(portalUrl);
+                    MessageBox.Show("คัดลอกลิงก์เรียบร้อยแล้ว ส่งต่อใน LINE กลุ่มวอร์ดได้ทันทีครับ", "สำเร็จ", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                } catch {}
+            };
+            this.Controls.Add(btnCopyLink);
+
+            Button btnOpenBrowser = new Button();
+            btnOpenBrowser.Text = "🌐 เปิดบนเบราว์เซอร์";
+            btnOpenBrowser.Location = new Point(225, 340);
+            btnOpenBrowser.Size = new Size(185, 38);
+            btnOpenBrowser.BackColor = Color.FromArgb(13, 148, 136);
+            btnOpenBrowser.ForeColor = Color.White;
+            btnOpenBrowser.FlatStyle = FlatStyle.Flat;
+            btnOpenBrowser.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
+            btnOpenBrowser.Cursor = Cursors.Hand;
+            btnOpenBrowser.Click += (s, e) => {
+                try { System.Diagnostics.Process.Start(portalUrl); } catch {}
+            };
+            this.Controls.Add(btnOpenBrowser);
+
+            Button btnClose = new Button();
+            btnClose.Text = "ปิดหน้าต่าง";
+            btnClose.Location = new Point(165, 410);
+            btnClose.Size = new Size(120, 36);
+            btnClose.FlatStyle = FlatStyle.Flat;
+            btnClose.Cursor = Cursors.Hand;
+            btnClose.Click += (s, e) => this.Close();
+            this.Controls.Add(btnClose);
+        }
+    }
+
     public class BedNotesForm : Form {
         private ExpanderContext context;
         private BedNotesManager manager;
@@ -1843,6 +1950,7 @@ namespace MedicalTextExpander {
 
         private Label lblAppTitle;
         private Button btnCalc;
+        private Button btnMobilePortal;
         private Button btnGoToPalette;
         private Button btnZoomOut;
         private Button btnZoomIn;
@@ -1936,6 +2044,21 @@ namespace MedicalTextExpander {
             lblNetworkStatus.Location = new Point(16, 32);
             lblNetworkStatus.AutoSize = true;
             pnlTop.Controls.Add(lblNetworkStatus);
+
+            btnMobilePortal = new Button();
+            btnMobilePortal.Text = "📱 มือถือ (QR)";
+            btnMobilePortal.Size = new Size(115, 34);
+            btnMobilePortal.BackColor = Color.FromArgb(79, 70, 229);
+            btnMobilePortal.ForeColor = Color.White;
+            btnMobilePortal.FlatStyle = FlatStyle.Flat;
+            btnMobilePortal.FlatAppearance.BorderSize = 0;
+            btnMobilePortal.Font = new Font("Segoe UI", 9f, FontStyle.Bold);
+            btnMobilePortal.Cursor = Cursors.Hand;
+            btnMobilePortal.Click += (s, e) => {
+                var dlg = new MobilePortalDialog();
+                dlg.ShowDialog(this);
+            };
+            pnlTop.Controls.Add(btnMobilePortal);
 
             btnCalc = new Button();
             btnCalc.Text = "🧮 คำนวณ SOS/ยา (Alt+C)";
@@ -2425,6 +2548,10 @@ namespace MedicalTextExpander {
             if (btnCheckUpdate != null) {
                 btnCheckUpdate.Location = new Point(rx - btnCheckUpdate.Width, 11);
                 rx -= (btnCheckUpdate.Width + 6);
+            }
+            if (btnMobilePortal != null) {
+                btnMobilePortal.Location = new Point(rx - btnMobilePortal.Width, 11);
+                rx -= (btnMobilePortal.Width + 6);
             }
             if (btnGoToPalette != null) {
                 btnGoToPalette.Location = new Point(rx - btnGoToPalette.Width, 11);

@@ -1,8 +1,8 @@
 {
-  "version": "1.3.2",
+  "version": "1.4.0",
   "downloadUrl": "https://github.com/oatzilla/Medical_Text_Expander/releases/latest/download/Medical_Text_Expander.exe",
   "download_url": "https://github.com/oatzilla/Medical_Text_Expander/releases/latest/download/Medical_Text_Expander.exe",
   "releaseDate": "2026-09-30",
   "release_date": "2026-09-30",
-  "changelog": "- แก้ไขข้อผิดพลาด SplitterDistance ขณะเปิดหน้าต่างประวัติเตียง (Bed History) ให้เปิดได้ราบรื่น 100%\n- ปรับปรุงการคำนวณขนาดเลย์เอาต์หน้าต่างประวัติเตียงและคลังเทมเพลตให้รองรับทุกขนาดหน้าจอและ DPI\n- เพิ่มระบบป้องกัน Unhandled Exception ในระดับ Global Application"
+  "changelog": "- เปิดตัวระบบ Web & Mobile Portal สำหรับดูและลงบันทึกเตียง 1-30 ผ่านมือถือ แท็บเล็ต และคอมพิวเตอร์นอก รพ. แบบเรียลไทม์\n- เพิ่มปุ่ม '📱 มือถือ (QR)' บนแถบเครื่องมือด้านบน พร้อม QR Code ให้เปิดกล้องมือถือสแกนใช้งานได้ทันที\n- ปรับปรุงการซิงค์ข้อมูลผ่าน Supabase Cloud แบบสองทิศทาง (Desktop <-> Mobile)"
 }

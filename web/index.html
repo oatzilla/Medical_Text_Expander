@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Ward Bed Notes - ระบบบันทึกข้อมูลผู้ป่วยรายเตียง (Cloud Portal)</title>
+  <meta name="description" content="ระบบบันทึกและติดตามข้อมูลผู้ป่วยรายเตียง 1-30 หอผู้ป่วย เชื่อมต่อแบบเรียลไทม์ผ่าน Supabase Cloud รองรับการใช้งานทั้งบนมือถือ แท็บเล็ต และคอมพิวเตอร์">
+  <meta name="theme-color" content="#0d9488">
+  
+  <!-- Google Fonts: Prompt & Outfit -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Top Navigation Bar -->
+  <header class="navbar" id="navbar">
+    <div class="nav-container">
+      <div class="brand">
+        <div class="brand-icon">
+          <i class="fa-solid fa-hospital-user"></i>
+        </div>
+        <div class="brand-text">
+          <h1 class="brand-title">Ward Bed Notes</h1>
+          <span class="brand-subtitle">ระบบบันทึกผู้ป่วยรายเตียง (Cloud Portal)</span>
+        </div>
+      </div>
+
+      <div class="nav-actions">
+        <div class="status-badge" id="cloudStatusBadge" title="สถานะการเชื่อมต่อฐานข้อมูล Supabase">
+          <span class="status-dot"></span>
+          <span class="status-label" id="cloudStatusText">กำลังเชื่อมต่อ...</span>
+        </div>
+        
+        <button class="icon-btn" id="themeToggleBtn" title="สลับโหมดมืด / โหมดสว่าง" aria-label="Toggle theme">
+          <i class="fa-solid fa-moon"></i>
+        </button>
+        <button class="icon-btn" id="refreshBtn" title="รีเฟรชข้อมูลเดี๋ยวนี้" aria-label="Refresh data">
+          <i class="fa-solid fa-arrows-rotate"></i>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content Container -->
+  <main class="main-container">
+    <!-- Census & Summary Bar -->
+    <section class="summary-section">
+      <div class="summary-card stat-total">
+        <div class="stat-icon"><i class="fa-solid fa-bed"></i></div>
+        <div class="stat-info">
+          <span class="stat-value" id="statTotalBeds">30</span>
+          <span class="stat-name">เตียงทั้งหมด</span>
+        </div>
+      </div>
+
+      <div class="summary-card stat-occupied">
+        <div class="stat-icon"><i class="fa-solid fa-user-injured"></i></div>
+        <div class="stat-info">
+          <span class="stat-value" id="statOccupiedBeds">0</span>
+          <span class="stat-name">มีผู้ป่วย (ครองเตียง)</span>
+        </div>
+      </div>
+
+      <div class="summary-card stat-available">
+        <div class="stat-icon"><i class="fa-solid fa-circle-check"></i></div>
+        <div class="stat-info">
+          <span class="stat-value" id="statAvailableBeds">30</span>
+          <span class="stat-name">เตียงว่าง</span>
+        </div>
+      </div>
+
+      <div class="summary-card stat-time">
+        <div class="stat-icon"><i class="fa-solid fa-clock-rotate-left"></i></div>
+        <div class="stat-info">
+          <span class="stat-value" id="statLastSyncTime">--:--:--</span>
+          <span class="stat-name">อัปเดตล่าสุด</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Search & Filter Controls -->
+    <section class="controls-section">
+      <div class="search-box">
+        <i class="fa-solid fa-magnifying-glass search-icon"></i>
+        <input type="text" id="searchInput" placeholder="ค้นหาตามเลขเตียง, อาการ, ยา, คำสั่งแพทย์, วินิจฉัย..." autocomplete="off">
+        <button class="clear-search-btn" id="clearSearchBtn" aria-label="ล้างคำค้นหา"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <div class="filter-tabs">
+        <button class="tab-btn active" data-filter="all" id="tabAll">
+          ทั้งหมด <span class="tab-count" id="countAll">30</span>
+        </button>
+        <button class="tab-btn" data-filter="occupied" id="tabOccupied">
+          มีผู้ป่วย <span class="tab-count" id="countOccupied">0</span>
+        </button>
+        <button class="tab-btn" data-filter="available" id="tabAvailable">
+          เตียงว่าง <span class="tab-count" id="countAvailable">30</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- Live Bed Cards Grid (Beds 1-30) -->
+    <section class="beds-grid" id="bedsGrid">
+      <div class="grid-loading" id="gridLoading">
+        <div class="spinner"></div>
+        <p>กำลังโหลดข้อมูลผู้ป่วยจาก Cloud Database...</p>
+      </div>
+    </section>
+  </main>
+
+  <!-- Edit Bed Note Modal -->
+  <div class="modal-overlay" id="editModal" aria-hidden="true">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <div class="modal-bed-badge" id="modalBedBadge">เตียง 01</div>
+          <h2 class="modal-title" id="modalTitle">บันทึกข้อมูลผู้ป่วย</h2>
+        </div>
+        <button class="modal-close-btn" id="modalCloseBtn" aria-label="Close modal"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Quick Templates Bar -->
+        <div class="quick-templates-bar">
+          <span class="quick-label"><i class="fa-solid fa-bolt"></i> แทรกด่วน:</span>
+          <button type="button" class="quick-tag-btn" data-snippet="[V/S] BP:  /  PR:  RR:  T:  SpO2:  % (RA)">+ V/S</button>
+          <button type="button" class="quick-tag-btn" data-snippet="[Lab] CBC:  BUN/Cr:  Electrolyte:  LFT: ">+ Labs</button>
+          <button type="button" class="quick-tag-btn" data-snippet="[Order] IV:  Med:  Diet:  Activity: ">+ Order</button>
+          <button type="button" class="quick-tag-btn" data-snippet="[SBAR]&#10;S: &#10;B: &#10;A: &#10;R: ">+ SBAR</button>
+          <button type="button" class="quick-tag-btn" data-snippet="[SOS] Score:  (Alert: )">+ SOS</button>
+        </div>
+
+        <div class="editor-container">
+          <textarea id="noteTextarea" placeholder="พิมพ์บันทึกข้อมูลผู้ป่วย, คำสั่งแพทย์, แผนการพยาบาล, หรือผลแล็บที่นี่..." rows="12"></textarea>
+        </div>
+
+        <div class="editor-meta">
+          <span id="charCountDisplay">0 ตัวอักษร | 0 บรรทัด</span>
+          <div class="author-input-group">
+            <i class="fa-solid fa-user-pen"></i>
+            <input type="text" id="authorInput" placeholder="ชื่อผู้บันทึก (เช่น พว.สมหญิง / นพ.ธนา)" maxlength="40">
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <div class="modal-footer-left">
+          <button type="button" class="btn btn-secondary" id="btnViewHistoryFromModal">
+            <i class="fa-solid fa-clock-rotate-left"></i> ประวัติย้อนหลัง
+          </button>
+          <button type="button" class="btn btn-danger-outline" id="btnClearBedNote">
+            <i class="fa-solid fa-trash-can"></i> ล้างเตียงนี้
+          </button>
+        </div>
+        <div class="modal-footer-right">
+          <button type="button" class="btn btn-secondary" id="btnCancelEdit">ยกเลิก</button>
+          <button type="button" class="btn btn-primary" id="btnSaveBedNote">
+            <i class="fa-solid fa-cloud-arrow-up"></i> บันทึกลง Cloud
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- History Viewer Modal -->
+  <div class="modal-overlay" id="historyModal" aria-hidden="true">
+    <div class="modal-card modal-lg">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <div class="modal-bed-badge" id="historyBedBadge">เตียง 01</div>
+          <h2 class="modal-title">ประวัติการบันทึกย้อนหลัง (History Log)</h2>
+        </div>
+        <button class="modal-close-btn" id="historyCloseBtn" aria-label="Close history modal"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <div class="modal-body history-body">
+        <div class="history-list-pane" id="historyListPane">
+          <div class="history-loading">กำลังโหลดประวัติ...</div>
+        </div>
+        <div class="history-preview-pane">
+          <div class="preview-header">
+            <span id="historySelectedMeta">เลือกรายการด้านซ้ายเพื่อดูเนื้อหา</span>
+            <button class="btn btn-sm btn-secondary" id="btnCopyHistoryText"><i class="fa-regular fa-copy"></i> คัดลอก</button>
+          </div>
+          <textarea id="historyPreviewText" readonly placeholder="เนื้อหาประวัติจะแสดงที่นี่..."></textarea>
+          <div class="history-actions">
+            <button class="btn btn-primary" id="btnRestoreFromHistory">
+              <i class="fa-solid fa-rotate-left"></i> กู้คืนเวอร์ชันนี้ไปยังเตียง
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" id="btnCloseHistory">ปิดหน้าต่าง</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- Application Logic -->
+  <script src="app.js"></script>
+</body>
+</html>
