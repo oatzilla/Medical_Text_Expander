@@ -207,7 +207,8 @@ namespace MedicalTextExpander {
 
         private static void CheckForUpdatesInternal(string repo, bool isManual, Form parent, string token) {
             if (string.IsNullOrEmpty(repo)) repo = DefaultGitHubRepo;
-            string url = string.Format("https://raw.githubusercontent.com/{0}/main/version.json", repo.Trim());
+            string apiUrl = string.Format("https://api.github.com/repos/{0}/contents/version.json", repo.Trim());
+            string rawUrl = string.Format("https://raw.githubusercontent.com/{0}/main/version.json", repo.Trim());
 
             try {
                 ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls12;
@@ -216,7 +217,20 @@ namespace MedicalTextExpander {
                 using (WebClient client = new WebClient()) {
                     client.Encoding = Encoding.UTF8;
                     client.Headers["User-Agent"] = "MedicalTextExpander-AutoUpdater";
-                    json = client.DownloadString(url);
+                    client.Headers["Accept"] = "application/vnd.github.v3.raw";
+                    if (!string.IsNullOrEmpty(token)) {
+                        client.Headers["Authorization"] = "token " + token.Trim();
+                    }
+                    try {
+                        json = client.DownloadString(apiUrl);
+                    } catch {
+                        try {
+                            client.Headers.Remove("Accept");
+                            json = client.DownloadString(rawUrl);
+                        } catch (Exception exRaw) {
+                            throw exRaw;
+                        }
+                    }
                 }
 
                 UpdateInfo info = ParseVersionJson(json, repo);
