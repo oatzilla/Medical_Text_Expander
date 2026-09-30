@@ -1003,7 +1003,9 @@ const friendlyCategoryNames = [
   { icon: "fa-wheelchair", label: "ข้อสะโพก (THA/BHA)" },
   { icon: "fa-dna", label: "กระดูกสันหลัง (Spine)" },
   { icon: "fa-bandage", label: "กระดูกหัก (ORIF/Cast)" },
-  { icon: "fa-hospital", label: "ศัลยกรรมเฉพาะทาง" }
+  { icon: "fa-hospital", label: "ศัลยกรรมเฉพาะทาง" },
+  { icon: "fa-vial-circle-check", label: "เกลือแร่ (Electrolytes)" },
+  { icon: "fa-droplet-slash", label: "ค่าเลือดผิดปกติ (Critical Labs)" }
 ];
 
 // Render Category Pills with Mouse-Wheel Horizontal Scroll

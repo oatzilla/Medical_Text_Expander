@@ -196,7 +196,7 @@ namespace MedicalTextExpander {
     }
 
     public static class AppUpdater {
-        public const string CurrentVersion = "1.5.2";
+        public const string CurrentVersion = "1.5.4";
         public const string DefaultGitHubRepo = "oatzilla/Medical_Text_Expander";
 
         public static void CheckForUpdatesAsync(string repo, bool isManual, Form parent = null, string token = null) {
@@ -3489,12 +3489,14 @@ public void RefreshAllBedButtons() {
             pnlCategories.BackColor = Color.FromArgb(241, 245, 249);
             pnlCategories.Padding = new Padding(10, 5, 10, 5);
 
-            AddCategoryButton("all", "ทั้งหมด (62)");
+            AddCategoryButton("all", "ทั้งหมด (86)");
             AddCategoryButton("knee", "[ข้อเข่า] TKA / UKA");
             AddCategoryButton("hip", "[ข้อสะโพก] THA / BHA");
             AddCategoryButton("spine", "[สันหลัง] Laminectomy / PLIF");
             AddCategoryButton("fracture", "[กระดูกหัก] ORIF / Cast");
             AddCategoryButton("surgery", "[ศัลยกรรม] ผ่าตัดเฉพาะทาง");
+            AddCategoryButton("electrolyte", "[เกลือแร่] K / Na / Ca / Mg");
+            AddCategoryButton("lab", "[ค่าเลือดผิดปกติ] Anemia / Labs");
             AddCategoryButton("med", "[อายุรกรรม] Sepsis / Stroke");
             AddCategoryButton("pain", "[จัดการปวด] Acute / DAR");
             AddCategoryButton("safe", "[ป้องกันแทรกซ้อน] Fall / DVT");
@@ -3969,6 +3971,8 @@ public void RefreshAllBedButtons() {
             if (catKey == "spine") return c.Contains("11.") || c.Contains("spine") || c.Contains("สันหลัง") || c.Contains("กระดูกสันหลัง") || s == ".laminectomy" || s == ".plif" || s == ".acdf" || s == ".csfleak" || s == ".discectomy" || s == ".spinerehab";
             if (catKey == "fracture") return c.Contains("12.") || c.Contains("trauma") || c.Contains("fracture") || c.Contains("กระดูกหัก") || s == ".orif" || s == ".cast" || s == ".traction" || s == ".exfix" || s == ".amputation";
             if (catKey == "surgery") return c.Contains("13.") || c.Contains("specialized") || c.Contains("ผ่าตัดเฉพาะทาง") || c.Contains("ศัลยกรรมเฉพาะทาง") || s == ".appendectomy" || s == ".lapchole" || s == ".mastectomy";
+            if (catKey == "electrolyte") return c.Contains("14.") || c.Contains("electrolyte") || c.Contains("เกลือแร่") || s == ".hypok" || s == ".hyperk" || s == ".hypona" || s == ".hyperna" || s == ".hypoca" || s == ".hyperca" || s == ".hypomg" || s == ".hypermg" || s == ".hypop" || s == ".hyperp";
+            if (catKey == "lab") return c.Contains("15.") || c.Contains("lab") || c.Contains("ค่าเลือด") || c.Contains("ผลตรวจ") || s == ".anemia" || s == ".thrombocyto" || s == ".pancytopenia" || s == ".leukocytosis" || s == ".neutropenia" || s == ".coagulopathy" || s == ".metacid" || s == ".metalk" || s == ".respacid" || s == ".aki" || s == ".hyperbili" || s == ".hepatitis" || s == ".hypogly" || s == ".hypergly";
             if (catKey == "med") return c.Contains("4.") || c.Contains("internal") || c.Contains("อายุรกรรม") || s == ".sepsis" || s == ".stroke" || s == ".dka" || s == ".chf" || s == ".pneumonia" || s == ".acs" || s == ".htn" || s == ".copd";
             if (catKey == "pain") return c.Contains("2.") || c.Contains("pain") || c.Contains("ปวด") || s.StartsWith(".pain");
             if (catKey == "safe") return c.Contains("5.") || c.Contains("ความปลอดภัย") || c.Contains("ป้องกัน") || s == ".fall" || s == ".pressure" || s == ".infection" || s == ".dvt";
