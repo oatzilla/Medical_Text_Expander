@@ -1,4 +1,4 @@
-﻿using System.Net;
+using System.Net;
 using System.Text.RegularExpressions;
 using System;
 using System.IO;
@@ -207,8 +207,10 @@ namespace MedicalTextExpander {
 
         private static void CheckForUpdatesInternal(string repo, bool isManual, Form parent, string token) {
             if (string.IsNullOrEmpty(repo)) repo = DefaultGitHubRepo;
-            string apiUrl = string.Format("https://api.github.com/repos/{0}/contents/version.json", repo.Trim());
-            string rawUrl = string.Format("https://raw.githubusercontent.com/{0}/main/version.json", repo.Trim());
+            long ts = DateTime.UtcNow.Ticks;
+            string rawUrl = string.Format("https://raw.githubusercontent.com/{0}/main/version.json?t={1}", repo.Trim(), ts);
+            string ghRawUrl = string.Format("https://github.com/{0}/raw/main/version.json?t={1}", repo.Trim(), ts);
+            string apiUrl = string.Format("https://api.github.com/repos/{0}/contents/version.json?t={1}", repo.Trim(), ts);
 
             try {
                 ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls12;
@@ -217,18 +219,25 @@ namespace MedicalTextExpander {
                 using (WebClient client = new WebClient()) {
                     client.Encoding = Encoding.UTF8;
                     client.Headers["User-Agent"] = "MedicalTextExpander-AutoUpdater";
-                    client.Headers["Accept"] = "application/vnd.github.v3.raw";
                     if (!string.IsNullOrEmpty(token)) {
                         client.Headers["Authorization"] = "token " + token.Trim();
                     }
+
+                    // 1. First try raw.githubusercontent.com (fastest, no 60 req/hr rate limit, direct file content)
                     try {
-                        json = client.DownloadString(apiUrl);
+                        json = client.DownloadString(rawUrl);
                     } catch {
+                        // 2. Fallback to GitHub raw route
                         try {
-                            client.Headers.Remove("Accept");
-                            json = client.DownloadString(rawUrl);
-                        } catch (Exception exRaw) {
-                            throw exRaw;
+                            json = client.DownloadString(ghRawUrl);
+                        } catch {
+                            // 3. Fallback to GitHub API endpoint
+                            try {
+                                client.Headers["Accept"] = "application/vnd.github.v3.raw";
+                                json = client.DownloadString(apiUrl);
+                            } catch (Exception exApi) {
+                                throw exApi;
+                            }
                         }
                     }
                 }
@@ -243,7 +252,7 @@ namespace MedicalTextExpander {
 
                 if (IsNewerVersion(info.Version, CurrentVersion)) {
                     Action promptAction = () => {
-                        string msg = string.Format("🎉 พบการอัปเดตเวอร์ชันใหม่!\n\n" +
+                        string msg = string.Format("\uD83C\uDF89 พบการอัปเดตเวอร์ชันใหม่!\n\n" +
                                                    "เวอร์ชันปัจจุบัน: v{0}\n" +
                                                    "เวอร์ชันใหม่ล่าสุด: v{1} ({2})\n\n" +
                                                    "รายละเอียดการอัปเดต:\n{3}\n\n" +
@@ -293,11 +302,13 @@ namespace MedicalTextExpander {
 
         private static UpdateInfo ParseVersionJson(string json, string repo) {
             try {
+                if (string.IsNullOrEmpty(json)) return null;
                 UpdateInfo info = new UpdateInfo();
                 info.Version = ExtractJsonValue(json, "version");
                 info.ReleaseDate = ExtractJsonValue(json, "releaseDate");
                 if (string.IsNullOrEmpty(info.ReleaseDate)) info.ReleaseDate = ExtractJsonValue(json, "release_date");
-                info.Changelog = ExtractJsonValue(json, "changelog");
+                info.Changelog = ExtractJsonChangelog(json);
+                if (string.IsNullOrEmpty(info.Changelog)) info.Changelog = ExtractJsonValue(json, "changelog");
                 info.DownloadUrl = ExtractJsonValue(json, "downloadUrl");
                 if (string.IsNullOrEmpty(info.DownloadUrl)) info.DownloadUrl = ExtractJsonValue(json, "download_url");
                 if (string.IsNullOrEmpty(info.DownloadUrl) && !string.IsNullOrEmpty(repo)) {
@@ -310,9 +321,47 @@ namespace MedicalTextExpander {
         }
 
         private static string ExtractJsonValue(string json, string key) {
-            Match m = Regex.Match(json, "\"" + key + "\"\\s*:\\s*\"(.*?)\"", RegexOptions.Singleline);
+            if (string.IsNullOrEmpty(json)) return "";
+            if (json.Contains("\"encoding\"") && json.Contains("\"base64\"")) {
+                Match mc = Regex.Match(json, "\"content\"\\s*:\\s*\"([A-Za-z0-9+/=\\r\\n]+)\"");
+                if (mc.Success) {
+                    try {
+                        string b64 = mc.Groups[1].Value.Replace("\r", "").Replace("\n", "");
+                        byte[] bytes = Convert.FromBase64String(b64);
+                        json = Encoding.UTF8.GetString(bytes);
+                    } catch { }
+                }
+            }
+            Match m = Regex.Match(json, "\"" + Regex.Escape(key) + "\"\\s*:\\s*\"(.*?)\"", RegexOptions.Singleline);
             if (m.Success) {
-                return Regex.Unescape(m.Groups[1].Value);
+                return Regex.Unescape(m.Groups[1].Value).Trim();
+            }
+            m = Regex.Match(json, "[\"']?" + Regex.Escape(key) + "[\"']?\\s*:\\s*[\"']?([^\"',\r\n}]+)[\"']?", RegexOptions.Singleline);
+            if (m.Success) {
+                return m.Groups[1].Value.Trim();
+            }
+            return "";
+        }
+
+        private static string ExtractJsonChangelog(string json) {
+            if (string.IsNullOrEmpty(json)) return "";
+            if (json.Contains("\"encoding\"") && json.Contains("\"base64\"")) {
+                Match mc = Regex.Match(json, "\"content\"\\s*:\\s*\"([A-Za-z0-9+/=\\r\\n]+)\"");
+                if (mc.Success) {
+                    try {
+                        string b64 = mc.Groups[1].Value.Replace("\r", "").Replace("\n", "");
+                        byte[] bytes = Convert.FromBase64String(b64);
+                        json = Encoding.UTF8.GetString(bytes);
+                    } catch { }
+                }
+            }
+            Match m = Regex.Match(json, "[\"']?changelog[\"']?\\s*:\\s*\"(.*?)\"(?:\\s*[,}])", RegexOptions.Singleline);
+            if (m.Success) {
+                return Regex.Unescape(m.Groups[1].Value).Trim();
+            }
+            m = Regex.Match(json, "[\"']?changelog[\"']?\\s*:\\s*([^,\r\n}]+)", RegexOptions.Singleline);
+            if (m.Success) {
+                return m.Groups[1].Value.Trim();
             }
             return "";
         }
