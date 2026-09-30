@@ -1,8 +1,8 @@
 {
-  "version": "1.5.2",
+  "version": "1.5.4",
   "downloadUrl": "https://raw.githubusercontent.com/oatzilla/Medical_Text_Expander/main/Medical_Text_Expander.exe",
   "download_url": "https://raw.githubusercontent.com/oatzilla/Medical_Text_Expander/main/Medical_Text_Expander.exe",
   "releaseDate": "2026-09-30",
   "release_date": "2026-09-30",
-  "changelog": "- แก้ไข UI ทับซ้อนกันในแถบด้านบน (BedNotes) และหน้าต่างคลังข้อวินิจฉัย (Palette F8)\n- ปรับปรุง Header พรีวิวเป็นระบบ 2 ชั้น (Title + Toolbar) ปุ่มไม่ทับชื่อโรคและไม่ล้นจอ\n- แก้ไขฟอนต์เพี้ยน / ตัวอักษรกล่องสี่เหลี่ยม (Tofu boxes) ในบันทึก DAR\n- ปรับปรุง Web Portal คลังเทมเพลต: ขยาย Modal เต็มจอ (1240px) กว้างสบายตา ไม่เบียดชิด, หมวดหมู่จัดเป็นแถวหุ้ม (Wrap) เลือกง่ายทุกหัวข้อใน 1 คลิก พร้อมแถบเลื่อนดูชัดเจน"
+  "changelog": "- เพิ่มคลังเทมเพลต Focus Charting (DAR) ครบครันสำหรับ ภาวะเกลือแร่ในเลือดผิดปกติ (Electrolyte Imbalances: Hypo/Hyper K, Na, Ca, Mg, Phosphate) รวม 10 หัวข้อ\n- เพิ่มเทมเพลต ผลแล็บและค่าเลือดวิกฤต/ผิดปกติ (Critical Labs: Severe Anemia, Thrombocytopenia, Pancytopenia, Leukocytosis, Neutropenia, Coagulopathy, Metabolic/Respiratory Acidosis/Alkalosis, AKI, Hepatitis, Hypo/Hyperglycemia) รวม 14 หัวข้อ\n- เพิ่มปุ่มแยกหมวดหมู่ [เกลือแร่] และ [ค่าเลือดผิดปกติ] ในหน้าต่างคลัง Palette (F8) และ Web & Mobile Portal\n- อัปเดตยอดคลังเทมเพลตทางการพยาบาลรวมเป็น 86 หัวข้อ ครบถ้วนทุกมิติการดูแลผู้ป่วย"
 }
