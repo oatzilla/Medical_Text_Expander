@@ -2620,22 +2620,30 @@ namespace MedicalTextExpander {
         private void RepositionTopControls() {
             if (pnlTop == null) return;
             int w = pnlTop.ClientSize.Width;
-            bool isNarrow = (w < 820);
 
-            if (isNarrow) {
-                lblAppTitle.Text = "🛏️ ข้อมูลผู้ป่วยเตียง 1-30";
-                lblAppTitle.Font = new Font("Segoe UI", 11f, FontStyle.Bold);
-                btnCalc.Text = "🧮 SOS/ยา (Alt+C)";
-                btnCalc.Size = new Size(130, 34);
-                btnGoToPalette.Text = "📋 เทมเพลต (F8)";
-                btnGoToPalette.Size = new Size(115, 34);
-            } else {
-                lblAppTitle.Text = "🛏️ ข้อมูลผู้ป่วยรายเตียง (Ward Bed Notes 1-30)";
-                lblAppTitle.Font = new Font("Segoe UI", 12f, FontStyle.Bold);
-                btnCalc.Text = "🧮 คำนวณ SOS/ยา (Alt+C)";
-                btnCalc.Size = new Size(185, 34);
-                btnGoToPalette.Text = "📋 คลังข้อวินิจฉัย/DAR (F8)";
-                btnGoToPalette.Size = new Size(150, 34);
+            // Compact, elegant title that never collides
+            if (lblAppTitle != null) {
+                lblAppTitle.Text = "🛏️ ข้อมูลรายเตียง 1-30";
+                lblAppTitle.Font = new Font("Segoe UI", 11.5f, FontStyle.Bold);
+                lblAppTitle.Location = new Point(14, 11);
+            }
+
+            // Compact buttons to ensure zero overlapping
+            if (btnCalc != null) {
+                btnCalc.Text = "🧮 คำนวณ SOS/ยา";
+                btnCalc.Size = new Size(140, 34);
+            }
+            if (btnGoToPalette != null) {
+                btnGoToPalette.Text = "📋 คลังข้อวินิจฉัย (F8)";
+                btnGoToPalette.Size = new Size(145, 34);
+            }
+            if (btnMobilePortal != null) {
+                btnMobilePortal.Text = "📱 มือถือ (QR)";
+                btnMobilePortal.Size = new Size(100, 34);
+            }
+            if (btnCheckUpdate != null) {
+                btnCheckUpdate.Text = "🔄 อัปเดต";
+                btnCheckUpdate.Size = new Size(82, 34);
             }
 
             int rx = w - 10;
@@ -2661,6 +2669,10 @@ namespace MedicalTextExpander {
             }
             if (btnCalc != null) {
                 btnCalc.Location = new Point(rx - btnCalc.Width, 11);
+                // Dynamic safeguard: if window is narrow, shorten title to prevent any collision
+                if (lblAppTitle != null && btnCalc.Location.X < lblAppTitle.Right + 10) {
+                    lblAppTitle.Text = "🛏️ เตียง 1-30";
+                }
             }
         }
 
@@ -3270,12 +3282,13 @@ public void RefreshAllBedButtons() {
         private ListView lstTemplates;
         private SplitContainer split;
         
-        // Right Panel Controls
+        // Right Panel Controls (2-Tier Header)
         private Panel pnlRight;
         private Panel pnlPreviewHeader;
+        private Panel pnlTitleRow;
+        private FlowLayoutPanel pnlActionToolbar;
         private Label lblBadgeShortcut;
         private Label lblPreviewTitle;
-        private FlowLayoutPanel pnlHeaderActions;
         private ComboBox cboTargetBed;
         private Button btnCopy;
         private Button btnInsertToBed;
@@ -3315,8 +3328,8 @@ public void RefreshAllBedButtons() {
         }
 
         private void InitializeUI() {
-            this.Text = "📋 คลังข้อวินิจฉัยและกิจกรรมการพยาบาล (Template Catalog & DAR Picker) - กด F8";
-            this.Size = new Size(1140, 720);
+            this.Text = "คลังข้อวินิจฉัยและกิจกรรมการพยาบาล (Template Catalog & DAR Picker) - กด F8";
+            this.Size = new Size(1160, 720);
             this.MinimumSize = new Size(880, 560);
             this.StartPosition = FormStartPosition.CenterScreen;
             this.FormBorderStyle = FormBorderStyle.Sizable;
@@ -3340,7 +3353,7 @@ public void RefreshAllBedButtons() {
             pnlTop.BackColor = Color.FromArgb(13, 148, 136);
 
             Label lblSearchIcon = new Label();
-            lblSearchIcon.Text = "🔍 ค้นหา:";
+            lblSearchIcon.Text = "ค้นหา:";
             lblSearchIcon.ForeColor = Color.White;
             lblSearchIcon.Font = new Font("Segoe UI", 11f, FontStyle.Bold);
             lblSearchIcon.Location = new Point(14, 15);
@@ -3348,8 +3361,8 @@ public void RefreshAllBedButtons() {
             pnlTop.Controls.Add(lblSearchIcon);
 
             txtSearch = new TextBox();
-            txtSearch.Location = new Point(90, 12);
-            txtSearch.Size = new Size(460, 31);
+            txtSearch.Location = new Point(80, 12);
+            txtSearch.Size = new Size(470, 31);
             txtSearch.Font = new Font("Segoe UI", 11.5f);
             txtSearch.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
             txtSearch.TextChanged += (s, e) => RefreshList(txtSearch.Text);
@@ -3362,18 +3375,18 @@ public void RefreshAllBedButtons() {
             lblSearchCount.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
             lblSearchCount.AutoSize = true;
             lblSearchCount.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-            lblSearchCount.Location = new Point(560, 18);
+            lblSearchCount.Location = new Point(565, 18);
             pnlTop.Controls.Add(lblSearchCount);
 
             lblTargetBedTop = new Label();
-            lblTargetBedTop.Text = "🛏️ เตียง 01";
+            lblTargetBedTop.Text = "เตียง 01";
             lblTargetBedTop.ForeColor = Color.FromArgb(254, 240, 138);
             lblTargetBedTop.BackColor = Color.FromArgb(15, 118, 110);
             lblTargetBedTop.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
             lblTargetBedTop.Padding = new Padding(6, 3, 6, 3);
             lblTargetBedTop.AutoSize = true;
             lblTargetBedTop.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-            lblTargetBedTop.Location = new Point(660, 14);
+            lblTargetBedTop.Location = new Point(665, 14);
             lblTargetBedTop.Visible = false;
             pnlTop.Controls.Add(lblTargetBedTop);
 
@@ -3383,7 +3396,7 @@ public void RefreshAllBedButtons() {
             lblFontSize.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
             lblFontSize.AutoSize = true;
             lblFontSize.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-            lblFontSize.Location = new Point(780, 18);
+            lblFontSize.Location = new Point(785, 18);
             pnlTop.Controls.Add(lblFontSize);
 
             btnZoomOut = new Button();
@@ -3411,7 +3424,7 @@ public void RefreshAllBedButtons() {
             pnlTop.Controls.Add(btnZoomIn);
 
             // ==========================================
-            // Category Filter Bar (Pills / Chips)
+            // Category Filter Bar (Clean Universal Labels)
             // ==========================================
             pnlCategories = new FlowLayoutPanel();
             pnlCategories.Dock = DockStyle.Top;
@@ -3421,18 +3434,18 @@ public void RefreshAllBedButtons() {
             pnlCategories.BackColor = Color.FromArgb(241, 245, 249);
             pnlCategories.Padding = new Padding(10, 5, 10, 5);
 
-            AddCategoryButton("all", "🌐 ทั้งหมด (62)");
-            AddCategoryButton("knee", "🦵 ข้อเข่า (TKA/UKA)");
-            AddCategoryButton("hip", "🦿 ข้อสะโพก (THA/BHA)");
-            AddCategoryButton("spine", "🧬 สันหลัง (Spine)");
-            AddCategoryButton("fracture", "🩹 กระดูกหัก (ORIF/Cast)");
-            AddCategoryButton("surgery", "🔪 ศัลยกรรมเฉพาะทาง");
-            AddCategoryButton("med", "🩺 อายุรกรรม");
-            AddCategoryButton("pain", "💉 จัดการปวด");
-            AddCategoryButton("safe", "🛡️ ป้องกันแทรกซ้อน");
-            AddCategoryButton("fluid", "💧 สารน้ำ & ขับถ่าย");
-            AddCategoryButton("shift", "📋 ส่งเวร/จำหน่าย");
-            AddCategoryButton("shortcut", "⚡ คีย์ลัดด่วน");
+            AddCategoryButton("all", "ทั้งหมด (62)");
+            AddCategoryButton("knee", "[ข้อเข่า] TKA / UKA");
+            AddCategoryButton("hip", "[ข้อสะโพก] THA / BHA");
+            AddCategoryButton("spine", "[สันหลัง] Laminectomy / PLIF");
+            AddCategoryButton("fracture", "[กระดูกหัก] ORIF / Cast");
+            AddCategoryButton("surgery", "[ศัลยกรรม] ผ่าตัดเฉพาะทาง");
+            AddCategoryButton("med", "[อายุรกรรม] Sepsis / Stroke");
+            AddCategoryButton("pain", "[จัดการปวด] Acute / DAR");
+            AddCategoryButton("safe", "[ป้องกันแทรกซ้อน] Fall / DVT");
+            AddCategoryButton("fluid", "[สารน้ำ] IV / Foley");
+            AddCategoryButton("shift", "[ส่งเวร] รับใหม่ / จำหน่าย");
+            AddCategoryButton("shortcut", "[คีย์ลัดย่อด่วน]");
 
             // ==========================================
             // Bottom Action Bar
@@ -3443,9 +3456,9 @@ public void RefreshAllBedButtons() {
             pnlBottom.BackColor = Color.FromArgb(238, 240, 246);
 
             btnPasteBottom = new Button();
-            btnPasteBottom.Text = "🖥️ วางลง e-PHIS (Enter)";
+            btnPasteBottom.Text = "วางลง e-PHIS (Enter)";
             btnPasteBottom.Location = new Point(14, 8);
-            btnPasteBottom.Size = new Size(205, 36);
+            btnPasteBottom.Size = new Size(185, 36);
             btnPasteBottom.BackColor = Color.FromArgb(13, 148, 136);
             btnPasteBottom.ForeColor = Color.White;
             btnPasteBottom.FlatStyle = FlatStyle.Flat;
@@ -3455,9 +3468,9 @@ public void RefreshAllBedButtons() {
             pnlBottom.Controls.Add(btnPasteBottom);
 
             btnBedNotes = new Button();
-            btnBedNotes.Text = "🛏️ ข้อมูลรายเตียง (F7)";
-            btnBedNotes.Location = new Point(226, 8);
-            btnBedNotes.Size = new Size(160, 36);
+            btnBedNotes.Text = "ข้อมูลรายเตียง (F7)";
+            btnBedNotes.Location = new Point(206, 8);
+            btnBedNotes.Size = new Size(150, 36);
             btnBedNotes.BackColor = Color.FromArgb(15, 118, 110);
             btnBedNotes.ForeColor = Color.White;
             btnBedNotes.FlatStyle = FlatStyle.Flat;
@@ -3470,9 +3483,9 @@ public void RefreshAllBedButtons() {
             pnlBottom.Controls.Add(btnBedNotes);
 
             btnCalc = new Button();
-            btnCalc.Text = "🧮 คำนวณ SOS/ยา";
-            btnCalc.Location = new Point(393, 8);
-            btnCalc.Size = new Size(145, 36);
+            btnCalc.Text = "คำนวณ SOS/ยา";
+            btnCalc.Location = new Point(363, 8);
+            btnCalc.Size = new Size(135, 36);
             btnCalc.BackColor = Color.FromArgb(254, 243, 199);
             btnCalc.ForeColor = Color.FromArgb(180, 83, 9);
             btnCalc.FlatStyle = FlatStyle.Flat;
@@ -3486,9 +3499,9 @@ public void RefreshAllBedButtons() {
             pnlBottom.Controls.Add(btnCalc);
 
             btnEdit = new Button();
-            btnEdit.Text = "✏️ แก้ไขเทมเพลต";
-            btnEdit.Location = new Point(545, 8);
-            btnEdit.Size = new Size(125, 36);
+            btnEdit.Text = "แก้ไขเทมเพลต";
+            btnEdit.Location = new Point(505, 8);
+            btnEdit.Size = new Size(120, 36);
             btnEdit.BackColor = Color.FromArgb(225, 228, 238);
             btnEdit.FlatStyle = FlatStyle.Flat;
             btnEdit.Font = new Font("Segoe UI", 9.5f);
@@ -3497,8 +3510,8 @@ public void RefreshAllBedButtons() {
             pnlBottom.Controls.Add(btnEdit);
 
             btnSync = new Button();
-            btnSync.Text = "🌐 ซิงค์วอร์ด";
-            btnSync.Location = new Point(677, 8);
+            btnSync.Text = "ซิงค์วอร์ด";
+            btnSync.Location = new Point(632, 8);
             btnSync.Size = new Size(95, 36);
             btnSync.BackColor = Color.FromArgb(225, 228, 238);
             btnSync.FlatStyle = FlatStyle.Flat;
@@ -3509,7 +3522,7 @@ public void RefreshAllBedButtons() {
 
             btnClose = new Button();
             btnClose.Text = "ปิด (Esc)";
-            btnClose.Location = new Point(1015, 8);
+            btnClose.Location = new Point(1030, 8);
             btnClose.Size = new Size(85, 36);
             btnClose.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             btnClose.BackColor = Color.FromArgb(225, 228, 238);
@@ -3552,12 +3565,20 @@ public void RefreshAllBedButtons() {
             pnlRight.Dock = DockStyle.Fill;
             pnlRight.BackColor = Color.White;
 
-            // Preview Header Bar
+            // ==========================================
+            // 2-Tier Preview Header (Zero Overlap!)
+            // ==========================================
             pnlPreviewHeader = new Panel();
             pnlPreviewHeader.Dock = DockStyle.Top;
-            pnlPreviewHeader.Height = 54;
+            pnlPreviewHeader.Height = 84;
             pnlPreviewHeader.BackColor = Color.FromArgb(250, 250, 252);
-            pnlPreviewHeader.Padding = new Padding(12, 6, 12, 6);
+            pnlPreviewHeader.BorderStyle = BorderStyle.FixedSingle;
+
+            // Tier 1: Title Row
+            pnlTitleRow = new Panel();
+            pnlTitleRow.Dock = DockStyle.Top;
+            pnlTitleRow.Height = 40;
+            pnlTitleRow.Padding = new Padding(10, 6, 10, 4);
 
             lblBadgeShortcut = new Label();
             lblBadgeShortcut.Text = ".tka";
@@ -3565,34 +3586,35 @@ public void RefreshAllBedButtons() {
             lblBadgeShortcut.ForeColor = Color.White;
             lblBadgeShortcut.Font = new Font("Consolas", 10.5f, FontStyle.Bold);
             lblBadgeShortcut.Padding = new Padding(6, 3, 6, 3);
+            lblBadgeShortcut.Location = new Point(10, 6);
             lblBadgeShortcut.AutoSize = true;
-            lblBadgeShortcut.Location = new Point(12, 14);
-            pnlPreviewHeader.Controls.Add(lblBadgeShortcut);
+            pnlTitleRow.Controls.Add(lblBadgeShortcut);
 
             lblPreviewTitle = new Label();
             lblPreviewTitle.Text = "ผ่าตัดเปลี่ยนข้อเข่าเทียม (TKA)";
-            lblPreviewTitle.Font = new Font("Segoe UI", 11.5f, FontStyle.Bold);
+            lblPreviewTitle.Font = new Font("Segoe UI", 11f, FontStyle.Bold);
             lblPreviewTitle.ForeColor = Color.FromArgb(15, 23, 42);
+            lblPreviewTitle.Location = new Point(80, 8);
             lblPreviewTitle.AutoSize = true;
-            lblPreviewTitle.Location = new Point(80, 14);
-            pnlPreviewHeader.Controls.Add(lblPreviewTitle);
+            pnlTitleRow.Controls.Add(lblPreviewTitle);
 
-            // Header Action Buttons Flow
-            pnlHeaderActions = new FlowLayoutPanel();
-            pnlHeaderActions.Dock = DockStyle.Right;
-            pnlHeaderActions.AutoSize = true;
-            pnlHeaderActions.WrapContents = false;
-            pnlHeaderActions.FlowDirection = FlowDirection.LeftToRight;
-            pnlHeaderActions.Padding = new Padding(0, 8, 0, 0);
+            pnlPreviewHeader.Controls.Add(pnlTitleRow);
 
-            // Target Bed Select Combo for Header
-            Label lblTargetBedDesc = new Label();
-            lblTargetBedDesc.Text = "ใส่เตียง:";
-            lblTargetBedDesc.Font = new Font("Segoe UI", 8.5f, FontStyle.Bold);
-            lblTargetBedDesc.ForeColor = Color.FromArgb(71, 85, 105);
-            lblTargetBedDesc.Margin = new Padding(0, 6, 2, 0);
-            lblTargetBedDesc.AutoSize = true;
-            pnlHeaderActions.Controls.Add(lblTargetBedDesc);
+            // Tier 2: Dedicated Action Toolbar (Never Collides With Title!)
+            pnlActionToolbar = new FlowLayoutPanel();
+            pnlActionToolbar.Dock = DockStyle.Bottom;
+            pnlActionToolbar.Height = 42;
+            pnlActionToolbar.BackColor = Color.FromArgb(244, 246, 250);
+            pnlActionToolbar.Padding = new Padding(10, 4, 10, 4);
+            pnlActionToolbar.WrapContents = false;
+
+            Label lblBedDesc = new Label();
+            lblBedDesc.Text = "ใส่เตียง:";
+            lblBedDesc.Font = new Font("Segoe UI", 8.5f, FontStyle.Bold);
+            lblBedDesc.ForeColor = Color.FromArgb(71, 85, 105);
+            lblBedDesc.Margin = new Padding(0, 6, 2, 0);
+            lblBedDesc.AutoSize = true;
+            pnlActionToolbar.Controls.Add(lblBedDesc);
 
             cboTargetBed = new ComboBox();
             cboTargetBed.DropDownStyle = ComboBoxStyle.DropDownList;
@@ -3602,42 +3624,32 @@ public void RefreshAllBedButtons() {
                 cboTargetBed.Items.Add(string.Format("เตียง {0:D2}", b));
             }
             cboTargetBed.SelectedIndex = 0;
-            pnlHeaderActions.Controls.Add(cboTargetBed);
-
-            btnCopy = new Button();
-            btnCopy.Text = "📋 คัดลอก (Ctrl+C)";
-            btnCopy.Size = new Size(130, 30);
-            btnCopy.BackColor = Color.FromArgb(241, 245, 249);
-            btnCopy.FlatStyle = FlatStyle.Flat;
-            btnCopy.Font = new Font("Segoe UI", 8.5f, FontStyle.Bold);
-            btnCopy.Cursor = Cursors.Hand;
-            btnCopy.Click += (s, e) => CopySelected();
-            pnlHeaderActions.Controls.Add(btnCopy);
+            pnlActionToolbar.Controls.Add(cboTargetBed);
 
             btnInsertToBed = new Button();
-            btnInsertToBed.Text = "🛏️ แทรกลงเตียง";
-            btnInsertToBed.Size = new Size(140, 30);
+            btnInsertToBed.Text = "แทรกลงเตียง (ต่อท้าย)";
+            btnInsertToBed.Size = new Size(150, 30);
             btnInsertToBed.BackColor = Color.FromArgb(13, 148, 136);
             btnInsertToBed.ForeColor = Color.White;
             btnInsertToBed.FlatStyle = FlatStyle.Flat;
             btnInsertToBed.Font = new Font("Segoe UI", 8.5f, FontStyle.Bold);
             btnInsertToBed.Cursor = Cursors.Hand;
             btnInsertToBed.Click += (s, e) => InsertToBed(false);
-            pnlHeaderActions.Controls.Add(btnInsertToBed);
+            pnlActionToolbar.Controls.Add(btnInsertToBed);
 
             btnReplaceBed = new Button();
-            btnReplaceBed.Text = "📝 แทนที่เตียง";
-            btnReplaceBed.Size = new Size(105, 30);
+            btnReplaceBed.Text = "แทนที่เตียง";
+            btnReplaceBed.Size = new Size(95, 30);
             btnReplaceBed.BackColor = Color.FromArgb(217, 119, 6);
             btnReplaceBed.ForeColor = Color.White;
             btnReplaceBed.FlatStyle = FlatStyle.Flat;
             btnReplaceBed.Font = new Font("Segoe UI", 8.5f, FontStyle.Bold);
             btnReplaceBed.Cursor = Cursors.Hand;
             btnReplaceBed.Click += (s, e) => InsertToBed(true);
-            pnlHeaderActions.Controls.Add(btnReplaceBed);
+            pnlActionToolbar.Controls.Add(btnReplaceBed);
 
             btnPasteEPhis = new Button();
-            btnPasteEPhis.Text = "🖥️ วาง e-PHIS";
+            btnPasteEPhis.Text = "วางลง e-PHIS";
             btnPasteEPhis.Size = new Size(110, 30);
             btnPasteEPhis.BackColor = Color.FromArgb(15, 118, 110);
             btnPasteEPhis.ForeColor = Color.White;
@@ -3645,9 +3657,19 @@ public void RefreshAllBedButtons() {
             btnPasteEPhis.Font = new Font("Segoe UI", 8.5f, FontStyle.Bold);
             btnPasteEPhis.Cursor = Cursors.Hand;
             btnPasteEPhis.Click += (s, e) => PasteSelected();
-            pnlHeaderActions.Controls.Add(btnPasteEPhis);
+            pnlActionToolbar.Controls.Add(btnPasteEPhis);
 
-            pnlPreviewHeader.Controls.Add(pnlHeaderActions);
+            btnCopy = new Button();
+            btnCopy.Text = "คัดลอก (Ctrl+C)";
+            btnCopy.Size = new Size(125, 30);
+            btnCopy.BackColor = Color.FromArgb(241, 245, 249);
+            btnCopy.FlatStyle = FlatStyle.Flat;
+            btnCopy.Font = new Font("Segoe UI", 8.5f, FontStyle.Bold);
+            btnCopy.Cursor = Cursors.Hand;
+            btnCopy.Click += (s, e) => CopySelected();
+            pnlActionToolbar.Controls.Add(btnCopy);
+
+            pnlPreviewHeader.Controls.Add(pnlActionToolbar);
 
             // View Tabs
             pnlViewTabs = new Panel();
@@ -3657,7 +3679,7 @@ public void RefreshAllBedButtons() {
             pnlViewTabs.Padding = new Padding(12, 3, 12, 3);
 
             btnTabDar = new Button();
-            btnTabDar.Text = "📖 มุมมองจัดหน้า DAR สวยงาม";
+            btnTabDar.Text = "มุมมองจัดหน้า DAR สวยงาม";
             btnTabDar.Size = new Size(185, 27);
             btnTabDar.BackColor = Color.White;
             btnTabDar.ForeColor = Color.FromArgb(13, 148, 136);
@@ -3669,7 +3691,7 @@ public void RefreshAllBedButtons() {
             pnlViewTabs.Controls.Add(btnTabDar);
 
             btnTabRaw = new Button();
-            btnTabRaw.Text = "📝 ข้อความเต็ม (Raw Text)";
+            btnTabRaw.Text = "ข้อความเต็ม (Raw Text)";
             btnTabRaw.Size = new Size(165, 27);
             btnTabRaw.Location = new Point(200, 3);
             btnTabRaw.BackColor = Color.FromArgb(241, 245, 249);
@@ -3740,6 +3762,22 @@ public void RefreshAllBedButtons() {
             };
         }
 
+        private void SetSafeSplitterDistance(int dist) {
+            if (split == null) return;
+            try {
+                int w = split.ClientSize.Width;
+                if (w > 250) {
+                    int max = w - split.Panel2MinSize - 10;
+                    int min = split.Panel1MinSize + 10;
+                    if (max > min) {
+                        if (dist > max) dist = max;
+                        if (dist < min) dist = min;
+                        split.SplitterDistance = dist;
+                    }
+                }
+            } catch {}
+        }
+
         private void AddCategoryButton(string catKey, string label) {
             Button btn = new Button();
             btn.Text = label;
@@ -3798,22 +3836,6 @@ public void RefreshAllBedButtons() {
             }
         }
 
-        private void SetSafeSplitterDistance(int dist) {
-            if (split == null) return;
-            try {
-                int w = split.ClientSize.Width;
-                if (w > 250) {
-                    int max = w - split.Panel2MinSize - 10;
-                    int min = split.Panel1MinSize + 10;
-                    if (max > min) {
-                        if (dist > max) dist = max;
-                        if (dist < min) dist = min;
-                        split.SplitterDistance = dist;
-                    }
-                }
-            } catch {}
-        }
-
         private void ApplyFontSize() {
             try {
                 Font fList = new Font("Segoe UI", currentFontSize, FontStyle.Regular);
@@ -3857,29 +3879,29 @@ public void RefreshAllBedButtons() {
             }
 
             if (targetBed > 0) {
-                lblTargetBedTop.Text = string.Format("🛏️ เตียง {0:D2}", targetBed);
+                lblTargetBedTop.Text = string.Format("เตียง {0:D2}", targetBed);
                 lblTargetBedTop.Visible = true;
-                btnInsertToBed.Text = string.Format("🛏️ แทรกเตียง {0:D2}", targetBed);
-                btnReplaceBed.Text = string.Format("📝 แทนที่เตียง {0:D2}", targetBed);
+                btnInsertToBed.Text = string.Format("แทรกเตียง {0:D2}", targetBed);
+                btnReplaceBed.Text = string.Format("แทนที่เตียง {0:D2}", targetBed);
                 if (cboTargetBed != null && targetBed >= 1 && targetBed <= 30) {
                     cboTargetBed.SelectedIndex = targetBed - 1;
                 }
             } else {
                 lblTargetBedTop.Visible = false;
-                btnInsertToBed.Text = "🛏️ แทรกลงเตียง";
-                btnReplaceBed.Text = "📝 แทนที่เตียง";
+                btnInsertToBed.Text = "แทรกลงเตียง";
+                btnReplaceBed.Text = "แทนที่เตียง";
             }
 
             RefreshList(txtSearch.Text);
             SwitchPreviewView(true);
 
             this.Show();
-            SetSafeSplitterDistance(370);
             this.WindowState = FormWindowState.Normal;
             this.BringToFront();
             this.Activate();
             txtSearch.Focus();
             txtSearch.SelectAll();
+            SetSafeSplitterDistance(370);
         }
 
         private bool MatchesCategoryFilter(TemplateItem item, string catKey) {
@@ -3986,10 +4008,10 @@ public void RefreshAllBedButtons() {
                 fBold = new Font("Segoe UI", baseFontSize, FontStyle.Bold);
             }
 
-            Color cFocus = Color.FromArgb(79, 70, 229);    // Indigo
-            Color cData = Color.FromArgb(2, 132, 199);     // Sky Blue
-            Color cAction = Color.FromArgb(5, 150, 105);   // Emerald
-            Color cResp = Color.FromArgb(13, 148, 136);    // Teal
+            Color cFocus = Color.FromArgb(79, 70, 229);    // Indigo #4f46e5
+            Color cData = Color.FromArgb(2, 132, 199);     // Sky Blue #0284c7
+            Color cAction = Color.FromArgb(5, 150, 105);   // Emerald #059669
+            Color cResp = Color.FromArgb(13, 148, 136);    // Teal #0d9488
             Color cText = Color.FromArgb(30, 41, 59);      // Slate 800
 
             bool hasDar = false;
@@ -4012,28 +4034,28 @@ public void RefreshAllBedButtons() {
                 string trimmed = line.Trim();
                 if (trimmed.StartsWith("Focus:")) {
                     curSection = "focus";
-                    AppendSectionHeader(rtb, "🎯 FOCUS: ข้อวินิจฉัย / ปัญหาทางการพยาบาล", cFocus, fHdr);
+                    AppendSectionHeader(rtb, "[FOCUS] ข้อวินิจฉัย / ปัญหาทางการพยาบาล", cFocus, fHdr);
                     string val = trimmed.Substring("Focus:".Length).Trim();
                     if (!string.IsNullOrEmpty(val)) {
                         AppendSectionBody(rtb, val, cFocus, fBold);
                     }
                 } else if (trimmed.StartsWith("Data:")) {
                     curSection = "data";
-                    AppendSectionHeader(rtb, "🔍 DATA: ข้อมูลผู้ป่วยและอาการแสดง (S & O)", cData, fHdr);
+                    AppendSectionHeader(rtb, "[DATA] ข้อมูลผู้ป่วยและอาการแสดง (S & O)", cData, fHdr);
                     string val = trimmed.Substring("Data:".Length).Trim();
                     if (!string.IsNullOrEmpty(val)) {
                         AppendSectionBody(rtb, val, cText, fBody);
                     }
                 } else if (trimmed.StartsWith("Action:")) {
                     curSection = "action";
-                    AppendSectionHeader(rtb, "🩺 ACTION: กิจกรรมการพยาบาลและข้อควรระวัง", cAction, fHdr);
+                    AppendSectionHeader(rtb, "[ACTION] กิจกรรมการพยาบาลและข้อควรระวัง", cAction, fHdr);
                     string val = trimmed.Substring("Action:".Length).Trim();
                     if (!string.IsNullOrEmpty(val)) {
                         AppendSectionBody(rtb, val, cText, fBody);
                     }
                 } else if (trimmed.StartsWith("Response:")) {
                     curSection = "response";
-                    AppendSectionHeader(rtb, "✅ RESPONSE: การประเมินผลลัพธ์ทางการพยาบาล", cResp, fHdr);
+                    AppendSectionHeader(rtb, "[RESPONSE] การประเมินผลลัพธ์ทางการพยาบาล", cResp, fHdr);
                     string val = trimmed.Substring("Response:".Length).Trim();
                     if (!string.IsNullOrEmpty(val)) {
                         AppendSectionBody(rtb, val, cText, fBody);
@@ -4060,7 +4082,7 @@ public void RefreshAllBedButtons() {
             rtb.SelectionColor = col;
             rtb.AppendText(title + "\n");
             rtb.SelectionColor = Color.FromArgb(203, 213, 225);
-            rtb.AppendText(new string('─', 60) + "\n");
+            rtb.AppendText(new string('-', 65) + "\n"); // Safe ASCII hyphens, NEVER turns into tofu boxes!
         }
 
         private void AppendSectionBody(RichTextBox rtb, string text, Color col, Font fnt) {
@@ -4076,7 +4098,7 @@ public void RefreshAllBedButtons() {
             try {
                 Clipboard.SetText(item.Content);
                 string origText = btnCopy.Text;
-                btnCopy.Text = "✅ คัดลอกแล้ว!";
+                btnCopy.Text = "คัดลอกแล้ว!";
                 btnCopy.BackColor = Color.FromArgb(204, 251, 241);
                 var t = new System.Windows.Forms.Timer();
                 t.Interval = 1200;
