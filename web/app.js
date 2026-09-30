@@ -762,8 +762,9 @@ function showToast(message, type = 'info') {
 
 
 
+
 /* =====================================================
-   Clinical Templates System (DAR & Nursing Guidelines)
+   Clinical Templates System (DAR & Nursing Guidelines) - Redesigned
    ===================================================== */
 
 let templateCategories = [];
@@ -772,6 +773,7 @@ let activeTemplateCat = 'all';
 let activeTemplateSearch = '';
 let selectedTemplate = null;
 let templateModalTriggerSource = 'navbar';
+let currentPreviewViewMode = 'dar'; // 'dar' or 'raw'
 
 // Template Modal DOM Elements
 const openTemplateLibraryBtn = document.getElementById('openTemplateLibraryBtn');
@@ -782,18 +784,25 @@ const btnCloseTemplateModal = document.getElementById('btnCloseTemplateModal');
 const templateSearchInput = document.getElementById('templateSearchInput');
 const clearTemplateSearchBtn = document.getElementById('clearTemplateSearchBtn');
 const templateCategoryPills = document.getElementById('templateCategoryPills');
+const templateContentSplit = document.getElementById('templateContentSplit');
 const templateListPane = document.getElementById('templateListPane');
 const templatePreviewPane = document.getElementById('templatePreviewPane');
 const templatePreviewEmpty = document.getElementById('templatePreviewEmpty');
 const templatePreviewContent = document.getElementById('templatePreviewContent');
+const btnMobileBackToList = document.getElementById('btnMobileBackToList');
 const previewShortcutTag = document.getElementById('previewShortcutTag');
 const previewTitle = document.getElementById('previewTitle');
 const previewCategoryTag = document.getElementById('previewCategoryTag');
 const previewFormattedView = document.getElementById('previewFormattedView');
+const previewRawView = document.getElementById('previewRawView');
 const templateRawText = document.getElementById('templateRawText');
+const tabViewDAR = document.getElementById('tabViewDAR');
+const tabViewRaw = document.getElementById('tabViewRaw');
 const btnCopyTemplate = document.getElementById('btnCopyTemplate');
 const btnInsertTemplate = document.getElementById('btnInsertTemplate');
 const btnApplyTemplate = document.getElementById('btnApplyTemplate');
+const btnInsertText = document.getElementById('btnInsertText');
+const btnApplyText = document.getElementById('btnApplyText');
 const bedTargetSelectWrapper = document.getElementById('bedTargetSelectWrapper');
 const targetBedSelect = document.getElementById('targetBedSelect');
 const templateCountBadge = document.getElementById('templateCountBadge');
@@ -822,19 +831,10 @@ async function initClinicalTemplates() {
     renderTemplateCategoryPills();
     renderTemplatesList();
     if (allTemplates.length > 0) {
-      selectTemplate(allTemplates[0]);
+      selectTemplate(allTemplates[0], false);
     }
   } catch (err) {
-    console.warn('Failed to fetch templates.json, loading fallback clinical set', err);
-    // Minimal fallback
-    templateCategories = [
-      {
-        category: "ศัลยกรรมกระดูกและข้อ",
-        items: [
-          { shortcut: ".tka", title: "ผ่าตัดเปลี่ยนข้อเข่าเทียม (TKA)", content: "Focus: Post-Op TKA\nData: V/S stable, แผลปิดสนิท, Redivac drain...\nAction: 1. CMS check ทุก 2 ชม. 2. จัดเข่าเหยียดตรง หนุนหมอนใต้ข้อเท้า 3. Cold pack 4. Ankle pumping\nResponse: CMS ปกติ ปวดลดลง" }
-        ]
-      }
-    ];
+    console.warn('Failed to fetch templates.json', err);
   }
 
   setupTemplateEventListeners();
@@ -860,6 +860,24 @@ function setupTemplateEventListeners() {
     });
   }
 
+  // Mobile Back Button
+  if (btnMobileBackToList) {
+    btnMobileBackToList.addEventListener('click', () => {
+      if (templateContentSplit) {
+        templateContentSplit.classList.remove('detail-active');
+      }
+    });
+  }
+
+  // View Switcher Tabs (DAR vs Raw)
+  if (tabViewDAR) {
+    tabViewDAR.addEventListener('click', () => switchPreviewView('dar'));
+  }
+  if (tabViewRaw) {
+    tabViewRaw.addEventListener('click', () => switchPreviewView('raw'));
+  }
+
+  // Search input
   if (templateSearchInput) {
     templateSearchInput.addEventListener('input', (e) => {
       activeTemplateSearch = e.target.value.trim().toLowerCase();
@@ -889,9 +907,32 @@ function setupTemplateEventListeners() {
   }
 }
 
+// Switch between DAR formatted and raw text view
+function switchPreviewView(mode) {
+  currentPreviewViewMode = mode;
+  if (tabViewDAR && tabViewRaw && previewFormattedView && previewRawView) {
+    if (mode === 'dar') {
+      tabViewDAR.classList.add('active');
+      tabViewRaw.classList.remove('active');
+      previewFormattedView.style.display = 'flex';
+      previewRawView.style.display = 'none';
+    } else {
+      tabViewDAR.classList.remove('active');
+      tabViewRaw.classList.add('active');
+      previewFormattedView.style.display = 'none';
+      previewRawView.style.display = 'flex';
+    }
+  }
+}
+
 // Open Template Modal
 function openTemplateModal(source = 'navbar') {
   templateModalTriggerSource = source;
+
+  // Reset mobile view to list
+  if (templateContentSplit) {
+    templateContentSplit.classList.remove('detail-active');
+  }
 
   // Setup Bed Target Selector
   if (targetBedSelect) {
@@ -907,12 +948,12 @@ function openTemplateModal(source = 'navbar') {
 
   if (source === 'editModal') {
     if (bedTargetSelectWrapper) bedTargetSelectWrapper.style.display = 'none';
-    if (btnInsertTemplate) btnInsertTemplate.innerHTML = '<i class="fa-solid fa-arrow-down"></i> แทรกในบันทึกเตียงนี้';
-    if (btnApplyTemplate) btnApplyTemplate.innerHTML = '<i class="fa-solid fa-file-signature"></i> แทนที่ทั้งหมดในเตียงนี้';
+    if (btnInsertText) btnInsertText.textContent = 'แทรกในบันทึกเตียงนี้';
+    if (btnApplyText) btnApplyText.textContent = 'แทนที่ทั้งหมดในเตียงนี้';
   } else {
     if (bedTargetSelectWrapper) bedTargetSelectWrapper.style.display = 'flex';
-    if (btnInsertTemplate) btnInsertTemplate.innerHTML = '<i class="fa-solid fa-arrow-down"></i> แทรกต่อท้ายเตียงนี้';
-    if (btnApplyTemplate) btnApplyTemplate.innerHTML = '<i class="fa-solid fa-file-signature"></i> ใช้ที่เตียงที่เลือก';
+    if (btnInsertText) btnInsertText.textContent = 'แทรกต่อท้าย';
+    if (btnApplyText) btnApplyText.textContent = 'ใช้ที่เตียงที่เลือก';
   }
 
   if (templateModal) {
@@ -923,10 +964,12 @@ function openTemplateModal(source = 'navbar') {
   // Pre-select first or current
   renderTemplatesList();
   if (selectedTemplate) {
-    selectTemplate(selectedTemplate);
+    selectTemplate(selectedTemplate, false);
   } else if (allTemplates.length > 0) {
-    selectTemplate(allTemplates[0]);
+    selectTemplate(allTemplates[0], false);
   }
+
+  switchPreviewView('dar');
 
   setTimeout(() => {
     if (templateSearchInput) templateSearchInput.focus();
@@ -939,7 +982,27 @@ function closeTemplateModal() {
     templateModal.classList.remove('open');
     templateModal.setAttribute('aria-hidden', 'true');
   }
+  if (templateContentSplit) {
+    templateContentSplit.classList.remove('detail-active');
+  }
 }
+
+// Category clean names mapping (avoiding awkward ".." truncation)
+const friendlyCategoryNames = [
+  { icon: "fa-procedures", label: "ก่อน-หลังผ่าตัด" },
+  { icon: "fa-fire", label: "จัดการความปวด" },
+  { icon: "fa-bone", label: "ตรวจระบบกระดูก" },
+  { icon: "fa-heart-pulse", label: "อายุรกรรม" },
+  { icon: "fa-shield-halved", label: "ป้องกันแทรกซ้อน" },
+  { icon: "fa-droplet", label: "สารน้ำ & ขับถ่าย" },
+  { icon: "fa-clipboard-user", label: "ส่งเวร & จำหน่าย" },
+  { icon: "fa-bolt", label: "คีย์ลัดย่อด่วน" },
+  { icon: "fa-person-walking-with-cane", label: "ข้อเข่าเสื่อม (TKA/UKA)" },
+  { icon: "fa-wheelchair", label: "ข้อสะโพก (THA/BHA)" },
+  { icon: "fa-dna", label: "กระดูกสันหลัง (Spine)" },
+  { icon: "fa-bandage", label: "กระดูกหัก (ORIF/Cast)" },
+  { icon: "fa-hospital", label: "ศัลยกรรมเฉพาะทาง" }
+];
 
 // Render Category Pills
 function renderTemplateCategoryPills() {
@@ -958,34 +1021,14 @@ function renderTemplateCategoryPills() {
   });
   templateCategoryPills.appendChild(allPill);
 
-  // Category pills with friendly emojis
-  const catIcons = [
-    'fa-briefcase-medical', // 1
-    'fa-fire',             // 2 pain
-    'fa-bone',             // 3 ortho
-    'fa-heart-pulse',      // 4 med
-    'fa-shield-halved',    // 5 safe
-    'fa-droplet',          // 6 fluids
-    'fa-clipboard-user',   // 7 shift
-    'fa-bolt',             // 8 shortcuts
-    'fa-person-walking-with-cane', // 9 knee tka
-    'fa-person-booth',     // 10 hip tha
-    'fa-dna',              // 11 spine
-    'fa-bandage',          // 12 fractures
-    'fa-hospital'          // 13 surgery
-  ];
-
   templateCategories.forEach((cat, idx) => {
     const pill = document.createElement('button');
     pill.type = 'button';
     pill.className = `cat-pill ${activeTemplateCat === String(idx) ? 'active' : ''}`;
-    const iconClass = catIcons[idx % catIcons.length];
     
-    // Shorten long category titles for pill display
-    let shortTitle = cat.category.split('(')[0].replace(/^\d+\.\s*/, '').trim();
-    if (shortTitle.length > 22) shortTitle = shortTitle.substring(0, 20) + '..';
+    const friendly = friendlyCategoryNames[idx] || { icon: "fa-briefcase-medical", label: cat.category.split('(')[0].replace(/^\d+\.\s*/, '').trim() };
 
-    pill.innerHTML = `<i class="fa-solid ${iconClass}"></i> ${shortTitle} (${cat.items.length})`;
+    pill.innerHTML = `<i class="fa-solid ${friendly.icon}"></i> ${friendly.label} (${cat.items.length})`;
     pill.addEventListener('click', () => {
       activeTemplateCat = String(idx);
       updateCategoryPillsActiveState();
@@ -1030,14 +1073,14 @@ function renderTemplatesList() {
   });
 
   if (templateCountBadge) {
-    templateCountBadge.textContent = `พบ ${filtered.length} เทมเพลต`;
+    templateCountBadge.textContent = `${filtered.length} เทมเพลต`;
   }
 
   if (filtered.length === 0) {
     templateListPane.innerHTML = `
-      <div style="text-align: center; padding: 30px; color: var(--text-muted);">
-        <i class="fa-solid fa-magnifying-glass" style="font-size: 1.8rem; margin-bottom: 8px; opacity: 0.5;"></i>
-        <p>ไม่พบข้อวินิจฉัยที่ตรงกับ "${escapeHtml(activeTemplateSearch)}"</p>
+      <div style="text-align: center; padding: 40px 20px; color: var(--text-muted);">
+        <i class="fa-solid fa-magnifying-glass" style="font-size: 2rem; margin-bottom: 10px; opacity: 0.4;"></i>
+        <p style="font-size: 0.92rem; margin: 0;">ไม่พบข้อวินิจฉัยที่ตรงกับ "${escapeHtml(activeTemplateSearch)}"</p>
       </div>
     `;
     return;
@@ -1061,19 +1104,20 @@ function renderTemplatesList() {
     }
 
     // Clean Category label
-    const shortCat = item.category.replace(/^\d+\.\s*/, '').split('(')[0].trim();
+    const friendly = friendlyCategoryNames[item.catIndex];
+    const catLabel = friendly ? friendly.label.split('(')[0].trim() : item.category.replace(/^\d+\.\s*/, '').split('(')[0].trim();
 
     card.innerHTML = `
       <div class="template-card-header">
         <span class="template-card-shortcut">${escapeHtml(item.shortcut)}</span>
-        <span class="template-card-cat-label">${escapeHtml(shortCat)}</span>
+        <span class="template-card-cat-label">${escapeHtml(catLabel)}</span>
       </div>
       <div class="template-card-title">${escapeHtml(item.title)}</div>
       <div class="template-card-snippet">${escapeHtml(focusSnippet)}</div>
     `;
 
     card.addEventListener('click', () => {
-      selectTemplate(item);
+      selectTemplate(item, true); // true = activate mobile detail
       const allCards = templateListPane.querySelectorAll('.template-card');
       allCards.forEach(c => c.classList.remove('active'));
       card.classList.add('active');
@@ -1084,7 +1128,7 @@ function renderTemplatesList() {
 }
 
 // Select a Template and Display DAR View
-function selectTemplate(item) {
+function selectTemplate(item, activateMobileDetail = false) {
   selectedTemplate = item;
   if (!templatePreviewContent || !templatePreviewEmpty) return;
 
@@ -1093,12 +1137,21 @@ function selectTemplate(item) {
 
   if (previewShortcutTag) previewShortcutTag.textContent = item.shortcut;
   if (previewTitle) previewTitle.textContent = item.title;
-  if (previewCategoryTag) previewCategoryTag.textContent = item.category.replace(/^\d+\.\s*/, '');
+  
+  const friendly = friendlyCategoryNames[item.catIndex];
+  const catName = friendly ? friendly.label : item.category.replace(/^\d+\.\s*/, '');
+  if (previewCategoryTag) previewCategoryTag.textContent = catName;
+
   if (templateRawText) templateRawText.value = item.content;
 
   // Format DAR
   if (previewFormattedView) {
     previewFormattedView.innerHTML = formatDARHtml(item.content);
+  }
+
+  // Mobile activation
+  if (activateMobileDetail && templateContentSplit) {
+    templateContentSplit.classList.add('detail-active');
   }
 }
 
@@ -1144,7 +1197,7 @@ function formatDARHtml(content) {
     return `
       <div class="dar-section">
         <span class="dar-tag" style="background: rgba(13, 148, 136, 0.15); color: var(--primary);">เนื้อหาข้อความ</span>
-        <div class="dar-text">${escapeHtml(content)}</div>
+        <div class="dar-text" style="font-family: var(--font-mono); font-size: 1rem; line-height: 1.8;">${escapeHtml(content)}</div>
       </div>
     `;
   }
@@ -1153,24 +1206,28 @@ function formatDARHtml(content) {
   if (sections.focus.length > 0) {
     html += `
       <div class="dar-section focus-sec">
-        <span class="dar-tag"><i class="fa-solid fa-bullseye"></i> Focus (ข้อวินิจฉัย/ปัญหา)</span>
-        <div class="dar-text"><strong>${escapeHtml(sections.focus.join('\n').trim())}</strong></div>
+        <span class="dar-tag"><i class="fa-solid fa-bullseye"></i> Focus (ข้อวินิจฉัย/ปัญหาทางการพยาบาล)</span>
+        <div class="dar-text">${escapeHtml(sections.focus.join('\n').trim())}</div>
       </div>
     `;
   }
   if (sections.data.length > 0) {
     html += `
       <div class="dar-section data-sec">
-        <span class="dar-tag"><i class="fa-solid fa-clipboard-check"></i> Data (ข้อมูลผู้ป่วย/อาการแสดง)</span>
+        <span class="dar-tag"><i class="fa-solid fa-clipboard-check"></i> Data (ข้อมูลอาการและผลตรวจ S & O)</span>
         <div class="dar-text">${escapeHtml(sections.data.join('\n').trim())}</div>
       </div>
     `;
   }
   if (sections.action.length > 0) {
+    // Format action items nicely
+    const actionText = escapeHtml(sections.action.join('\n').trim())
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>'); // bold markdown support
+
     html += `
       <div class="dar-section action-sec">
-        <span class="dar-tag"><i class="fa-solid fa-user-nurse"></i> Action (กิจกรรมการพยาบาล)</span>
-        <div class="dar-text">${escapeHtml(sections.action.join('\n').trim())}</div>
+        <span class="dar-tag"><i class="fa-solid fa-user-nurse"></i> Action (กิจกรรมการพยาบาล & ข้อควรระวัง)</span>
+        <div class="dar-text">${actionText}</div>
       </div>
     `;
   }
@@ -1192,7 +1249,7 @@ function copySelectedTemplate() {
   const textToCopy = selectedTemplate.content;
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(textToCopy).then(() => {
-      showToast(`📋 คัดลอก [${selectedTemplate.shortcut}] เรียบร้อยแล้ว`, 'success');
+      showToast(`📋 คัดลอกข้อวินิจฉัย [${selectedTemplate.shortcut}] เรียบร้อย`, 'success');
     }).catch(() => {
       fallbackCopy(textToCopy);
     });
@@ -1244,9 +1301,8 @@ function applyTemplateToNote(replace = false) {
         noteTextarea.value = curText ? `${curText}\n\n${contentToApply}` : contentToApply;
       }
       updateCharCount();
-      showToast(`✨ นำข้อวินิจฉัย [${selectedTemplate.shortcut}] ใส่เตียง ${String(targetBed).padStart(2, '0')} เรียบร้อย กด "บันทึกลง Cloud" เมื่อตรวจสอบเสร็จ`, 'success');
+      showToast(`✨ นำข้อวินิจฉัย [${selectedTemplate.shortcut}] ใส่เตียง ${String(targetBed).padStart(2, '0')} เรียบร้อย`, 'success');
       noteTextarea.focus();
     }, 150);
   }
 }
-

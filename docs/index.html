@@ -216,6 +216,121 @@
   <!-- Template Catalog & DAR Picker Modal -->
   <div class="modal-overlay" id="templateModal" aria-hidden="true">
     <div class="modal-card modal-xl">
+      <!-- Modal Header -->
+      <div class="modal-header template-modal-hdr">
+        <div class="modal-title-group">
+          <div class="modal-bed-badge template-header-badge"><i class="fa-solid fa-book-medical"></i> DAR</div>
+          <div>
+            <div class="modal-title-row">
+              <h2 class="modal-title">คลังข้อวินิจฉัยและกิจกรรมการพยาบาล</h2>
+              <span class="template-count-badge" id="templateCountBadge">62 เทมเพลต</span>
+            </div>
+            <p class="modal-subtitle">Focus Charting (DAR) สำหรับผู้ป่วยกระดูกและข้อ, กระดูกสันหลัง, ศัลยกรรม, และอายุรกรรม</p>
+          </div>
+        </div>
+        <button class="modal-close-btn" id="templateModalCloseBtn" aria-label="Close template modal"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <!-- Search & Category Filters Bar -->
+      <div class="template-filter-section">
+        <div class="template-search-box">
+          <i class="fa-solid fa-magnifying-glass search-icon"></i>
+          <input type="text" id="templateSearchInput" placeholder="พิมพ์ค้นหา เช่น tka, tha, bha, สันหลัง, acdf, laminectomy, sepsis, orif..." autocomplete="off">
+          <button class="clear-search-btn" id="clearTemplateSearchBtn" aria-label="ล้างคำค้น"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="template-category-pills" id="templateCategoryPills">
+          <!-- Rendered by JS -->
+        </div>
+      </div>
+
+      <!-- Main Content Split (List & Preview) -->
+      <div class="template-content-split" id="templateContentSplit">
+        <!-- Left: Template Cards List -->
+        <div class="template-list-pane" id="templateListPane">
+          <!-- Rendered by JS -->
+        </div>
+
+        <!-- Right: Full Preview & Reading Canvas -->
+        <div class="template-preview-pane" id="templatePreviewPane">
+          <div class="template-preview-empty" id="templatePreviewEmpty">
+            <i class="fa-solid fa-hand-pointer"></i>
+            <h3>เลือกข้อวินิจฉัยจากรายการ</h3>
+            <p>แตะหรือคลิกรายการทางด้านซ้ายเพื่อเปิดอ่านรายละเอียดเต็มและนำไปใช้งาน</p>
+          </div>
+          
+          <div class="template-preview-content" id="templatePreviewContent" style="display: none;">
+            <!-- Mobile Back Button -->
+            <div class="mobile-preview-back-bar" id="mobilePreviewBackBar">
+              <button type="button" class="btn-mobile-back" id="btnMobileBackToList">
+                <i class="fa-solid fa-arrow-left"></i> กลับไปรายการข้อวินิจฉัย
+              </button>
+            </div>
+
+            <!-- Preview Header with Sticky Actions -->
+            <div class="preview-header-bar">
+              <div class="preview-title-block">
+                <div class="preview-tags-row">
+                  <span class="preview-shortcut-tag" id="previewShortcutTag">.tka</span>
+                  <span class="preview-category-tag" id="previewCategoryTag">ศัลยกรรมข้อเข่าเสื่อม</span>
+                </div>
+                <h3 class="preview-title" id="previewTitle">ผ่าตัดเปลี่ยนข้อเข่าเทียม (TKA)</h3>
+              </div>
+
+              <!-- Top Action Buttons (Roomy & Never Squished!) -->
+              <div class="preview-header-actions">
+                <div class="bed-target-select-wrapper" id="bedTargetSelectWrapper" style="display: none;">
+                  <span class="target-bed-label">ใส่เตียง:</span>
+                  <select id="targetBedSelect" class="form-select-sm"></select>
+                </div>
+                <button type="button" class="btn btn-secondary btn-sm" id="btnCopyTemplate" title="คัดลอกข้อความ">
+                  <i class="fa-regular fa-copy"></i> <span>คัดลอก</span>
+                </button>
+                <button type="button" class="btn btn-outline btn-sm" id="btnInsertTemplate" title="แทรกต่อท้าย">
+                  <i class="fa-solid fa-arrow-down"></i> <span id="btnInsertText">แทรกต่อท้าย</span>
+                </button>
+                <button type="button" class="btn btn-primary btn-sm" id="btnApplyTemplate" title="ใช้เทมเพลตนี้">
+                  <i class="fa-solid fa-file-signature"></i> <span id="btnApplyText">ใช้เทมเพลตนี้</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- View Switcher Tabs: DAR Format vs Raw Text -->
+            <div class="preview-view-tabs">
+              <button type="button" class="view-tab-btn active" id="tabViewDAR">
+                <i class="fa-solid fa-layer-group"></i> มุมมองอ่านง่าย (DAR)
+              </button>
+              <button type="button" class="view-tab-btn" id="tabViewRaw">
+                <i class="fa-solid fa-code"></i> ข้อความเต็ม (Raw Text)
+              </button>
+            </div>
+
+            <!-- Formatted DAR View -->
+            <div class="preview-formatted-view" id="previewFormattedView"></div>
+
+            <!-- Raw Text Area -->
+            <div class="preview-raw-view" id="previewRawView" style="display: none;">
+              <textarea id="templateRawText" class="template-raw-textarea" readonly></textarea>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Clean Compact Footer -->
+      <div class="modal-footer template-modal-footer">
+        <div class="template-tip">
+          <i class="fa-solid fa-circle-info"></i>
+          <span>บนคอมพิวเตอร์สามารถพิมพ์คำย่อ เช่น <code>.tka</code> <code>.tha</code> <code>.plif</code> ใน e-PHIS หรือกด <strong>F8</strong> เพื่อเปิดคลังเทมเพลต</span>
+        </div>
+        <button type="button" class="btn btn-secondary btn-sm" id="btnCloseTemplateModal">ปิดหน้าต่าง</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  
+  <!-- Template Catalog & DAR Picker Modal -->
+  <div class="modal-overlay" id="templateModal" aria-hidden="true">
+    <div class="modal-card modal-xl">
       <div class="modal-header">
         <div class="modal-title-group">
           <div class="modal-bed-badge template-header-badge"><i class="fa-solid fa-book-medical"></i> DAR</div>
