@@ -3525,9 +3525,8 @@ public void RefreshAllBedButtons() {
             split = new SplitContainer();
             split.Dock = DockStyle.Fill;
             split.Orientation = Orientation.Vertical;
-            split.SplitterDistance = 370;
-            split.Panel1MinSize = 260;
-            split.Panel2MinSize = 440;
+            split.Panel1MinSize = 80;
+            split.Panel2MinSize = 120;
 
             // Panel 1 (Left: Templates List)
             lstTemplates = new ListView();
@@ -3721,6 +3720,9 @@ public void RefreshAllBedButtons() {
             pnlBottom.SendToBack();
             split.BringToFront();
 
+            this.Shown += (s, e) => SetSafeSplitterDistance(370);
+            this.Resize += (s, e) => SetSafeSplitterDistance(370);
+
             this.KeyPreview = true;
             this.KeyDown += (s, e) => {
                 if (e.KeyCode == Keys.Escape) {
@@ -3796,6 +3798,22 @@ public void RefreshAllBedButtons() {
             }
         }
 
+        private void SetSafeSplitterDistance(int dist) {
+            if (split == null) return;
+            try {
+                int w = split.ClientSize.Width;
+                if (w > 250) {
+                    int max = w - split.Panel2MinSize - 10;
+                    int min = split.Panel1MinSize + 10;
+                    if (max > min) {
+                        if (dist > max) dist = max;
+                        if (dist < min) dist = min;
+                        split.SplitterDistance = dist;
+                    }
+                }
+            } catch {}
+        }
+
         private void ApplyFontSize() {
             try {
                 Font fList = new Font("Segoe UI", currentFontSize, FontStyle.Regular);
@@ -3856,6 +3874,7 @@ public void RefreshAllBedButtons() {
             SwitchPreviewView(true);
 
             this.Show();
+            SetSafeSplitterDistance(370);
             this.WindowState = FormWindowState.Normal;
             this.BringToFront();
             this.Activate();
