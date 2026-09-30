@@ -1,8 +1,8 @@
 {
-  "version": "1.4.1",
-  "downloadUrl": "https://github.com/oatzilla/Medical_Text_Expander/releases/latest/download/Medical_Text_Expander.exe",
-  "download_url": "https://github.com/oatzilla/Medical_Text_Expander/releases/latest/download/Medical_Text_Expander.exe",
+  "version": "1.5.2",
+  "downloadUrl": "https://raw.githubusercontent.com/oatzilla/Medical_Text_Expander/main/Medical_Text_Expander.exe",
+  "download_url": "https://raw.githubusercontent.com/oatzilla/Medical_Text_Expander/main/Medical_Text_Expander.exe",
   "releaseDate": "2026-09-30",
   "release_date": "2026-09-30",
-  "changelog": "- แก้ไขปัญหากรณีโปรแกรมค้างอยู่ใน Task Manager แล้วกดเปิดโปรแกรมไม่ได้ (Self-Healing Single-Instance)\n- ระบบจะตรวจจับและปิดโปรเซสเดิมที่ค้างอัตโนมัติ พร้อมเปิดหน้าต่างโปรแกรมใหม่ขึ้นมาทันที ไม่ต้องกดปิดใน Task Manager อีกต่อไป\n- เพิ่มการบังคับดึงหน้าต่างขึ้นมาด้านหน้าสุด (Force Foreground Window) เมื่อกดเปิดโปรแกรมซ้ำ"
+  "changelog": "- แก้ไข UI ทับซ้อนกันในแถบด้านบน (BedNotes) และหน้าต่างคลังข้อวินิจฉัย (Palette F8)\n- ปรับปรุง Header พรีวิวเป็นระบบ 2 ชั้น (Title + Toolbar) ปุ่มไม่ทับชื่อโรคและไม่ล้นจอ\n- แก้ไขฟอนต์เพี้ยน / ตัวอักษรกล่องสี่เหลี่ยม (Tofu boxes) ในบันทึก DAR\n- ปรับปรุง Web Portal คลังเทมเพลต: ขยาย Modal เต็มจอ (1240px) กว้างสบายตา ไม่เบียดชิด, หมวดหมู่จัดเป็นแถวหุ้ม (Wrap) เลือกง่ายทุกหัวข้อใน 1 คลิก พร้อมแถบเลื่อนดูชัดเจน"
 }
