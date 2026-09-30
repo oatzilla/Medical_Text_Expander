@@ -196,7 +196,7 @@ namespace MedicalTextExpander {
     }
 
     public static class AppUpdater {
-        public const string CurrentVersion = "1.5.4";
+        public const string CurrentVersion = "1.5.6";
         public const string DefaultGitHubRepo = "oatzilla/Medical_Text_Expander";
 
         public static void CheckForUpdatesAsync(string repo, bool isManual, Form parent = null, string token = null) {
@@ -541,15 +541,22 @@ namespace MedicalTextExpander {
 
         public static string UnescapeJson(string s) {
             if (string.IsNullOrEmpty(s)) return "";
-            return s.Replace("\\n", "\n")
-                    .Replace("\\r", "\r")
-                    .Replace("\\t", "\t")
-                    .Replace("\\\"", "\"")
-                    .Replace("\\\\", "\\");
+            string res = s.Replace("\\r\\n", "\r\n")
+                          .Replace("\\n", "\r\n")
+                          .Replace("\\r", "\r\n")
+                          .Replace("\\t", "\t")
+                          .Replace("\\\"", "\"")
+                          .Replace("\\\\", "\\");
+            return BedNotesManager.NormalizeNewlines(res);
         }
     }
 
     public class BedNotesManager {
+        public static string NormalizeNewlines(string s) {
+            if (string.IsNullOrEmpty(s)) return "";
+            return s.Replace("\r\n", "\n").Replace("\r", "\n").Replace("\n", "\r\n");
+        }
+
         private string localDir;
         private string sharedDir;
         private string historyDir;
@@ -733,19 +740,22 @@ namespace MedicalTextExpander {
             try {
                 byte[] bytes = File.ReadAllBytes(path);
                 if (bytes.Length == 0) return "";
+                string text = "";
                 if (bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF) {
-                    return Encoding.UTF8.GetString(bytes, 3, bytes.Length - 3);
-                }
-                try {
-                    UTF8Encoding strictUtf8 = new UTF8Encoding(false, true);
-                    return strictUtf8.GetString(bytes);
-                } catch {
+                    text = Encoding.UTF8.GetString(bytes, 3, bytes.Length - 3);
+                } else {
                     try {
-                        return Encoding.GetEncoding(874).GetString(bytes);
+                        UTF8Encoding strictUtf8 = new UTF8Encoding(false, true);
+                        text = strictUtf8.GetString(bytes);
                     } catch {
-                        return Encoding.Default.GetString(bytes);
+                        try {
+                            text = Encoding.GetEncoding(874).GetString(bytes);
+                        } catch {
+                            text = Encoding.Default.GetString(bytes);
+                        }
                     }
                 }
+                return NormalizeNewlines(text);
             } catch {
                 return "";
             }
@@ -753,7 +763,9 @@ namespace MedicalTextExpander {
 
         public static void WriteFileSafe(string path, string content) {
             try {
-                File.WriteAllText(path, content ?? "", SafeUtf8);
+                string dir = Path.GetDirectoryName(path);
+                if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
+                File.WriteAllText(path, NormalizeNewlines(content ?? ""), SafeUtf8);
             } catch {}
         }
 
@@ -856,13 +868,14 @@ namespace MedicalTextExpander {
             lock (syncLock) {
                 string val;
                 if (cache.TryGetValue(bedNum, out val)) {
-                    return val;
+                    return NormalizeNewlines(val);
                 }
                 return "";
             }
         }
 
         public void SaveBedNote(int bedNum, string content) {
+            content = NormalizeNewlines(content);
             lock (syncLock) {
                 cache[bedNum] = content;
                 lastLocalEditTime[bedNum] = DateTime.UtcNow;
@@ -908,6 +921,7 @@ namespace MedicalTextExpander {
 
         public void SaveHistorySnapshot(int bedNum, string reason, string content) {
             if (string.IsNullOrEmpty(content) || string.IsNullOrEmpty(content.Trim())) return;
+            content = NormalizeNewlines(content);
             try {
                 if (!Directory.Exists(historyDir)) Directory.CreateDirectory(historyDir);
                 string histFile = Path.Combine(historyDir, string.Format("bed_{0:D2}_history.txt", bedNum));
@@ -1634,7 +1648,7 @@ namespace MedicalTextExpander {
             string dateStr = string.Format("{0:D2}/{1:D2}/{2}", now.Day, now.Month, thaiYear);
             string timeStr = string.Format("{0:D2}:{1:D2}", now.Hour, now.Minute);
 
-            string content = rawContent
+            string content = BedNotesManager.NormalizeNewlines(rawContent)
                 .Replace("{DATE}", dateStr)
                 .Replace("{TIME}", timeStr)
                 .Replace("{NOW}", dateStr + " " + timeStr);
@@ -2877,7 +2891,7 @@ namespace MedicalTextExpander {
             lblBedTitle.ForeColor = curTheme.Primary;
 
             isSuppressingEvents = true;
-            txtNote.Text = manager.GetBedNote(currentBed);
+            txtNote.Text = BedNotesManager.NormalizeNewlines(manager.GetBedNote(currentBed));
             isSuppressingEvents = false;
 
             isDirty = false;
@@ -3022,6 +3036,14 @@ public void RefreshAllBedButtons() {
         private void TxtNote_TextChanged(object sender, EventArgs e) {
             if (isSuppressingEvents) return;
 
+            if (txtNote.Text != null && txtNote.Text.Replace("\r\n", "").Contains("\n")) {
+                int selStart = txtNote.SelectionStart;
+                isSuppressingEvents = true;
+                txtNote.Text = BedNotesManager.NormalizeNewlines(txtNote.Text);
+                txtNote.SelectionStart = Math.Min(selStart, txtNote.Text.Length);
+                isSuppressingEvents = false;
+            }
+
             isDirty = true;
             autoSaveTimer.Stop();
             autoSaveTimer.Start();
@@ -3045,6 +3067,18 @@ public void RefreshAllBedButtons() {
                 PasteToActiveWindow();
                 e.Handled = true;
                 e.SuppressKeyPress = true;
+            } else if (e.Control && e.KeyCode == Keys.V) {
+                try {
+                    if (Clipboard.ContainsText()) {
+                        string clip = Clipboard.GetText();
+                        if (clip != null && clip.Replace("\r\n", "").Contains("\n")) {
+                            string norm = BedNotesManager.NormalizeNewlines(clip);
+                            txtNote.SelectedText = norm;
+                            e.Handled = true;
+                            e.SuppressKeyPress = true;
+                        }
+                    }
+                } catch {}
             }
         }
 
@@ -3195,6 +3229,7 @@ public void RefreshAllBedButtons() {
 
         private void InsertSnippetAtCursor(string snippet) {
             if (string.IsNullOrEmpty(snippet)) return;
+            snippet = BedNotesManager.NormalizeNewlines(snippet);
             int selStart = txtNote.SelectionStart;
             string curText = txtNote.Text;
 
@@ -3220,7 +3255,7 @@ public void RefreshAllBedButtons() {
                 this.BeginInvoke(new Action(() => ReplaceNoteExternal(text)));
                 return;
             }
-            txtNote.Text = text ?? "";
+            txtNote.Text = BedNotesManager.NormalizeNewlines(text ?? "");
             FlushSave();
         }
 
@@ -3288,7 +3323,7 @@ public void RefreshAllBedButtons() {
             if (bedNum == currentBed) {
                 if (!isDirty) {
                     isSuppressingEvents = true;
-                    txtNote.Text = content;
+                    txtNote.Text = BedNotesManager.NormalizeNewlines(content);
                     isSuppressingEvents = false;
                     lblAutoSave.Text = "🔄 ซิงค์ข้อมูลล่าสุดจาก Cloud แล้ว (" + DateTime.Now.ToString("HH:mm:ss") + " น.)";
                     lblAutoSave.ForeColor = Color.FromArgb(13, 148, 136);

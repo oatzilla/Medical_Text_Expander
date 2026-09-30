@@ -6,6 +6,13 @@
 const SUPABASE_URL = "https://mhzpurmhrqutxdhmsday.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1oenB1cm1ocnF1dHhkaG1zZGF5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA2OTM1NjAsImV4cCI6MjEwNjI2OTU2MH0.A9a4sox0YUBKlWkEcaInqQOb8EA0yzl99uwY_cg-kyo";
 
+// Normalize all line break variants (\r\n, \r, \n) into Windows standard CRLF (\r\n)
+function normalizeToCRLF(text) {
+  if (!text) return '';
+  return text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').replace(/\n/g, '\r\n');
+}
+
+
 // State
 let bedsData = [];
 let prevContentMap = new Map();
@@ -447,7 +454,7 @@ async function saveCurrentBed() {
   if (isSaving) return;
   isSaving = true;
 
-  const content = noteTextarea.value;
+  const content = normalizeToCRLF(noteTextarea.value);
   const author = authorInput.value.trim() || 'มือถือ/เว็บ';
   saveAuthorName(author);
 
@@ -582,8 +589,16 @@ async function clearCurrentBed() {
 window.copyBedContent = function(bedNum) {
   const bed = bedsData.find(b => b.bed_number === bedNum);
   if (bed && bed.content) {
-    navigator.clipboard.writeText(bed.content);
-    showToast(`📋 คัดลอกข้อมูลเตียง ${bedNum} แล้ว`, 'success');
+    const sel = window.getSelection();
+    let textToCopy = normalizeToCRLF(bed.content);
+    let isPartial = false;
+    if (sel && sel.toString().trim().length > 0) {
+      textToCopy = normalizeToCRLF(sel.toString().trim());
+      isPartial = true;
+    }
+    navigator.clipboard.writeText(textToCopy).then(() => {
+      showToast(isPartial ? `📋 คัดลอกส่วนที่เลือกเตียง ${bedNum} เรียบร้อย` : `📋 คัดลอกข้อมูลเตียง ${bedNum} แล้ว`, 'success');
+    });
   }
 };
 
@@ -674,7 +689,7 @@ async function restoreSelectedHistory() {
 
   try {
     const nowUtc = new Date().toISOString();
-    const content = selectedHistoryItem.content || '';
+    const content = normalizeToCRLF(selectedHistoryItem.content || '');
 
     await fetch(`${SUPABASE_URL}/rest/v1/bed_notes?bed_number=eq.${activeBedNumber}`, {
       method: 'PATCH',
@@ -1276,6 +1291,7 @@ function copySelectedTemplate() {
   if (!isPartial) {
     textToCopy = selectedTemplate.content;
   }
+  textToCopy = normalizeToCRLF(textToCopy);
 
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(textToCopy).then(() => {
@@ -1290,7 +1306,7 @@ function copySelectedTemplate() {
 
 function fallbackCopy(text, isPartial = false) {
   const ta = document.createElement('textarea');
-  ta.value = text;
+  ta.value = normalizeToCRLF(text);
   document.body.appendChild(ta);
   ta.select();
   document.execCommand('copy');

@@ -1,8 +1,8 @@
 {
-  "version": "1.5.4",
+  "version": "1.5.6",
   "downloadUrl": "https://raw.githubusercontent.com/oatzilla/Medical_Text_Expander/main/Medical_Text_Expander.exe",
   "download_url": "https://raw.githubusercontent.com/oatzilla/Medical_Text_Expander/main/Medical_Text_Expander.exe",
   "releaseDate": "2026-09-30",
   "release_date": "2026-09-30",
-  "changelog": "- เพิ่มคลังเทมเพลต Focus Charting (DAR) ครบครันสำหรับ ภาวะเกลือแร่ในเลือดผิดปกติ (Electrolyte Imbalances: Hypo/Hyper K, Na, Ca, Mg, Phosphate) รวม 10 หัวข้อ\n- เพิ่มเทมเพลต ผลแล็บและค่าเลือดวิกฤต/ผิดปกติ (Critical Labs: Severe Anemia, Thrombocytopenia, Pancytopenia, Leukocytosis, Neutropenia, Coagulopathy, Metabolic/Respiratory Acidosis/Alkalosis, AKI, Hepatitis, Hypo/Hyperglycemia) รวม 14 หัวข้อ\n- เพิ่มปุ่มแยกหมวดหมู่ [เกลือแร่] และ [ค่าเลือดผิดปกติ] ในหน้าต่างคลัง Palette (F8) และ Web & Mobile Portal\n- อัปเดตยอดคลังเทมเพลตทางการพยาบาลรวมเป็น 86 หัวข้อ ครบถ้วนทุกมิติการดูแลผู้ป่วย"
+  "changelog": "- แก้ไขปัญหาการวางข้อความจากหน้าเว็บบนเตียงผู้ป่วย แล้วบรรทัดเชื่อมติดกันบนโปรแกรม Desktop\n- เพิ่มระบบ NormalizeNewlines รองรับการแปลงทั้ง Unix (\\n) และ Windows (\\r\\n) ให้อัตโนมัติในทุกส่วนการทำงาน\n- ปรับปรุงการคัดลอกข้อความเฉพาะส่วนที่เลือก (Partial Selection Copy) ทั้งบน Desktop และ Web Portal"
 }
