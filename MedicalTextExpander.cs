@@ -29,32 +29,76 @@ namespace MedicalTextExpander {
     public class Program {
         private const string MutexName = "Medical_Text_Expander_SingleInstance_Mutex";
         private const string EventName = "Medical_Text_Expander_ShowPalette_Event";
+        private const string AckEventName = "Medical_Text_Expander_WakeAck_Event";
 
         [STAThread]
-        public static void Main() {
+        public static void Main(string[] args) {
+            bool forceRestart = false;
+            if (args != null) {
+                foreach (string arg in args) {
+                    if (string.Equals(arg, "/restart", StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(arg, "/force", StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(arg, "/kill", StringComparison.OrdinalIgnoreCase)) {
+                        forceRestart = true;
+                    }
+                }
+            }
+
+            Process current = Process.GetCurrentProcess();
+            Process[] existingProcesses = Process.GetProcessesByName(current.ProcessName);
+
+            if (forceRestart) {
+                KillOtherInstances(current.Id);
+            } else if (existingProcesses.Length > 1) {
+                // 1. ตรวจสอบและกำจัดโปรเซสที่ค้าง (Not Responding) ใน Task Manager ทันที
+                foreach (Process p in existingProcesses) {
+                    if (p.Id != current.Id) {
+                        try {
+                            if (!p.Responding) {
+                                try { p.Kill(); p.WaitForExit(1000); } catch {}
+                            }
+                        } catch {}
+                    }
+                }
+
+                existingProcesses = Process.GetProcessesByName(current.ProcessName);
+                if (existingProcesses.Length > 1) {
+                    // 2. ทำ Two-Way Handshake ปลุกอินสแตนซ์เดิม
+                    bool ackReceived = false;
+                    try {
+                        using (EventWaitHandle ackEvent = new EventWaitHandle(false, EventResetMode.AutoReset, AckEventName)) {
+                            using (EventWaitHandle activateEvent = EventWaitHandle.OpenExisting(EventName)) {
+                                activateEvent.Set();
+                            }
+                            // รอให้อินสแตนซ์เดิมตอบรับว่าเปิดหน้าต่างสำเร็จภายใน 1.2 วินาที
+                            ackReceived = ackEvent.WaitOne(1200);
+                        }
+                    } catch {}
+
+                    if (ackReceived) {
+                        // อินสแตนซ์เดิมทำงานปกติและเด้งหน้าต่างขึ้นมาแล้ว จบโปรเซสใหม่นี้ได้
+                        return;
+                    }
+
+                    // 3. หากไม่มีการตอบรับ (โปรเซสเดิมค้าง/Zombie ใน Task Manager):
+                    // บังคับปิดโปรเซสเดิมที่ค้างทิ้งทั้งหมด แล้วเริ่มโปรแกรมใหม่ขึ้นมาทันที!
+                    KillOtherInstances(current.Id);
+                }
+            }
+
             bool createdNew = false;
             Mutex mutex = null;
-
             try {
                 mutex = new Mutex(true, MutexName, out createdNew);
             } catch (AbandonedMutexException) {
                 createdNew = true;
             } catch {
-                createdNew = false;
-            }
-
-            if (!createdNew) {
-                // หากโปรแกรมเปิดทำงานอยู่แล้ว ให้ส่งสัญญาณปลุกอินสแตนซ์เดิม แล้วจบการทำงานทันที
-                try {
-                    using (EventWaitHandle activateEvent = EventWaitHandle.OpenExisting(EventName)) {
-                        activateEvent.Set();
-                    }
-                } catch {}
-                return;
+                createdNew = true;
             }
 
             try {
-                using (EventWaitHandle activateEvent = new EventWaitHandle(false, EventResetMode.AutoReset, EventName)) {
+                using (EventWaitHandle activateEvent = new EventWaitHandle(false, EventResetMode.AutoReset, EventName))
+                using (EventWaitHandle ackEvent = new EventWaitHandle(false, EventResetMode.AutoReset, AckEventName)) {
                     Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
                     Application.ThreadException += (s, e) => {
                         // Suppress safe non-fatal UI layout exceptions
@@ -79,6 +123,11 @@ namespace MedicalTextExpander {
                         while (true) {
                             try {
                                 if (activateEvent.WaitOne()) {
+                                    // แจ้งตอบรับอินสแตนซ์ใหม่ว่าเรายังมีชีวิตอยู่และกำลังเปิดหน้าต่าง
+                                    try {
+                                        ackEvent.Set();
+                                    } catch {}
+
                                     context.ActivateFromOtherInstance();
                                 }
                             } catch {
@@ -102,6 +151,20 @@ namespace MedicalTextExpander {
                     mutex.Close();
                 }
             }
+        }
+
+        private static void KillOtherInstances(int currentPid) {
+            try {
+                string procName = Process.GetCurrentProcess().ProcessName;
+                foreach (Process p in Process.GetProcessesByName(procName)) {
+                    if (p.Id != currentPid) {
+                        try {
+                            p.Kill();
+                            p.WaitForExit(1000);
+                        } catch {}
+                    }
+                }
+            } catch {}
         }
     }
 
@@ -133,7 +196,7 @@ namespace MedicalTextExpander {
     }
 
     public static class AppUpdater {
-        public const string CurrentVersion = "1.4.0";
+        public const string CurrentVersion = "1.4.1";
         public const string DefaultGitHubRepo = "oatzilla/Medical_Text_Expander";
 
         public static void CheckForUpdatesAsync(string repo, bool isManual, Form parent = null, string token = null) {
@@ -1040,6 +1103,10 @@ namespace MedicalTextExpander {
         [DllImport("user32.dll")]
         private static extern bool SetForegroundWindow(IntPtr hWnd);
 
+        [DllImport("user32.dll")]
+        private static extern bool ShowWindowAsync(IntPtr hWnd, int nCmdShow);
+        private const int SW_RESTORE = 9;
+
         private delegate IntPtr LowLevelKeyboardProc(int nCode, IntPtr wParam, IntPtr lParam);
 
         public ExpanderContext() {
@@ -1102,6 +1169,10 @@ namespace MedicalTextExpander {
             Action showAct = () => {
                 ShowBedNotes();
                 if (bedNotesForm != null && !bedNotesForm.IsDisposed) {
+                    try {
+                        ShowWindowAsync(bedNotesForm.Handle, SW_RESTORE);
+                        SetForegroundWindow(bedNotesForm.Handle);
+                    } catch {}
                     if (bedNotesForm.WindowState == FormWindowState.Minimized) {
                         bedNotesForm.WindowState = FormWindowState.Normal;
                     }

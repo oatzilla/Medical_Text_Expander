@@ -1,8 +1,8 @@
 {
-  "version": "1.4.0",
+  "version": "1.4.1",
   "downloadUrl": "https://github.com/oatzilla/Medical_Text_Expander/releases/latest/download/Medical_Text_Expander.exe",
   "download_url": "https://github.com/oatzilla/Medical_Text_Expander/releases/latest/download/Medical_Text_Expander.exe",
   "releaseDate": "2026-09-30",
   "release_date": "2026-09-30",
-  "changelog": "- เปิดตัวระบบ Web & Mobile Portal สำหรับดูและลงบันทึกเตียง 1-30 ผ่านมือถือ แท็บเล็ต และคอมพิวเตอร์นอก รพ. แบบเรียลไทม์\n- เพิ่มปุ่ม '📱 มือถือ (QR)' บนแถบเครื่องมือด้านบน พร้อม QR Code ให้เปิดกล้องมือถือสแกนใช้งานได้ทันที\n- ปรับปรุงการซิงค์ข้อมูลผ่าน Supabase Cloud แบบสองทิศทาง (Desktop <-> Mobile)"
+  "changelog": "- แก้ไขปัญหากรณีโปรแกรมค้างอยู่ใน Task Manager แล้วกดเปิดโปรแกรมไม่ได้ (Self-Healing Single-Instance)\n- ระบบจะตรวจจับและปิดโปรเซสเดิมที่ค้างอัตโนมัติ พร้อมเปิดหน้าต่างโปรแกรมใหม่ขึ้นมาทันที ไม่ต้องกดปิดใน Task Manager อีกต่อไป\n- เพิ่มการบังคับดึงหน้าต่างขึ้นมาด้านหน้าสุด (Force Foreground Window) เมื่อกดเปิดโปรแกรมซ้ำ"
 }
