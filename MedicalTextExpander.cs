@@ -55,6 +55,13 @@ namespace MedicalTextExpander {
 
             try {
                 using (EventWaitHandle activateEvent = new EventWaitHandle(false, EventResetMode.AutoReset, EventName)) {
+                    Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
+                    Application.ThreadException += (s, e) => {
+                        // Suppress safe non-fatal UI layout exceptions
+                    };
+                    AppDomain.CurrentDomain.UnhandledException += (s, e) => {
+                    };
+
                     Application.EnableVisualStyles();
                     Application.SetCompatibleTextRenderingDefault(false);
 
@@ -126,7 +133,7 @@ namespace MedicalTextExpander {
     }
 
     public static class AppUpdater {
-        public const string CurrentVersion = "1.3.1";
+        public const string CurrentVersion = "1.3.2";
         public const string DefaultGitHubRepo = "oatzilla/Medical_Text_Expander";
 
         public static void CheckForUpdatesAsync(string repo, bool isManual, Form parent = null, string token = null) {
@@ -3200,7 +3207,8 @@ public void RefreshAllBedButtons() {
             SplitContainer split = new SplitContainer();
             split.Dock = DockStyle.Fill;
             split.Orientation = Orientation.Horizontal;
-            split.SplitterDistance = 270;
+            split.Panel1MinSize = 60;
+            split.Panel2MinSize = 60;
 
             // ListView
             lstTemplates = new ListView();
@@ -3828,9 +3836,8 @@ public void RefreshAllBedButtons() {
             SplitContainer split = new SplitContainer();
             split.Dock = DockStyle.Fill;
             split.Orientation = Orientation.Vertical;
-            split.SplitterDistance = 330;
-            split.Panel1MinSize = 240;
-            split.Panel2MinSize = 300;
+            split.Panel1MinSize = 100;
+            split.Panel2MinSize = 120;
 
             // Panel 1: List of snapshots
             Panel pnlListHeader = new Panel();
@@ -3882,7 +3889,48 @@ public void RefreshAllBedButtons() {
             split.Panel2.Controls.Add(pnlPreviewHeader);
 
             this.Controls.Add(split);
+
+            Action setSafePaletteSplit = () => {
+                if (split == null) return;
+                try {
+                    int h = split.ClientSize.Height;
+                    if (h > 180) {
+                        int dist = 270;
+                        int max = h - split.Panel2MinSize - 5;
+                        int min = split.Panel1MinSize + 5;
+                        if (max > min) {
+                            if (dist > max) dist = max;
+                            if (dist < min) dist = min;
+                            split.SplitterDistance = dist;
+                        }
+                    }
+                } catch {}
+            };
+            this.Shown += (s, e) => setSafePaletteSplit();
+            this.Resize += (s, e) => setSafePaletteSplit();
+            setSafePaletteSplit();
             split.BringToFront();
+
+            Action setSafeSplit = () => {
+                if (split == null) return;
+                try {
+                    int w = split.ClientSize.Width;
+                    if (w > 260) {
+                        int dist = 320;
+                        int max = w - split.Panel2MinSize - 5;
+                        int min = split.Panel1MinSize + 5;
+                        if (max > min) {
+                            if (dist > max) dist = max;
+                            if (dist < min) dist = min;
+                            split.SplitterDistance = dist;
+                        }
+                    }
+                } catch {}
+            };
+
+            this.Shown += (s, e) => setSafeSplit();
+            this.Resize += (s, e) => setSafeSplit();
+            setSafeSplit();
 
             this.KeyPreview = true;
             this.KeyDown += (s, e) => {

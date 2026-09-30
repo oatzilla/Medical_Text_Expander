@@ -1,8 +1,8 @@
 {
-  "version": "1.3.1",
+  "version": "1.3.2",
   "downloadUrl": "https://github.com/oatzilla/Medical_Text_Expander/releases/latest/download/Medical_Text_Expander.exe",
   "download_url": "https://github.com/oatzilla/Medical_Text_Expander/releases/latest/download/Medical_Text_Expander.exe",
   "releaseDate": "2026-09-30",
   "release_date": "2026-09-30",
-  "changelog": "- เพิ่มระบบแจ้งสถานะการบันทึกลงฐานข้อมูล Cloud แบบเรียลไทม์ (แจ้งเตือน '☁️ บันทึกลงฐานข้อมูล Cloud สำเร็จแล้ว' ทันทีที่เซิร์ฟเวอร์บันทึกเสร็จ)\n- เพิ่มจุดไฟสถานะการเชื่อมต่อฐานข้อมูล (🟢 ออนไลน์ / 🔴 ออฟไลน์) ที่แถบด้านบนสุด\n- ปรับปรุงการแจ้งเตือนเมื่อมีการซิงค์ข้อมูลจากเครื่องอื่นในวอร์ดแบบสดๆ"
+  "changelog": "- แก้ไขข้อผิดพลาด SplitterDistance ขณะเปิดหน้าต่างประวัติเตียง (Bed History) ให้เปิดได้ราบรื่น 100%\n- ปรับปรุงการคำนวณขนาดเลย์เอาต์หน้าต่างประวัติเตียงและคลังเทมเพลตให้รองรับทุกขนาดหน้าจอและ DPI\n- เพิ่มระบบป้องกัน Unhandled Exception ในระดับ Global Application"
 }
