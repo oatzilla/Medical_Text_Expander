@@ -1257,36 +1257,62 @@ function formatDARHtml(content) {
   return html;
 }
 
-// Copy Selected Template to Clipboard
+// Copy Selected Template to Clipboard (Supports partial text selection)
 function copySelectedTemplate() {
   if (!selectedTemplate) return;
-  const textToCopy = selectedTemplate.content;
+  
+  let textToCopy = '';
+  const sel = window.getSelection();
+  if (sel && sel.toString().trim().length > 0) {
+    textToCopy = sel.toString().trim();
+  } else {
+    const rawTa = document.getElementById('templateRawText');
+    if (rawTa && rawTa.offsetParent !== null && rawTa.selectionStart !== rawTa.selectionEnd) {
+      textToCopy = rawTa.value.substring(rawTa.selectionStart, rawTa.selectionEnd).trim();
+    }
+  }
+
+  const isPartial = textToCopy.length > 0;
+  if (!isPartial) {
+    textToCopy = selectedTemplate.content;
+  }
+
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(textToCopy).then(() => {
-      showToast(`📋 คัดลอกข้อวินิจฉัย [${selectedTemplate.shortcut}] เรียบร้อย`, 'success');
+      showToast(isPartial ? `📋 คัดลอกส่วนที่เลือก (${textToCopy.length} ตัวอักษร) เรียบร้อย` : `📋 คัดลอกข้อวินิจฉัย [${selectedTemplate.shortcut}] เรียบร้อย`, 'success');
     }).catch(() => {
-      fallbackCopy(textToCopy);
+      fallbackCopy(textToCopy, isPartial);
     });
   } else {
-    fallbackCopy(textToCopy);
+    fallbackCopy(textToCopy, isPartial);
   }
 }
 
-function fallbackCopy(text) {
+function fallbackCopy(text, isPartial = false) {
   const ta = document.createElement('textarea');
   ta.value = text;
   document.body.appendChild(ta);
   ta.select();
   document.execCommand('copy');
   document.body.removeChild(ta);
-  showToast(`📋 คัดลอก [${selectedTemplate ? selectedTemplate.shortcut : ''}] เรียบร้อย`, 'success');
+  showToast(isPartial ? `📋 คัดลอกส่วนที่เลือก (${text.length} ตัวอักษร) เรียบร้อย` : `📋 คัดลอก [${selectedTemplate ? selectedTemplate.shortcut : ''}] เรียบร้อย`, 'success');
 }
 
 // Apply Template to Note (Insert at cursor / Append / Replace)
 function applyTemplateToNote(replace = false) {
   if (!selectedTemplate) return;
 
-  const contentToApply = selectedTemplate.content;
+  let contentToApply = selectedTemplate.content;
+  const sel = window.getSelection();
+  if (sel && sel.toString().trim().length > 0) {
+    contentToApply = sel.toString().trim();
+  } else {
+    const rawTa = document.getElementById('templateRawText');
+    if (rawTa && rawTa.offsetParent !== null && rawTa.selectionStart !== rawTa.selectionEnd) {
+      const sub = rawTa.value.substring(rawTa.selectionStart, rawTa.selectionEnd).trim();
+      if (sub.length > 0) contentToApply = sub;
+    }
+  }
 
   if (templateModalTriggerSource === 'editModal') {
     // Inside Edit Bed Note modal

@@ -2287,7 +2287,10 @@ namespace MedicalTextExpander {
             btnCopy.Cursor = Cursors.Hand;
             btnCopy.Click += (s, e) => {
                 FlushSave();
-                if (!string.IsNullOrEmpty(txtNote.Text)) {
+                if (!string.IsNullOrEmpty(txtNote.SelectedText)) {
+                    try { Clipboard.SetDataObject(txtNote.SelectedText, true, 5, 50); } catch {}
+                    context.ShowNotification(string.Format("คัดลอกข้อความที่เลือกเตียง {0} ไปยังคลิปบอร์ดแล้ว", currentBed));
+                } else if (!string.IsNullOrEmpty(txtNote.Text)) {
                     try { Clipboard.SetDataObject(txtNote.Text, true, 5, 50); } catch {}
                     context.ShowNotification(string.Format("คัดลอกข้อมูลเตียง {0} ไปยังคลิปบอร์ดแล้ว", currentBed));
                 }
@@ -2547,6 +2550,7 @@ namespace MedicalTextExpander {
 
             txtNote = new TextBox();
             txtNote.Dock = DockStyle.Fill;
+            txtNote.HideSelection = false;
             txtNote.Multiline = true;
             txtNote.ScrollBars = ScrollBars.Vertical;
             txtNote.WordWrap = true;
@@ -3770,6 +3774,7 @@ public void RefreshAllBedButtons() {
             rtbDar.BackColor = Color.White;
             rtbDar.BorderStyle = BorderStyle.None;
             rtbDar.Padding = new Padding(14);
+            rtbDar.HideSelection = false;
             pnlContentContainer.Controls.Add(rtbDar);
 
             txtRaw = new TextBox();
@@ -3779,7 +3784,41 @@ public void RefreshAllBedButtons() {
             txtRaw.ScrollBars = ScrollBars.Vertical;
             txtRaw.BackColor = Color.White;
             txtRaw.Visible = false;
+            txtRaw.HideSelection = false;
             pnlContentContainer.Controls.Add(txtRaw);
+
+            ContextMenuStrip ctxPreview = new ContextMenuStrip();
+            ToolStripMenuItem mnuCopySel = new ToolStripMenuItem("📋 คัดลอกส่วนที่เลือก (Copy Selection)");
+            mnuCopySel.Click += (s, e) => CopySelected(false);
+            ToolStripMenuItem mnuCopyAll = new ToolStripMenuItem("📑 คัดลอกเทมเพลตทั้งหมด (Copy All)");
+            mnuCopyAll.Click += (s, e) => CopySelected(true);
+            ToolStripMenuItem mnuPasteEPhis = new ToolStripMenuItem("⚡ วางลง e-PHIS");
+            mnuPasteEPhis.Click += (s, e) => PasteSelected();
+            ToolStripMenuItem mnuInsertBed = new ToolStripMenuItem("➕ แทรกไปยังเตียงที่เลือก");
+            mnuInsertBed.Click += (s, e) => InsertToBed(false);
+            ToolStripMenuItem mnuSelectAll = new ToolStripMenuItem("🔍 เลือกข้อความทั้งหมด (Select All)");
+            mnuSelectAll.Click += (s, e) => {
+                if (rtbDar != null && rtbDar.Visible) rtbDar.SelectAll();
+                else if (txtRaw != null && txtRaw.Visible) txtRaw.SelectAll();
+            };
+
+            ctxPreview.Opening += (s, e) => {
+                string sel = GetSelectedPreviewText(false);
+                bool hasSel = !string.IsNullOrEmpty(sel);
+                mnuCopySel.Enabled = hasSel;
+                mnuCopySel.Text = hasSel ? string.Format("📋 คัดลอกส่วนที่เลือก ({0} ตัวอักษร)", sel.Length) : "📋 คัดลอกส่วนที่เลือก";
+            };
+
+            ctxPreview.Items.Add(mnuCopySel);
+            ctxPreview.Items.Add(mnuCopyAll);
+            ctxPreview.Items.Add(new ToolStripSeparator());
+            ctxPreview.Items.Add(mnuPasteEPhis);
+            ctxPreview.Items.Add(mnuInsertBed);
+            ctxPreview.Items.Add(new ToolStripSeparator());
+            ctxPreview.Items.Add(mnuSelectAll);
+
+            rtbDar.ContextMenuStrip = ctxPreview;
+            txtRaw.ContextMenuStrip = ctxPreview;
 
             pnlRight.Controls.Add(pnlContentContainer);
             pnlRight.Controls.Add(pnlViewTabs);
@@ -3813,8 +3852,16 @@ public void RefreshAllBedButtons() {
                     AdjustFontSize(-1.0f);
                     e.Handled = true;
                 } else if (e.Control && e.KeyCode == Keys.C) {
-                    CopySelected();
+                    CopySelected(false);
                     e.Handled = true;
+                } else if (e.Control && e.KeyCode == Keys.A) {
+                    if (rtbDar != null && rtbDar.Visible && rtbDar.Focused) {
+                        rtbDar.SelectAll();
+                        e.Handled = true;
+                    } else if (txtRaw != null && txtRaw.Visible && txtRaw.Focused) {
+                        txtRaw.SelectAll();
+                        e.Handled = true;
+                    }
                 }
             };
         }
@@ -4150,14 +4197,39 @@ public void RefreshAllBedButtons() {
             rtb.AppendText(text + "\n");
         }
 
-        private void CopySelected() {
-            if (lstTemplates.SelectedItems.Count == 0) return;
-            TemplateItem item = lstTemplates.SelectedItems[0].Tag as TemplateItem;
-            if (item == null) return;
+        private string GetSelectedPreviewText(bool includeSearch = false) {
             try {
-                Clipboard.SetText(item.Content);
+                if (includeSearch && txtSearch != null && txtSearch.Focused && txtSearch.SelectionLength > 0 && !string.IsNullOrEmpty(txtSearch.SelectedText)) {
+                    return txtSearch.SelectedText;
+                }
+                if (rtbDar != null && rtbDar.Visible && rtbDar.SelectionLength > 0 && !string.IsNullOrEmpty(rtbDar.SelectedText)) {
+                    return rtbDar.SelectedText;
+                }
+                if (txtRaw != null && txtRaw.Visible && txtRaw.SelectionLength > 0 && !string.IsNullOrEmpty(txtRaw.SelectedText)) {
+                    return txtRaw.SelectedText;
+                }
+            } catch {}
+            return null;
+        }
+
+        private void CopySelected(bool forceAll = false) {
+            string selectedText = forceAll ? null : GetSelectedPreviewText(true);
+            bool isPartial = !string.IsNullOrEmpty(selectedText);
+            string textToCopy = selectedText;
+
+            if (string.IsNullOrEmpty(textToCopy)) {
+                if (lstTemplates.SelectedItems.Count == 0) return;
+                TemplateItem item = lstTemplates.SelectedItems[0].Tag as TemplateItem;
+                if (item == null) return;
+                textToCopy = item.Content;
+            }
+
+            if (string.IsNullOrEmpty(textToCopy)) return;
+
+            try {
+                Clipboard.SetDataObject(textToCopy, true, 5, 50);
                 string origText = btnCopy.Text;
-                btnCopy.Text = "คัดลอกแล้ว!";
+                btnCopy.Text = isPartial ? "คัดลอกส่วนที่เลือกแล้ว!" : "คัดลอกทั้งหมดแล้ว!";
                 btnCopy.BackColor = Color.FromArgb(204, 251, 241);
                 var t = new System.Windows.Forms.Timer();
                 t.Interval = 1200;
@@ -4184,8 +4256,11 @@ public void RefreshAllBedButtons() {
             TemplateItem item = lstTemplates.SelectedItems[0].Tag as TemplateItem;
             if (item == null) return;
 
+            string sel = GetSelectedPreviewText(false);
+            string contentToUse = !string.IsNullOrEmpty(sel) ? sel : item.Content;
+
             int bNum = GetSelectedBedNumber();
-            context.InsertTemplateToBed(bNum, item.Content, replace);
+            context.InsertTemplateToBed(bNum, contentToUse, replace);
             this.Hide();
         }
 
@@ -4194,7 +4269,8 @@ public void RefreshAllBedButtons() {
             TemplateItem item = lstTemplates.SelectedItems[0].Tag as TemplateItem;
             if (item == null) return;
 
-            string content = item.Content;
+            string sel = GetSelectedPreviewText(false);
+            string content = !string.IsNullOrEmpty(sel) ? sel : item.Content;
             this.Hide();
 
             System.Threading.ThreadPool.QueueUserWorkItem(state => {
