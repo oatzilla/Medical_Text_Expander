@@ -1,4 +1,4 @@
-/* =====================================================
+﻿/* =====================================================
    Ward Bed Notes - Cloud Web & Mobile Portal Stylesheet
    Modern, Clean, Clinical, Responsive Design System
    ===================================================== */
@@ -2508,4 +2508,181 @@ body.modal-open {
 #templateModal .template-modal-footer {
   padding: 6px 16px !important;
   min-height: 38px !important;
+}
+
+/* =====================================================
+   Bed Swap & Transfer System Styles (v1.5.7)
+   ===================================================== */
+.btn-card-swap {
+  color: #4f46e5;
+  border-color: rgba(79, 70, 229, 0.25);
+  background: rgba(79, 70, 229, 0.06);
+}
+.btn-card-swap:hover {
+  background: rgba(79, 70, 229, 0.15);
+  color: #4338ca;
+  border-color: #4f46e5;
+}
+[data-theme="dark"] .btn-card-swap {
+  color: #a5b4fc;
+  border-color: rgba(165, 180, 252, 0.3);
+  background: rgba(99, 102, 241, 0.15);
+}
+[data-theme="dark"] .btn-card-swap:hover {
+  background: rgba(99, 102, 241, 0.28);
+  color: #ffffff;
+  border-color: #818cf8;
+}
+
+.swap-bed-box {
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+}
+.swap-box-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.swap-box-title {
+  font-weight: 600;
+  font-size: 0.92rem;
+  color: var(--text-main);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.swap-box-badge {
+  font-size: 0.75rem;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  background: var(--primary-light);
+  color: var(--primary);
+  font-weight: 600;
+}
+.swap-box-content {
+  font-size: 0.86rem;
+  color: var(--text-muted);
+  max-height: 80px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: var(--bg-surface);
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px dashed var(--border-subtle);
+}
+.swap-direction-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin: -4px 0;
+}
+.swap-arrow-circle {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: #ede9fe;
+  color: #4f46e5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  box-shadow: var(--shadow-sm);
+}
+[data-theme="dark"] .swap-arrow-circle {
+  background: #312e81;
+  color: #c7d2fe;
+}
+.swap-direction-text {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.swap-target-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.swap-label {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-main);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.swap-select {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-strong);
+  background: var(--bg-surface);
+  color: var(--text-main);
+  font-family: var(--font-family);
+  font-size: 0.92rem;
+  outline: none;
+  cursor: pointer;
+}
+.swap-select:focus {
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
+}
+.swap-action-card {
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+}
+.swap-mode-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+.swap-options-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.swap-radio-label {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+.swap-radio-label:hover {
+  border-color: #4f46e5;
+  background: var(--primary-light);
+}
+.swap-radio-label input[type="radio"] {
+  margin-top: 3px;
+  accent-color: #4f46e5;
+}
+.swap-radio-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.swap-radio-content strong {
+  font-size: 0.88rem;
+  color: var(--text-main);
+}
+.swap-radio-content span {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+.swap-note {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  margin-top: 10px;
+  line-height: 1.4;
 }

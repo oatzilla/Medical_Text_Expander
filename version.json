@@ -1,8 +1,8 @@
-{
-  "version": "1.5.6",
-  "downloadUrl": "https://raw.githubusercontent.com/oatzilla/Medical_Text_Expander/main/Medical_Text_Expander.exe",
-  "download_url": "https://raw.githubusercontent.com/oatzilla/Medical_Text_Expander/main/Medical_Text_Expander.exe",
-  "releaseDate": "2026-09-30",
-  "release_date": "2026-09-30",
-  "changelog": "- แก้ไขปัญหาการวางข้อความจากหน้าเว็บบนเตียงผู้ป่วย แล้วบรรทัดเชื่อมติดกันบนโปรแกรม Desktop\n- เพิ่มระบบ NormalizeNewlines รองรับการแปลงทั้ง Unix (\\n) และ Windows (\\r\\n) ให้อัตโนมัติในทุกส่วนการทำงาน\n- ปรับปรุงการคัดลอกข้อความเฉพาะส่วนที่เลือก (Partial Selection Copy) ทั้งบน Desktop และ Web Portal"
+﻿{
+  version: 1.5.7,
+  downloadUrl: https://raw.githubusercontent.com/oatzilla/Medical_Text_Expander/main/Medical_Text_Expander.exe,
+  download_url: https://raw.githubusercontent.com/oatzilla/Medical_Text_Expander/main/Medical_Text_Expander.exe,
+  releaseDate: 2026-10-01,
+  release_date: 2026-10-01,
+  changelog: - เพิ่มฟังก์ชัน 'สลับ/ย้ายเตียงผู้ป่วย' (Bed Swap & Transfer) ทั้งบนโปรแกรม Desktop และ Web/Mobile Portal\n- รองรับทั้งการย้ายข้อมูลไปยังเตียงว่าง (Move/Transfer) และการสลับเตียงระหว่างผู้ป่วย 2 เตียง (Swap Beds)\n- ระบบสำรองประวัติข้อมูลเดิมลงใน 'ประวัติเตียงย้อนหลัง' (Bed History Log) โดยอัตโนมัติ 100% ป้องกันข้อมูลสูญหาย\n- ย้าย/สลับรายการแจ้งเตือนหัตถการ (Ward Task Reminders) ประจำเตียงตามไปด้วยอัตโนมัติ\n- เพิ่มเมนูลัดคลิกขวาบนปุ่มเตียง 1-30 ในโปรแกรม Desktop เพื่อความสะดวกรวดเร็วในการทำงานของพยาบาล
 }

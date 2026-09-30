@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="th">
 <head>
   <meta charset="UTF-8">
@@ -15,7 +15,7 @@
   <!-- FontAwesome Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   
-  <link rel="stylesheet" href="style.css?v=1.5.6">
+  <link rel="stylesheet" href="style.css?v=1.5.7">
 </head>
 <body>
   <!-- Top Navigation Bar -->
@@ -159,6 +159,9 @@
 
       <div class="modal-footer">
         <div class="modal-footer-left">
+          <button type="button" class="btn btn-secondary" id="btnSwapBedFromModal" style="background: rgba(79, 70, 229, 0.12); color: #4f46e5; border-color: rgba(79, 70, 229, 0.3);">
+            <i class="fa-solid fa-arrow-right-arrow-left"></i> สลับ/ย้ายเตียง
+          </button>
           <button type="button" class="btn btn-secondary" id="btnViewHistoryFromModal">
             <i class="fa-solid fa-clock-rotate-left"></i> ประวัติย้อนหลัง
           </button>
@@ -207,6 +210,82 @@
 
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" id="btnCloseHistory">ปิดหน้าต่าง</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Swap/Move Bed Modal -->
+  <div class="modal-overlay" id="swapModal" aria-hidden="true">
+    <div class="modal-card" style="max-width: 520px;">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <div class="modal-bed-badge" id="swapSourceBedBadge" style="background: #4f46e5;">เตียง 01</div>
+          <h2 class="modal-title"><i class="fa-solid fa-arrow-right-arrow-left" style="color: #4f46e5; margin-right: 6px;"></i> สลับหรือย้ายเตียงผู้ป่วย</h2>
+        </div>
+        <button class="modal-close-btn" id="swapCloseBtn" aria-label="Close swap modal"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <div class="modal-body" style="display: flex; flex-direction: column; gap: 14px;">
+        <!-- Source Bed Card Preview -->
+        <div class="swap-bed-box">
+          <div class="swap-box-header">
+            <span class="swap-box-title"><i class="fa-solid fa-bed"></i> เตียงต้นทาง</span>
+            <span class="swap-box-badge" id="swapSourceStatus">มีข้อมูล</span>
+          </div>
+          <div class="swap-box-content" id="swapSourcePreview">...</div>
+        </div>
+
+        <!-- Arrow Divider -->
+        <div class="swap-direction-indicator">
+          <div class="swap-arrow-circle" id="swapDirectionIcon">
+            <i class="fa-solid fa-arrow-down"></i>
+          </div>
+          <span class="swap-direction-text" id="swapDirectionText">ย้ายข้อมูลไปยังเตียงว่าง</span>
+        </div>
+
+        <!-- Target Bed Selection -->
+        <div class="swap-target-group">
+          <label for="swapTargetSelect" class="swap-label"><i class="fa-solid fa-hospital-user"></i> เลือกเตียงปลายทาง (1 - 30):</label>
+          <select id="swapTargetSelect" class="swap-select">
+            <!-- Populated dynamically via JS -->
+          </select>
+        </div>
+
+        <!-- Dynamic Notice & Options -->
+        <div class="swap-action-card" id="swapActionCard">
+          <div class="swap-mode-title" id="swapModeTitle">รูปแบบการดำเนินการ:</div>
+          <div class="swap-options-group" id="swapOptionsGroup">
+            <label class="swap-radio-label" id="swapOptionSwapLabel">
+              <input type="radio" name="swapMode" id="swapModeSwap" value="swap" checked>
+              <div class="swap-radio-content">
+                <strong>🔄 สลับเตียงกัน (Swap)</strong>
+                <span>แลกเปลี่ยนข้อมูลระหว่าง 2 เตียง ทั้งสองฝ่าย</span>
+              </div>
+            </label>
+            <label class="swap-radio-label" id="swapOptionMoveLabel">
+              <input type="radio" name="swapMode" id="swapModeMove" value="move">
+              <div class="swap-radio-content">
+                <strong>➡️ ย้ายเตียง (Transfer / Move)</strong>
+                <span>ย้ายข้อมูลไปเตียงปลายทาง (เตียงต้นทางจะว่างลง)</span>
+              </div>
+            </label>
+          </div>
+          <div class="swap-note" id="swapNote">
+            💡 ระบบจะสำรองข้อมูลเดิมของทั้งสองเตียงลงใน &quot;ประวัติย้อนหลัง&quot; โดยอัตโนมัติ ป้องกันข้อมูลสูญหาย 100%
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <div class="modal-footer-left">
+          <span style="font-size: 0.8rem; color: var(--text-dim);" id="swapInfoFooter">สำรองประวัติอัตโนมัติ</span>
+        </div>
+        <div class="modal-footer-right">
+          <button type="button" class="btn btn-secondary" id="btnCancelSwap">ยกเลิก</button>
+          <button type="button" class="btn btn-primary" id="btnConfirmSwap" style="background: #4f46e5; border-color: #4f46e5;">
+            <i class="fa-solid fa-check"></i> ยืนยันดำเนินการ
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -325,6 +404,6 @@
   <div class="toast-container" id="toastContainer"></div>
 
   <!-- Application Logic -->
-  <script src="app.js?v=1.5.6"></script>
+  <script src="app.js?v=1.5.7"></script>
 </body>
 </html>

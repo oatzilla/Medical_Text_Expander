@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Ward Bed Notes - Cloud Web & Mobile Portal Client
  * Real-time Supabase integration, Offline-first cache, Responsive UI
  */
@@ -229,11 +229,43 @@ function setupEventListeners() {
 
   btnRestoreFromHistory.addEventListener('click', restoreSelectedHistory);
 
+  // Swap/Move Modal Listeners
+  const btnSwapBedFromModal = document.getElementById('btnSwapBedFromModal');
+  if (btnSwapBedFromModal) {
+    btnSwapBedFromModal.addEventListener('click', () => {
+      const curBed = bedsData.find(b => b.bed_number === activeBedNumber);
+      if (curBed) {
+        curBed.content = noteTextarea.value;
+      }
+      closeEditModal();
+      openSwapModal(activeBedNumber);
+    });
+  }
+
+  const swapCloseBtn = document.getElementById('swapCloseBtn');
+  const btnCancelSwap = document.getElementById('btnCancelSwap');
+  const btnConfirmSwap = document.getElementById('btnConfirmSwap');
+  const swapModal = document.getElementById('swapModal');
+  const swapTargetSelect = document.getElementById('swapTargetSelect');
+
+  if (swapCloseBtn) swapCloseBtn.addEventListener('click', closeSwapModal);
+  if (btnCancelSwap) btnCancelSwap.addEventListener('click', closeSwapModal);
+  if (swapModal) {
+    swapModal.addEventListener('click', (e) => {
+      if (e.target === swapModal) closeSwapModal();
+    });
+  }
+  if (btnConfirmSwap) btnConfirmSwap.addEventListener('click', executeBedSwap);
+  if (swapTargetSelect) {
+    swapTargetSelect.addEventListener('change', handleTargetBedChanged);
+  }
+
   // Keyboard Shortcuts
   window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
       if (editModal.classList.contains('open')) closeEditModal();
       if (historyModal.classList.contains('open')) closeHistoryModal();
+      if (swapModal && swapModal.classList.contains('open')) closeSwapModal();
     }
   });
 }
@@ -364,9 +396,14 @@ function renderBeds(changedBeds = new Set()) {
       </div>
 
       <div class="bed-card-footer">
-        <button type="button" class="btn-card-action" onclick="openHistoryModal(${bed.bed_number})">
-          <i class="fa-solid fa-clock-rotate-left"></i> ประวัติ
-        </button>
+        <div style="display: flex; gap: 4px;">
+          <button type="button" class="btn-card-action" onclick="openHistoryModal(${bed.bed_number})" title="ดูประวัติเตียง">
+            <i class="fa-solid fa-clock-rotate-left"></i> ประวัติ
+          </button>
+          <button type="button" class="btn-card-action btn-card-swap" onclick="openSwapModal(${bed.bed_number})" title="สลับ/ย้ายเตียง">
+            <i class="fa-solid fa-arrow-right-arrow-left"></i> ย้าย/สลับ
+          </button>
+        </div>
         <div style="display: flex; gap: 4px;">
           ${isOccupied ? `
             <button type="button" class="btn-card-action" onclick="copyBedContent(${bed.bed_number})" title="คัดลอกข้อความ">
@@ -724,6 +761,219 @@ async function restoreSelectedHistory() {
 function closeHistoryModal() {
   historyModal.classList.remove('open');
   historyModal.setAttribute('aria-hidden', 'true');
+}
+
+// ==========================================
+// Bed Swap & Transfer Modal Logic
+// ==========================================
+let swapSourceBed = 1;
+
+window.openSwapModal = function(bedNum) {
+  swapSourceBed = bedNum;
+  const sourceBedData = bedsData.find(b => b.bed_number === bedNum) || { content: '' };
+  const sourceContent = sourceBedData.content || '';
+  const isSourceOccupied = sourceContent.trim().length > 0;
+
+  const badge = document.getElementById('swapSourceBedBadge');
+  if (badge) badge.textContent = `เตียง ${String(bedNum).padStart(2, '0')}`;
+
+  const status = document.getElementById('swapSourceStatus');
+  if (status) {
+    status.textContent = isSourceOccupied ? `มีข้อมูล (${sourceContent.length} ตัวอักษร)` : 'เตียงว่าง';
+    status.style.background = isSourceOccupied ? 'var(--primary-light)' : 'var(--border-subtle)';
+    status.style.color = isSourceOccupied ? 'var(--primary)' : 'var(--text-dim)';
+  }
+
+  const preview = document.getElementById('swapSourcePreview');
+  if (preview) {
+    preview.textContent = isSourceOccupied 
+      ? (sourceContent.slice(0, 180) + (sourceContent.length > 180 ? '...' : '')) 
+      : '(เตียงว่าง ไม่มีข้อมูลผู้ป่วย)';
+  }
+
+  // Populate target bed dropdown (Bed 1 - 30 except source)
+  const select = document.getElementById('swapTargetSelect');
+  if (select) {
+    select.innerHTML = '';
+    let firstSelectIdx = 0;
+    let optCount = 0;
+
+    for (let i = 1; i <= 30; i++) {
+      if (i === bedNum) continue;
+      const bData = bedsData.find(b => b.bed_number === i);
+      const bContent = bData && bData.content ? bData.content.trim() : '';
+      const opt = document.createElement('option');
+      opt.value = i;
+      if (bContent) {
+        opt.textContent = `เตียง ${String(i).padStart(2, '0')} [มีข้อมูลผู้ป่วย - ${bContent.length} ตัวอักษร]`;
+      } else {
+        opt.textContent = `เตียง ${String(i).padStart(2, '0')} [ว่าง ✨]`;
+        if (firstSelectIdx === 0 && isSourceOccupied) {
+          firstSelectIdx = optCount;
+        }
+      }
+      select.appendChild(opt);
+      optCount++;
+    }
+
+    if (select.options.length > 0) {
+      select.selectedIndex = firstSelectIdx;
+    }
+    handleTargetBedChanged();
+  }
+
+  const swapModal = document.getElementById('swapModal');
+  if (swapModal) {
+    swapModal.classList.add('open');
+    swapModal.setAttribute('aria-hidden', 'false');
+  }
+};
+
+function closeSwapModal() {
+  const swapModal = document.getElementById('swapModal');
+  if (swapModal) {
+    swapModal.classList.remove('open');
+    swapModal.setAttribute('aria-hidden', 'true');
+  }
+}
+
+function handleTargetBedChanged() {
+  const select = document.getElementById('swapTargetSelect');
+  if (!select) return;
+  const targetBedNum = parseInt(select.value, 10);
+  const targetData = bedsData.find(b => b.bed_number === targetBedNum);
+  const targetContent = targetData && targetData.content ? targetData.content.trim() : '';
+  const isTargetOccupied = targetContent.length > 0;
+
+  const rbSwap = document.getElementById('swapModeSwap');
+  const rbMove = document.getElementById('swapModeMove');
+  const optSwapLabel = document.getElementById('swapOptionSwapLabel');
+  const directionText = document.getElementById('swapDirectionText');
+  const directionIcon = document.getElementById('swapDirectionIcon');
+
+  if (isTargetOccupied) {
+    if (optSwapLabel) optSwapLabel.style.display = 'flex';
+    if (rbSwap) {
+      rbSwap.disabled = false;
+      rbSwap.checked = true;
+    }
+    if (directionText) directionText.textContent = `สลับข้อมูลกับ เตียง ${String(targetBedNum).padStart(2, '0')}`;
+    if (directionIcon) directionIcon.innerHTML = '<i class="fa-solid fa-arrow-right-arrow-left"></i>';
+  } else {
+    if (optSwapLabel) optSwapLabel.style.display = 'none';
+    if (rbMove) {
+      rbMove.checked = true;
+    }
+    if (directionText) directionText.textContent = `ย้ายข้อมูลไปยัง เตียง ${String(targetBedNum).padStart(2, '0')} (เตียงว่าง)`;
+    if (directionIcon) directionIcon.innerHTML = '<i class="fa-solid fa-arrow-down"></i>';
+  }
+}
+
+async function executeBedSwap() {
+  const select = document.getElementById('swapTargetSelect');
+  if (!select) return;
+  const targetBedNum = parseInt(select.value, 10);
+  const fromBedNum = swapSourceBed;
+  if (!targetBedNum || targetBedNum === fromBedNum) return;
+
+  const rbSwap = document.getElementById('swapModeSwap');
+  const isSwap = rbSwap && rbSwap.checked && rbSwap.offsetParent !== null;
+
+  const btnConfirm = document.getElementById('btnConfirmSwap');
+  if (btnConfirm) {
+    btnConfirm.disabled = true;
+    btnConfirm.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังดำเนินการ...';
+  }
+
+  try {
+    const fromBed = bedsData.find(b => b.bed_number === fromBedNum) || { content: '' };
+    const toBed = bedsData.find(b => b.bed_number === targetBedNum) || { content: '' };
+
+    const fromContent = normalizeToCRLF(fromBed.content || '');
+    const toContent = normalizeToCRLF(toBed.content || '');
+    const author = (authorInput ? authorInput.value.trim() : '') || 'มือถือ/เว็บ';
+    const nowUtc = new Date().toISOString();
+
+    // 1. History Snapshots
+    const histPromises = [];
+    if (fromContent.trim()) {
+      histPromises.push(fetch(`${SUPABASE_URL}/rest/v1/bed_history`, {
+        method: 'POST',
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          bed_number: fromBedNum,
+          reason: isSwap ? `สลับเตียงกับเตียง ${targetBedNum} (จากเว็บ)` : `ย้ายข้อมูลไปยังเตียง ${targetBedNum} (จากเว็บ)`,
+          content: fromContent,
+          char_count: fromContent.length,
+          created_at: nowUtc
+        })
+      }));
+    }
+    if (toContent.trim()) {
+      histPromises.push(fetch(`${SUPABASE_URL}/rest/v1/bed_history`, {
+        method: 'POST',
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          bed_number: targetBedNum,
+          reason: isSwap ? `สลับเตียงกับเตียง ${fromBedNum} (จากเว็บ)` : `รับย้ายข้อมูลมาจากเตียง ${fromBedNum} (สำรองข้อมูลเดิม)`,
+          content: toContent,
+          char_count: toContent.length,
+          created_at: nowUtc
+        })
+      }));
+    }
+    await Promise.all(histPromises).catch(err => console.warn('History snapshot warning:', err));
+
+    // 2. Prepare new contents
+    const newFromContent = isSwap ? toContent : '';
+    const newToContent = fromContent;
+
+    // 3. Update both beds in Supabase bed_notes
+    const updatePromises = [
+      fetch(`${SUPABASE_URL}/rest/v1/bed_notes?bed_number=eq.${fromBedNum}`, {
+        method: 'PATCH',
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: newFromContent, updated_at: nowUtc, updated_by: author })
+      }),
+      fetch(`${SUPABASE_URL}/rest/v1/bed_notes?bed_number=eq.${targetBedNum}`, {
+        method: 'PATCH',
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: newToContent, updated_at: nowUtc, updated_by: author })
+      })
+    ];
+    await Promise.all(updatePromises);
+
+    // 4. Update local state
+    fromBed.content = newFromContent;
+    fromBed.updated_at = nowUtc;
+    fromBed.updated_by = author;
+    prevContentMap.set(fromBedNum, newFromContent);
+
+    toBed.content = newToContent;
+    toBed.updated_at = nowUtc;
+    toBed.updated_by = author;
+    prevContentMap.set(targetBedNum, newToContent);
+
+    // 5. Close modals & update UI
+    closeSwapModal();
+    closeEditModal();
+
+    showToast(isSwap 
+      ? `🔄 สลับข้อมูล เตียง ${fromBedNum} ⮂ เตียง ${targetBedNum} เรียบร้อยแล้ว!` 
+      : `➡️ ย้ายข้อมูล เตียง ${fromBedNum} ➜ เตียง ${targetBedNum} สำเร็จ!`, 'success');
+
+    renderBeds(new Set([fromBedNum, targetBedNum]));
+    updateStats();
+
+  } catch (err) {
+    console.error('Swap error:', err);
+    showToast('❌ ไม่สามารถสลับหรือย้ายเตียงได้ กรุณาตรวจสอบการเชื่อมต่อ', 'error');
+  } finally {
+    if (btnConfirm) {
+      btnConfirm.disabled = false;
+      btnConfirm.innerHTML = '<i class="fa-solid fa-check"></i> ยืนยันดำเนินการ';
+    }
+  }
 }
 
 // ==========================================

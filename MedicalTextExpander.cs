@@ -196,7 +196,7 @@ namespace MedicalTextExpander {
     }
 
     public static class AppUpdater {
-        public const string CurrentVersion = "1.5.6";
+        public const string CurrentVersion = "1.5.7";
         public const string DefaultGitHubRepo = "oatzilla/Medical_Text_Expander";
 
         public static void CheckForUpdatesAsync(string repo, bool isManual, Form parent = null, string token = null) {
@@ -917,6 +917,66 @@ namespace MedicalTextExpander {
                 SaveHistorySnapshot(bedNum, "ก่อนล้างข้อมูลเตียง (Clear)", cur);
             }
             SaveBedNote(bedNum, "");
+        }
+
+        public bool MoveOrSwapBed(int fromBed, int toBed, bool isSwap, out string message) {
+            message = "";
+            if (fromBed < 1 || fromBed > 30 || toBed < 1 || toBed > 30) {
+                message = "หมายเลขเตียงไม่ถูกต้อง (ต้องอยู่ระหว่างเตียง 1 ถึง 30)";
+                return false;
+            }
+            if (fromBed == toBed) {
+                message = "เตียงต้นทางและเตียงปลายทางต้องเป็นคนละเตียงกัน";
+                return false;
+            }
+
+            string fromNote = GetBedNote(fromBed);
+            string toNote = GetBedNote(toBed);
+
+            bool fromHasData = !string.IsNullOrEmpty(fromNote) && !string.IsNullOrEmpty(fromNote.Trim());
+            bool toHasData = !string.IsNullOrEmpty(toNote) && !string.IsNullOrEmpty(toNote.Trim());
+
+            if (!fromHasData && !toHasData) {
+                message = string.Format("เตียง {0} และเตียง {1} ทั้งสองเตียงยังไม่มีข้อมูลผู้ป่วย", fromBed, toBed);
+                return false;
+            }
+
+            if (isSwap) {
+                if (fromHasData) {
+                    SaveHistorySnapshot(fromBed, string.Format("สลับเตียงกับเตียง {0} (ข้อมูลเดิม)", toBed), fromNote);
+                }
+                if (toHasData) {
+                    SaveHistorySnapshot(toBed, string.Format("สลับเตียงกับเตียง {0} (ข้อมูลเดิม)", fromBed), toNote);
+                }
+
+                SaveBedNote(fromBed, toNote);
+                SaveBedNote(toBed, fromNote);
+
+                if (OnBedChanged != null) {
+                    try { OnBedChanged(fromBed, toNote); } catch {}
+                    try { OnBedChanged(toBed, fromNote); } catch {}
+                }
+
+                message = string.Format("สลับข้อมูลระหว่างเตียง {0} และเตียง {1} เรียบร้อยแล้ว", fromBed, toBed);
+            } else {
+                if (fromHasData) {
+                    SaveHistorySnapshot(fromBed, string.Format("ย้ายข้อมูลไปยังเตียง {0}", toBed), fromNote);
+                }
+                if (toHasData) {
+                    SaveHistorySnapshot(toBed, string.Format("รับย้ายข้อมูลมาจากเตียง {0} (สำรองข้อมูลเดิมของเตียง {1})", fromBed, toBed), toNote);
+                }
+
+                SaveBedNote(toBed, fromNote);
+                SaveBedNote(fromBed, "");
+
+                if (OnBedChanged != null) {
+                    try { OnBedChanged(fromBed, ""); } catch {}
+                    try { OnBedChanged(toBed, fromNote); } catch {}
+                }
+
+                message = string.Format("ย้ายข้อมูลจากเตียง {0} ไปยังเตียง {1} สำเร็จแล้ว", fromBed, toBed);
+            }
+            return true;
         }
 
         public void SaveHistorySnapshot(int bedNum, string reason, string content) {
@@ -2116,6 +2176,7 @@ namespace MedicalTextExpander {
         private Button btnCopy;
         private Button btnInsertTime;
         private Button btnHistory;
+        private Button btnSwapBed;
         private Button btnClear;
         private Button btnSyncSettings;
         private Button btnClose;
@@ -2331,6 +2392,18 @@ namespace MedicalTextExpander {
             btnHistory.Click += (s, e) => context.ShowBedHistory(currentBed);
             pnlBottom.Controls.Add(btnHistory);
 
+            btnSwapBed = new Button();
+            btnSwapBed.Text = "🔄 สลับ/ย้ายเตียง";
+            btnSwapBed.Size = new Size(130, 34);
+            btnSwapBed.BackColor = Color.FromArgb(237, 233, 254);
+            btnSwapBed.ForeColor = Color.FromArgb(67, 56, 202);
+            btnSwapBed.FlatStyle = FlatStyle.Flat;
+            btnSwapBed.FlatAppearance.BorderColor = Color.FromArgb(196, 181, 253);
+            btnSwapBed.Font = new Font("Segoe UI", 9f, FontStyle.Bold);
+            btnSwapBed.Cursor = Cursors.Hand;
+            btnSwapBed.Click += (s, e) => ShowSwapBedDialog();
+            pnlBottom.Controls.Add(btnSwapBed);
+
             btnClear = new Button();
             btnClear.Text = "🗑️ ล้างข้อมูลเตียงนี้";
             btnClear.Size = new Size(125, 34);
@@ -2411,6 +2484,28 @@ namespace MedicalTextExpander {
                 btn.Cursor = Cursors.Hand;
                 btn.Tag = bedNum;
                 btn.Click += (s, e) => SelectBed(bedNum);
+
+                ContextMenuStrip ctx = new ContextMenuStrip();
+                ToolStripMenuItem itmSwap = new ToolStripMenuItem("🔄 สลับ/ย้ายเตียงนี้...");
+                itmSwap.Click += (s, e) => {
+                    SelectBed(bedNum);
+                    ShowSwapBedDialog();
+                };
+                ToolStripMenuItem itmHist = new ToolStripMenuItem("📜 ประวัติเตียงย้อนหลัง");
+                itmHist.Click += (s, e) => {
+                    context.ShowBedHistory(bedNum);
+                };
+                ToolStripMenuItem itmClear = new ToolStripMenuItem("🗑️ ล้างข้อมูลเตียงนี้");
+                itmClear.Click += (s, e) => {
+                    SelectBed(bedNum);
+                    ClearCurrentBed();
+                };
+                ctx.Items.Add(itmSwap);
+                ctx.Items.Add(itmHist);
+                ctx.Items.Add(new ToolStripSeparator());
+                ctx.Items.Add(itmClear);
+                btn.ContextMenuStrip = ctx;
+
                 bedButtons[i] = btn;
                 flowBeds.Controls.Add(btn);
             }
@@ -2757,34 +2852,38 @@ namespace MedicalTextExpander {
 
             if (isVeryNarrow) {
                 btnPaste.Text = "📋 วาง";
-                btnPaste.Size = new Size(80, 34);
+                btnPaste.Size = new Size(70, 34);
                 btnCopy.Text = "คัดลอก";
-                btnCopy.Size = new Size(65, 34);
+                btnCopy.Size = new Size(58, 34);
                 btnInsertTime.Text = "🕒";
-                btnInsertTime.Size = new Size(42, 34);
-                btnHistory.Text = "📜 ประวัติ";
-                btnHistory.Size = new Size(72, 34);
+                btnInsertTime.Size = new Size(36, 34);
+                btnHistory.Text = "📜";
+                btnHistory.Size = new Size(36, 34);
+                btnSwapBed.Text = "🔄";
+                btnSwapBed.Size = new Size(36, 34);
                 btnClear.Text = "🗑️";
-                btnClear.Size = new Size(45, 34);
+                btnClear.Size = new Size(36, 34);
                 btnSyncSettings.Text = "🌐";
-                btnSyncSettings.Size = new Size(45, 34);
+                btnSyncSettings.Size = new Size(36, 34);
+                btnClose.Text = "ปิด";
+                btnClose.Size = new Size(46, 34);
+            } else if (isNarrow) {
+                btnPaste.Text = "📋 วาง e-PHIS";
+                btnPaste.Size = new Size(130, 34);
+                btnCopy.Text = "📋 คัดลอก";
+                btnCopy.Size = new Size(75, 34);
+                btnInsertTime.Text = "🕒 เวลา";
+                btnInsertTime.Size = new Size(60, 34);
+                btnHistory.Text = "📜 ประวัติ";
+                btnHistory.Size = new Size(75, 34);
+                btnSwapBed.Text = "🔄 สลับ/ย้าย";
+                btnSwapBed.Size = new Size(88, 34);
+                btnClear.Text = "🗑️ ล้าง";
+                btnClear.Size = new Size(60, 34);
+                btnSyncSettings.Text = "🌐 แชร์วอร์ด";
+                btnSyncSettings.Size = new Size(80, 34);
                 btnClose.Text = "ปิด";
                 btnClose.Size = new Size(50, 34);
-            } else if (isNarrow) {
-                btnPaste.Text = "📋 วาง e-PHIS (Ctrl+Enter)";
-                btnPaste.Size = new Size(180, 34);
-                btnCopy.Text = "📋 คัดลอก";
-                btnCopy.Size = new Size(85, 34);
-                btnInsertTime.Text = "🕒 เวลา";
-                btnInsertTime.Size = new Size(70, 34);
-                btnHistory.Text = "📜 ประวัติ";
-                btnHistory.Size = new Size(85, 34);
-                btnClear.Text = "🗑️ ล้าง";
-                btnClear.Size = new Size(68, 34);
-                btnSyncSettings.Text = "🌐 แชร์วอร์ด";
-                btnSyncSettings.Size = new Size(90, 34);
-                btnClose.Text = "ปิด";
-                btnClose.Size = new Size(55, 34);
             } else {
                 btnPaste.Text = "📋 วางลงหน้าจอ e-PHIS (Ctrl+Enter)";
                 btnPaste.Size = new Size(240, 34);
@@ -2793,7 +2892,9 @@ namespace MedicalTextExpander {
                 btnInsertTime.Text = "🕒 ใส่วันที่/เวลา";
                 btnInsertTime.Size = new Size(110, 34);
                 btnHistory.Text = "📜 ประวัติเตียงย้อนหลัง";
-                btnHistory.Size = new Size(140, 34);
+                btnHistory.Size = new Size(135, 34);
+                btnSwapBed.Text = "🔄 สลับ/ย้ายเตียง";
+                btnSwapBed.Size = new Size(125, 34);
                 btnClear.Text = "🗑️ ล้างข้อมูลเตียงนี้";
                 btnClear.Size = new Size(125, 34);
                 btnSyncSettings.Text = "🌐 ตั้งค่าแชร์ในวอร์ด";
@@ -2815,11 +2916,13 @@ namespace MedicalTextExpander {
             btnHistory.Location = new Point(lx, 9);
             lx += btnHistory.Width + 5;
 
+            btnSwapBed.Location = new Point(lx, 9);
+            lx += btnSwapBed.Width + 5;
+
             btnClear.Location = new Point(lx, 9);
             lx += btnClear.Width + 5;
 
             btnSyncSettings.Location = new Point(lx, 9);
-
 
             btnClose.Location = new System.Drawing.Point(w - btnClose.Width - 10, 9);
         }
@@ -3274,6 +3377,21 @@ public void RefreshAllBedButtons() {
             InsertSnippetAtCursor(dtStr);
         }
 
+        private void ShowSwapBedDialog() {
+            FlushSave();
+            using (BedSwapDialog dlg = new BedSwapDialog(currentBed, manager, context)) {
+                if (dlg.ShowDialog(this) == DialogResult.OK) {
+                    int targetBed = dlg.TargetBed;
+                    bool isSwap = dlg.IsSwap;
+                    SelectBed(targetBed);
+                    lblAutoSave.Text = isSwap 
+                        ? string.Format("🔄 สลับเตียง {0} ⮂ เตียง {1} เรียบร้อยแล้ว (สำรองประวัติแล้ว)", currentBed, targetBed)
+                        : string.Format("➡️ ย้ายข้อมูลมาที่เตียง {0} เรียบร้อยแล้ว (เตียงเดิมว่างลง)", targetBed);
+                    lblAutoSave.ForeColor = Color.FromArgb(67, 56, 202);
+                }
+            }
+        }
+
         private void ClearCurrentBed() {
             DialogResult dr = MessageBox.Show(
                 string.Format("คุณต้องการล้างข้อมูลผู้ป่วยของ 'เตียง {0}' หรือไม่?\n\n💡 ระบบจะสำรองข้อมูลปัจจุบันไว้ใน 'ประวัติเตียงย้อนหลัง' อัตโนมัติ หากเผลอลบผิด สามารถเปิดกู้คืนได้ 100%", currentBed),
@@ -3361,6 +3479,282 @@ public void RefreshAllBedButtons() {
             RepositionTopControls();
             RepositionBottomControls();
             RepositionNoteHeaderControls();
+        }
+    }
+
+    // =========================================================================
+    // หน้าต่างสลับเตียงและย้ายเตียงผู้ป่วย (Bed Swap & Transfer Dialog)
+    // =========================================================================
+    public class BedSwapDialog : Form {
+        private int sourceBed;
+        private BedNotesManager manager;
+        private ExpanderContext context;
+
+        private ComboBox cmbTargetBed;
+        private Label lblSourceInfo;
+        private TextBox txtSourcePreview;
+        private Label lblTargetStatus;
+        private RadioButton rbSwap;
+        private RadioButton rbMove;
+        private CheckBox chkSyncReminders;
+        private Button btnConfirm;
+        private Button btnCancel;
+
+        public int TargetBed {
+            get {
+                if (cmbTargetBed != null && cmbTargetBed.SelectedItem is BedComboItem) {
+                    return ((BedComboItem)cmbTargetBed.SelectedItem).BedNumber;
+                }
+                return 0;
+            }
+        }
+
+        public bool IsSwap {
+            get {
+                return rbSwap != null && rbSwap.Checked;
+            }
+        }
+
+        private class BedComboItem {
+            public int BedNumber { get; set; }
+            public string DisplayText { get; set; }
+            public bool HasData { get; set; }
+            public override string ToString() { return DisplayText; }
+        }
+
+        public BedSwapDialog(int fromBed, BedNotesManager bedMgr, ExpanderContext ctx) {
+            sourceBed = fromBed;
+            manager = bedMgr;
+            context = ctx;
+
+            this.Text = "🔄 สลับหรือย้ายเตียงผู้ป่วย";
+            this.Size = new Size(540, 485);
+            this.StartPosition = FormStartPosition.CenterParent;
+            this.FormBorderStyle = FormBorderStyle.FixedDialog;
+            this.MaximizeBox = false;
+            this.MinimizeBox = false;
+            this.BackColor = Color.FromArgb(248, 250, 252);
+            this.Font = new Font("Segoe UI", 9.25f);
+
+            InitializeComponents();
+        }
+
+        private void InitializeComponents() {
+            // Header Panel
+            Panel pnlHeader = new Panel();
+            pnlHeader.Dock = DockStyle.Top;
+            pnlHeader.Height = 65;
+            pnlHeader.BackColor = Color.FromArgb(67, 56, 202);
+            pnlHeader.Padding = new Padding(16, 10, 16, 10);
+
+            Label lblTitle = new Label();
+            lblTitle.Text = "🔄 ระบบสลับเตียงและย้ายเตียงผู้ป่วย";
+            lblTitle.Font = new Font("Segoe UI", 12f, FontStyle.Bold);
+            lblTitle.ForeColor = Color.White;
+            lblTitle.AutoSize = true;
+            lblTitle.Location = new Point(14, 10);
+            pnlHeader.Controls.Add(lblTitle);
+
+            Label lblSub = new Label();
+            lblSub.Text = "สลับข้อมูลระหว่าง 2 เตียง หรือย้ายผู้ป่วยไปยังเตียงว่าง พร้อมสำรองประวัติอัตโนมัติ";
+            lblSub.Font = new Font("Segoe UI", 8.5f);
+            lblSub.ForeColor = Color.FromArgb(224, 231, 255);
+            lblSub.AutoSize = true;
+            lblSub.Location = new Point(16, 36);
+            pnlHeader.Controls.Add(lblSub);
+
+            this.Controls.Add(pnlHeader);
+
+            // Body
+            Panel pnlBody = new Panel();
+            pnlBody.Dock = DockStyle.Fill;
+            pnlBody.Padding = new Padding(20, 14, 20, 14);
+
+            string srcContent = manager.GetBedNote(sourceBed);
+            bool srcHasData = !string.IsNullOrEmpty(srcContent) && !string.IsNullOrEmpty(srcContent.Trim());
+
+            lblSourceInfo = new Label();
+            lblSourceInfo.Text = string.Format("🛏️ เตียงต้นทาง: เตียง {0:D2} ({1})", 
+                sourceBed, 
+                srcHasData ? string.Format("มีข้อมูลผู้ป่วย {0} ตัวอักษร", srcContent.Length) : "เตียงว่าง");
+            lblSourceInfo.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
+            lblSourceInfo.ForeColor = Color.FromArgb(15, 23, 42);
+            lblSourceInfo.Location = new Point(20, 12);
+            lblSourceInfo.AutoSize = true;
+            pnlBody.Controls.Add(lblSourceInfo);
+
+            txtSourcePreview = new TextBox();
+            txtSourcePreview.Multiline = true;
+            txtSourcePreview.ReadOnly = true;
+            txtSourcePreview.ScrollBars = ScrollBars.Vertical;
+            txtSourcePreview.Text = srcHasData ? srcContent : "(เตียงนี้ยังไม่มีข้อมูลผู้ป่วย)";
+            txtSourcePreview.Location = new Point(22, 36);
+            txtSourcePreview.Size = new Size(480, 58);
+            txtSourcePreview.BackColor = Color.FromArgb(241, 245, 249);
+            txtSourcePreview.ForeColor = srcHasData ? Color.FromArgb(30, 41, 59) : Color.FromArgb(148, 163, 184);
+            txtSourcePreview.Font = new Font("Segoe UI", 8.5f);
+            pnlBody.Controls.Add(txtSourcePreview);
+
+            Label lblTargetPrompt = new Label();
+            lblTargetPrompt.Text = "🎯 เลือกเตียงปลายทาง (1 - 30):";
+            lblTargetPrompt.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
+            lblTargetPrompt.ForeColor = Color.FromArgb(15, 23, 42);
+            lblTargetPrompt.Location = new Point(20, 104);
+            lblTargetPrompt.AutoSize = true;
+            pnlBody.Controls.Add(lblTargetPrompt);
+
+            cmbTargetBed = new ComboBox();
+            cmbTargetBed.DropDownStyle = ComboBoxStyle.DropDownList;
+            cmbTargetBed.Location = new Point(22, 128);
+            cmbTargetBed.Size = new Size(480, 26);
+            cmbTargetBed.Font = new Font("Segoe UI", 9.5f);
+
+            int firstSelectIdx = 0;
+            int curIdx = 0;
+            for (int i = 1; i <= 30; i++) {
+                if (i == sourceBed) continue;
+                string note = manager.GetBedNote(i);
+                bool hasData = !string.IsNullOrEmpty(note) && !string.IsNullOrEmpty(note.Trim());
+                string txt = string.Format("เตียง {0:D2} {1}", i, hasData ? string.Format("[มีข้อมูล {0} ตัวอักษร]", note.Length) : "[เตียงว่าง ✨]");
+                cmbTargetBed.Items.Add(new BedComboItem {
+                    BedNumber = i,
+                    DisplayText = txt,
+                    HasData = hasData
+                });
+                if (firstSelectIdx == 0 && !hasData && srcHasData) {
+                    firstSelectIdx = curIdx;
+                }
+                curIdx++;
+            }
+            if (cmbTargetBed.Items.Count > 0) cmbTargetBed.SelectedIndex = firstSelectIdx;
+            cmbTargetBed.SelectedIndexChanged += (s, e) => UpdateTargetStatus();
+            pnlBody.Controls.Add(cmbTargetBed);
+
+            lblTargetStatus = new Label();
+            lblTargetStatus.Location = new Point(22, 162);
+            lblTargetStatus.Size = new Size(480, 36);
+            lblTargetStatus.Font = new Font("Segoe UI", 8.75f, FontStyle.Italic);
+            pnlBody.Controls.Add(lblTargetStatus);
+
+            // GroupBox for Action Mode
+            GroupBox grpAction = new GroupBox();
+            grpAction.Text = "รูปแบบการดำเนินการ";
+            grpAction.Location = new Point(22, 202);
+            grpAction.Size = new Size(480, 95);
+            grpAction.Font = new Font("Segoe UI", 8.75f, FontStyle.Bold);
+
+            rbSwap = new RadioButton();
+            rbSwap.Text = "🔄 สลับเตียงกัน (Swap) — แลกเปลี่ยนข้อมูลระหว่าง 2 เตียง";
+            rbSwap.Font = new Font("Segoe UI", 9f);
+            rbSwap.Location = new Point(16, 24);
+            rbSwap.Size = new Size(450, 24);
+            rbSwap.Cursor = Cursors.Hand;
+            grpAction.Controls.Add(rbSwap);
+
+            rbMove = new RadioButton();
+            rbMove.Text = "➡️ ย้ายเตียง (Move / Transfer) — ย้ายข้อมูลไปเตียงปลายทาง (เตียงต้นทางจะว่างลง)";
+            rbMove.Font = new Font("Segoe UI", 9f);
+            rbMove.Location = new Point(16, 54);
+            rbMove.Size = new Size(450, 24);
+            rbMove.Cursor = Cursors.Hand;
+            grpAction.Controls.Add(rbMove);
+
+            pnlBody.Controls.Add(grpAction);
+
+            chkSyncReminders = new CheckBox();
+            chkSyncReminders.Text = "⏰ ย้าย/สลับรายการแจ้งเตือนหัตถการ (Ward Reminders) ของเตียงไปด้วย";
+            chkSyncReminders.Checked = true;
+            chkSyncReminders.Location = new Point(22, 308);
+            chkSyncReminders.Size = new Size(480, 24);
+            chkSyncReminders.Font = new Font("Segoe UI", 9f);
+            chkSyncReminders.Cursor = Cursors.Hand;
+            pnlBody.Controls.Add(chkSyncReminders);
+
+            // Bottom Buttons
+            Panel pnlDlgBottom = new Panel();
+            pnlDlgBottom.Dock = DockStyle.Bottom;
+            pnlDlgBottom.Height = 56;
+            pnlDlgBottom.BackColor = Color.FromArgb(241, 245, 249);
+
+            btnConfirm = new Button();
+            btnConfirm.Text = "🔄 ยืนยันดำเนินการ";
+            btnConfirm.Size = new Size(150, 36);
+            btnConfirm.Location = new Point(245, 10);
+            btnConfirm.BackColor = Color.FromArgb(67, 56, 202);
+            btnConfirm.ForeColor = Color.White;
+            btnConfirm.FlatStyle = FlatStyle.Flat;
+            btnConfirm.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
+            btnConfirm.Cursor = Cursors.Hand;
+            btnConfirm.Click += BtnConfirm_Click;
+            pnlDlgBottom.Controls.Add(btnConfirm);
+
+            btnCancel = new Button();
+            btnCancel.Text = "ยกเลิก";
+            btnCancel.Size = new Size(95, 36);
+            btnCancel.Location = new Point(405, 10);
+            btnCancel.BackColor = Color.FromArgb(226, 232, 240);
+            btnCancel.FlatStyle = FlatStyle.Flat;
+            btnCancel.Font = new Font("Segoe UI", 9f);
+            btnCancel.Cursor = Cursors.Hand;
+            btnCancel.Click += (s, e) => { this.DialogResult = DialogResult.Cancel; this.Close(); };
+            pnlDlgBottom.Controls.Add(btnCancel);
+
+            this.Controls.Add(pnlBody);
+            this.Controls.Add(pnlDlgBottom);
+
+            pnlHeader.SendToBack();
+            pnlDlgBottom.SendToBack();
+            pnlBody.BringToFront();
+
+            UpdateTargetStatus();
+        }
+
+        private void UpdateTargetStatus() {
+            BedComboItem item = cmbTargetBed.SelectedItem as BedComboItem;
+            if (item == null) return;
+
+            if (item.HasData) {
+                rbSwap.Enabled = true;
+                rbSwap.Checked = true;
+                lblTargetStatus.Text = string.Format("⚠️ เตียง {0:D2} มีข้อมูลอยู่แล้ว: สามารถเลือก 'สลับเตียง' หรือ 'ย้ายทับ' (ระบบสำรองประวัติให้อัตโนมัติ)", item.BedNumber);
+                lblTargetStatus.ForeColor = Color.FromArgb(180, 83, 9);
+            } else {
+                rbSwap.Enabled = false;
+                rbMove.Checked = true;
+                lblTargetStatus.Text = string.Format("✨ เตียง {0:D2} เป็นเตียงว่าง: ระบบจะย้ายข้อมูลทั้งหมดไป และเตียงต้นทางจะว่างเปล่า", item.BedNumber);
+                lblTargetStatus.ForeColor = Color.FromArgb(15, 118, 110);
+            }
+        }
+
+        private void BtnConfirm_Click(object sender, EventArgs e) {
+            BedComboItem item = cmbTargetBed.SelectedItem as BedComboItem;
+            if (item == null) return;
+            int targetBed = item.BedNumber;
+            bool isSwap = rbSwap.Checked;
+
+            string confirmMsg = isSwap 
+                ? string.Format("ยืนยันการ 'สลับเตียง' ระหว่าง เตียง {0} และ เตียง {1} ใช่หรือไม่?\n\n💡 ระบบจะแลกเปลี่ยนข้อมูลของทั้งสองเตียง และสำรองประวัติย้อนหลังให้อัตโนมัติ", sourceBed, targetBed)
+                : string.Format("ยืนยันการ 'ย้ายข้อมูล' จาก เตียง {0} ไปยัง เตียง {1} ใช่หรือไม่?\n\n💡 ข้อมูลเดิมจะถูกย้ายไปเตียง {1} และเตียง {0} จะกลายเป็นเตียงว่าง", sourceBed, targetBed);
+
+            if (MessageBox.Show(this, confirmMsg, "ยืนยันการสลับ/ย้ายเตียง", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) {
+                return;
+            }
+
+            string resultMsg;
+            bool ok = manager.MoveOrSwapBed(sourceBed, targetBed, isSwap, out resultMsg);
+            if (!ok) {
+                MessageBox.Show(this, resultMsg, "ไม่สามารถดำเนินการได้", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            if (chkSyncReminders.Checked && context != null && context.ReminderManager != null) {
+                try {
+                    context.ReminderManager.MoveOrSwapBedReminders(sourceBed, targetBed, isSwap);
+                } catch {}
+            }
+
+            this.DialogResult = DialogResult.OK;
+            this.Close();
         }
     }
 
@@ -5104,6 +5498,34 @@ public void RefreshAllBedButtons() {
                     return a.DueTime.CompareTo(b.DueTime);
                 });
                 return list;
+            }
+        }
+
+        public void MoveOrSwapBedReminders(int fromBed, int toBed, bool isSwap) {
+            lock (syncLock) {
+                bool changed = false;
+                foreach (WardReminderItem item in reminders) {
+                    if (isSwap) {
+                        if (item.BedNum == fromBed) {
+                            item.BedNum = toBed;
+                            changed = true;
+                        } else if (item.BedNum == toBed) {
+                            item.BedNum = fromBed;
+                            changed = true;
+                        }
+                    } else {
+                        if (item.BedNum == fromBed) {
+                            item.BedNum = toBed;
+                            changed = true;
+                        }
+                    }
+                }
+                if (changed) {
+                    Save();
+                    if (OnRemindersChanged != null) {
+                        try { OnRemindersChanged(); } catch {}
+                    }
+                }
             }
         }
 
