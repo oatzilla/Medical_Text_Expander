@@ -957,6 +957,7 @@ function openTemplateModal(source = 'navbar') {
   }
 
   if (templateModal) {
+    document.body.classList.add('modal-open');
     templateModal.classList.add('open');
     templateModal.setAttribute('aria-hidden', 'false');
   }
@@ -978,6 +979,7 @@ function openTemplateModal(source = 'navbar') {
 
 // Close Template Modal
 function closeTemplateModal() {
+  document.body.classList.remove('modal-open');
   if (templateModal) {
     templateModal.classList.remove('open');
     templateModal.setAttribute('aria-hidden', 'true');
@@ -1004,10 +1006,20 @@ const friendlyCategoryNames = [
   { icon: "fa-hospital", label: "ศัลยกรรมเฉพาะทาง" }
 ];
 
-// Render Category Pills
+// Render Category Pills with Mouse-Wheel Horizontal Scroll
 function renderTemplateCategoryPills() {
   if (!templateCategoryPills) return;
   templateCategoryPills.innerHTML = '';
+  
+  if (!templateCategoryPills._hasWheelListener) {
+    templateCategoryPills.addEventListener('wheel', (e) => {
+      if (e.deltaY !== 0) {
+        e.preventDefault();
+        templateCategoryPills.scrollLeft += (e.deltaY * 1.5);
+      }
+    }, { passive: false });
+    templateCategoryPills._hasWheelListener = true;
+  }
 
   // All pill
   const allPill = document.createElement('button');
