@@ -18,10 +18,10 @@ if ($LASTEXITCODE -eq 0) {
     Write-Host ''
     Write-Host '[2/2] Deploying gh-pages branch for Web Portal...' -ForegroundColor Yellow
     git fetch origin gh-pages
+    $parent = (git rev-parse FETCH_HEAD).Trim()
     $tree = (git write-tree --prefix=docs/).Trim()
-    $commit = (git commit-tree $tree -p origin/gh-pages -m "deploy: update web portal v1.6.2").Trim()
-    git update-ref refs/heads/gh-pages $commit
-    git push origin gh-pages
+    $commit = (git commit-tree $tree -p $parent -m "deploy: update web portal v1.6.2").Trim()
+    git push origin "${commit}:refs/heads/gh-pages"
     Write-Host ''
     Write-Host '========================================================' -ForegroundColor Green
     Write-Host '   SUCCESS: v1.6.2 is now LIVE on GitHub & GitHub Pages!' -ForegroundColor Green
