@@ -1,8 +1,8 @@
 {
-  "version": "1.6.1",
+  "version": "1.6.2",
   "downloadUrl": "https://raw.githubusercontent.com/oatzilla/Medical_Text_Expander/main/Medical_Text_Expander.exe",
   "download_url": "https://raw.githubusercontent.com/oatzilla/Medical_Text_Expander/main/Medical_Text_Expander.exe",
   "releaseDate": "2026-10-01",
   "release_date": "2026-10-01",
-  "changelog": "- เพิ่ม 24 เทมเพลตข้อวินิจฉัยและกิจกรรมการพยาบาลครอบคลุม 4 หมวดหมู่วิกฤตสำคัญ (ขยายคลังเทมเพลตรวมเป็น 110 หัวข้อ):\n  1. การพยาบาลผู้ป่วยระยะสุดท้าย (Palliative & Comfort Care, Terminal Pain, Death Rattle, Terminal Dyspnea, Terminal Delirium, Post-Mortem Care)\n  2. การพยาบาลระบบประสาทและสมอง (Increased ICP, Seizure Care, GCS Drop, Head Injury / TBI, Spinal Cord Injury, Ward Delirium)\n  3. การพยาบาลผู้ป่วยใส่เครื่องช่วยหายใจ (Mechanical Ventilator & VAP Bundle, Suctioning, ETT Care, Tracheostomy Care, Weaning SBT, Post-Extubation)\n  4. การช่วยชีวิตและการพยาบาลผู้ป่วยวิกฤต (CPR & ROSC, Blood Transfusion, Central Line / CVC CLABSI Bundle, Arterial Line, Chest Tube ICD, High Alert Drugs / Inotropes)\n- เพิ่มปุ่มตัวกรองหมวดหมู่ใหม่ทั้งบนหน้าต่างคลังเทมเพลต Desktop (F8) และ Web & Mobile Portal พร้อมไอคอนเฉพาะหมวดหมู่ครบถ้วน"
+  "changelog": "- ปรับรูปแบบ [ACTION] กิจกรรมการพยาบาลและข้อควรระวังในเทมเพลต Focus Charting (DAR) ทั้งหมด 110 หัวข้อ ให้แสดงผลและแยกรายการกิจกรรมทีละบรรทัดด้วยเครื่องหมายข้อ (- ) อย่างเป็นระเบียบสวยงาม ไม่เรียงต่อกันเป็นความเรียงก้อนยาว ใช้งานง่ายทั้งบนหน้าต่างค้นหา Desktop (F8), Web & Mobile Portal และเมื่อขยายคำย่อลงโปรแกรม e-PHIS"
 }

@@ -1716,10 +1716,12 @@ function formatDARHtml(content) {
       sections.data.push(trimmed.replace('Data:', '').trim());
     } else if (trimmed.startsWith('Action:')) {
       currentSection = 'action';
-      sections.action.push(trimmed.replace('Action:', '').trim());
+      const aVal = trimmed.replace('Action:', '').trim();
+      if (aVal) sections.action.push(aVal);
     } else if (trimmed.startsWith('Response:')) {
       currentSection = 'response';
-      sections.response.push(trimmed.replace('Response:', '').trim());
+      const rVal = trimmed.replace('Response:', '').trim();
+      if (rVal) sections.response.push(rVal);
     } else {
       if (currentSection === 'focus') sections.focus.push(line);
       else if (currentSection === 'data') sections.data.push(line);
