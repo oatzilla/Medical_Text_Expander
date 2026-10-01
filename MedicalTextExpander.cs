@@ -196,7 +196,7 @@ namespace MedicalTextExpander {
     }
 
     public static class AppUpdater {
-        public const string CurrentVersion = "1.6.2";
+        public const string CurrentVersion = "1.6.3";
         public const string DefaultGitHubRepo = "oatzilla/Medical_Text_Expander";
 
         public static void CheckForUpdatesAsync(string repo, bool isManual, Form parent = null, string token = null) {
@@ -2677,7 +2677,7 @@ namespace MedicalTextExpander {
             pnlQuickButtons.Controls.Add(lblQuick);
 
             Button btnDarCatalog = new Button();
-            btnDarCatalog.Text = "📋 คลังข้อวินิจฉัย/DAR (62 เทมเพลต)";
+            btnDarCatalog.Text = "📋 คลังข้อวินิจฉัย/DAR (110 เทมเพลต)";
             btnDarCatalog.Font = new Font("Segoe UI", 8.5f, FontStyle.Bold);
             btnDarCatalog.BackColor = Color.FromArgb(13, 148, 136);
             btnDarCatalog.ForeColor = Color.White;
@@ -2692,15 +2692,19 @@ namespace MedicalTextExpander {
             };
             pnlQuickButtons.Controls.Add(btnDarCatalog);
 
-            AddQuickButton(pnlQuickButtons, "🩺 V/S สัญญาณชีพ", "V/S: BP.../... mmHg, PR... /min, RR... /min, SpO2... %");
-            AddQuickButton(pnlQuickButtons, "😊 รู้สึกตัวดี (Alert)", "ผู้ป่วยรู้สึกตัวดี ถามตอบรู้เรื่อง ไม่มีเหนื่อยหอบ");
-            AddQuickButton(pnlQuickButtons, "🫁 On O2", "On O2 cannula ... LPM, SpO2 ...%");
-            AddQuickButton(pnlQuickButtons, "💉 On IV", "On IV ... rate ... ml/hr, IV site ดี phlebitis gr.0");
-            AddQuickButton(pnlQuickButtons, "🚽 Foley", "Retained Foley cath, ปัสสาวะสีเหลืองใส ... ml");
-            AddQuickButton(pnlQuickButtons, "😣 Pain สกอร์", "ประเมิน Pain score = .../10, ได้รับยาแก้ปวด... อาการปวดทุเลาเหลือ .../10");
-            AddQuickButton(pnlQuickButtons, "🚫 NPO งดน้ำ-อาหาร", "NPO งดน้ำและอาหารตั้งแต่เวลา... น. เพื่อเตรียมตรวจ/ผ่าตัด");
-            AddQuickButton(pnlQuickButtons, "👨‍⚕️ แพทย์ Round", "แพทย์... เข้าตรวจ เยี่ยมอาการ แผนการรักษา: ...");
-            AddQuickButton(pnlQuickButtons, "📝 DAR", "Focus: ...\r\nData: ...\r\nAction: ...\r\nResponse: ...");
+            // ปุ่มคีย์ด่วนข้อวินิจฉัย Orthopedic ที่พบบ่อย
+            AddQuickOrthoButton(pnlQuickButtons, "🦴 Pre-op", ".preop", "Focus: เตรียมความพร้อมผู้ป่วยก่อนส่งผ่าตัด\r\nGoal: ผู้ป่วยมีความพร้อมทั้งร่างกายและจิตใจก่อนเข้าห้องผ่าตัด ปฏิบัติตัวตามแผน NPO ถูกต้อง เอกสารและผลตรวจครบถ้วน และไม่เกิดภาวะแทรกซ้อนก่อนผ่าตัด\r\nData: ผู้ป่วยมีแผนผ่าตัด... วันนี้ NPO ตั้งแต่... น., V/S: T... °C, BP.../... mmHg, PR... /min, RR... /min, SpO2... %\r\nAction:\r\n- ตรวจสอบความถูกต้องของใบยินยอมผ่าตัด (Informed consent) เซ็นเรียบร้อย\r\n- ตรวจสอบผลตรวจทางห้องปฏิบัติการ (CBC, Coagulogram, Electrolyte) และผล X-ray พร้อม Chart\r\n- อาบน้ำเปลี่ยนชุดผู้ป่วย ถอดฟันปลอม แว่นตา คอนแทคเลนส์ และเครื่องประดับทุกชนิด\r\n- ตรวจสอบแถบข้อมือระบุตัวตน (Patient ID) ถูกต้อง\r\n- ให้สารน้ำทางหลอดเลือดดำตามแผนการรักษา\r\n- สวมหมวกคลุมผม และนำส่งห้องผ่าตัดพร้อมเอกสารครบถ้วน\r\nResponse: ส่งผู้ป่วยถึงห้องผ่าตัดเวลา... น. ปลอดภัยดี พยาบาลห้องผ่าตัดรับมอบผู้ป่วยและเอกสารเรียบร้อย");
+            AddQuickOrthoButton(pnlQuickButtons, "🩹 Post-op", ".postop", "Focus: เสี่ยงต่อภาวะแทรกซ้อนจากการระงับความรู้สึกและการผ่าตัด\r\nGoal: สัญญาณชีพคงที่ ฟื้นตัวจากยาระงับความรู้สึกได้ดี แผลผ่าตัดไม่มี active bleeding และไม่เกิดภาวะแทรกซ้อนหลังผ่าตัด\r\nData: รับย้ายผู้ป่วยกลับจากห้องผ่าตัด/ห้องพักฟื้น หลังทำผ่าตัด... ระดับความรู้สึกตัว: ตื่นดี รู้เรื่อง (Alert), V/S แรกรับ: BP.../... mmHg, PR... /min, RR... /min, SpO2... %, แผลผ่าตัดปิด gauze แนบสนิท ไม่มีเลือดสดซึมเปื้อน, สายระบายออก... ml ลักษณะ serosanguinous\r\nAction:\r\n- จัดท่านอนราบ/ศีรษะสูงตามข้อกำหนดการระงับความรู้สึก\r\n- ตรวจวัดและบันทึกสัญญาณชีพทุก 15 นาที x 4 ครั้ง, ทุก 30 นาที x 2 ครั้ง และทุก 1 ชั่วโมงจนคงที่\r\n- ตรวจสอบแผลผ่าตัดและสายระบาย\r\n- ประเมินการไหลเวียนโลหิตและประสาทรับรู้ส่วนปลาย\r\n- ดูแลให้สารน้ำและยาบรรเทาปวดตามแผนการรักษา\r\n- ยกไม้กั้นเตียงขึ้นทั้ง 2 ข้าง\r\nResponse: สัญญาณชีพคงที่ รู้สึกตัวดี ไม่มีคลื่นไส้อาเจียน แผลผ่าตัดแห้งดี ไม่มี active bleeding");
+            AddQuickOrthoButton(pnlQuickButtons, "😣 Pain", ".pain", "Focus: ปวดแผลผ่าตัดเนื่องจากเนื้อเยื่อได้รับบาดเจ็บจากการผ่าตัด\r\nGoal: ผู้ป่วยสุขสบายขึ้น ระดับความปวดลดลง Pain score ≤ 3/10 สามารถพักผ่อนได้ และไม่มีผลข้างเคียงจากยาบรรเทาปวด\r\nData: ผู้ป่วยบ่นปวดแผลผ่าตัด Pain score = .../10, สีหน้าหน้านิ่วคิ้วขมวด ไม่กล้าขยับตัว V/S: BP.../... mmHg, PR... /min\r\nAction:\r\n- ประเมินตำแหน่ง ลักษณะ และระดับความรุนแรงของความปวด\r\n- ดูแลให้ยาบรรเทาปวด... ตามแผนการรักษาของแพทย์\r\n- จัดท่านอนให้ผ่อนคลายและหนุนหมอนรองรับส่วนที่ผ่าตัด\r\n- สอนเทคนิคการหายใจช้าๆ ลึกๆ ผ่อนคลายกล้ามเนื้อ (Deep breathing exercise) และการใช้มือประคองแผลเวลาเคลื่อนไหว\r\nResponse: หลังให้ยา 30 นาที ผู้ป่วยบอกอาการปวดทุเลาลง Pain score ลดลงเหลือ.../10 สีหน้าผ่อนคลาย สามารถนอนพักได้");
+            AddQuickOrthoButton(pnlQuickButtons, "✨ Wound", ".wound", "Focus: แผลผ่าตัดสะอาด ไม่มีสัญญาณการติดเชื้อ\r\nGoal: แผลผ่าตัดสมานตัวดี ขอบแผลแนบสนิท แห้งสะอาด ไม่มีเลือดหรือหนองซึมเปื้อน และไม่เกิดการติดเชื้อที่แผลผ่าตัด (SSI)\r\nData: แผลผ่าตัดบริเวณ... ปิดแผลเรียบร้อย ขอบแผลเย็บแนบสนิทดี (Well-approximated)\r\nAction:\r\n- ตรวจประเมินแผลผ่าตัด ทำแผล (Dressing) ด้วย Normal Saline และเทคนิคปลอดเชื้อ\r\n- ปิดแผลด้วยผ้าก๊อซสะอาด\r\n- แนะนำผู้ป่วยระวังอย่าให้แผลโดนน้ำ\r\nResponse: แผลผ่าตัดแห้ง สะอาดดี ไม่มีเลือดหรือสิ่งคัดหลั่งซึมเปื้อน ไม่มีรอยบวมแดง (No signs of inflammation/infection)");
+            AddQuickOrthoButton(pnlQuickButtons, "🩸 Drain", ".drain", "Focus: เสี่ยงต่อการติดเชื้อและมีสารน้ำคั่งค้างบริเวณแผลผ่าตัด\r\nGoal: สารคัดหลั่งระบายได้สะดวก สายระบายทำงานมีประสิทธิภาพ แผลรอบสายระบายสะอาด แห้งดี และไม่พบสัญญาณการติดเชื้อ\r\nData: มีสายระบาย (Redivac / Hemovac / Jackson-Pratt / ICD) บริเวณแผลผ่าตัด มีสารคัดหลั่งออกสะสม... ml ลักษณะ serosanguinous ไม่มีเลือดสดออกเพิ่ม แผลผ่าตัดเย็บแนบสนิท\r\nAction:\r\n- ตรวจเช็คระบบสุญญากาศของขวดระบายให้คงสภาพ vacuum อยู่เสมอ\r\n- บันทึกปริมาณ สี และลักษณะของสารคัดหลั่ง\r\n- ทำความสะอาดแผลและรอบรอยเจาะสายระบายด้วยเทคนิคปลอดเชื้อ (Aseptic technique)\r\n- ปักตรึงสายระบายด้วยเข็มกลัด/พลาสเตอร์ไม่ให้เลื่อนหลุดหรือดึงรั้ง\r\nResponse: สายระบายไม่หักพับงอ การระบายไหลสะดวก สารคัดหลั่งออกลดลง แผลรอบสายระบายไม่มีอาการบวมแดงหรือมีหนอง");
+            AddQuickOrthoButton(pnlQuickButtons, "🦶 CMS Check", ".ortho", "Focus: เสี่ยงต่อภาวะเนื้อเยื่อขาดเลือดและภาวะความดันในช่องกล้ามเนื้อสูง (Compartment Syndrome)\r\nGoal: การไหลเวียนโลหิตและประสาทรับรู้ส่วนปลายปกติ ปลายเท้า/มืออุ่น สีชมพู CRT < 2 วินาที คลำชีพจรได้ชัดเจน และไม่เกิดภาวะ Compartment syndrome\r\nData: ผู้ป่วยได้รับการผ่าตัด/ใส่เฝือกบริเวณ... มีอาการปวด บวม ตึง บริเวณแผลผ่าตัด/รยางค์\r\nAction:\r\n- ประเมินภาวะ 5Ps (Pain, Pallor, Pulselessness, Paresthesia, Paralysis) ทุก... ชม.\r\n- ตรวจ Capillary refill time (CRT)\r\n- คลำชีพจรส่วนปลาย (Radial / Dorsalis pedis pulse)\r\n- จัดยกอวัยวะส่วนปลายให้สูงกว่าระดับหัวใจด้วยหมอนหนุนเพื่อลดบวม\r\n- กระตุ้นให้ขยับนิ้วมือ/นิ้วเท้าบ่อยๆ\r\nResponse: ปลายมือ/เท้าข้างที่ผ่าตัดอุ่น สีชมพูดี CRT < 2 วินาที, คลำชีพจรส่วนปลายได้ชัดเจน, ความรู้สึกและการขยับนิ้วมือ/เท้าปกติ ไม่มีอาการชา ไม่พบภาวะ Compartment syndrome");
+            AddQuickOrthoButton(pnlQuickButtons, "🏃 Rehab", ".tkarehab", "Focus: ฟื้นฟูสมรรถภาพกล้ามเนื้อและการเคลื่อนไหวข้อเข่า (Impaired Physical Mobility / Knee Rehabilitation)\r\nGoal: ผู้ป่วยสามารถงอและเหยียดข้อเข่าได้ตามเป้าหมาย (Extension 0°, Flexion ≥ 90°) กล้ามเนื้อต้นขาแข็งแรงขึ้น และใช้อุปกรณ์ช่วยเดินได้ถูกต้อง\r\nData: ผู้ป่วยหลังผ่าตัด TKA วันที่... ข้อเข่ายังมีอาการตึงตัว งอเข่าได้... องศา กล้ามเนื้อต้นขายังล้า\r\nAction:\r\n1. ให้ยาแก้ปวดก่อนเริ่มทำกายภาพบำบัด 30 นาทีเพื่อให้บริหารข้อเข่าได้อย่างมีประสิทธิภาพ\r\n2. ดูแลและจัดตำแหน่งผู้ป่วยบนเครื่องช่วยงอข้อเข่าอัตโนมัติ (Continuous Passive Motion: CPM) ตั้งมุมงอเริ่มต้นที่... องศา วันละ 2 ครั้ง ครั้งละ 1-2 ชม. ตามคำสั่งแพทย์\r\n3. ฝึกสอนท่าบริหารกล้ามเนื้อ: Isometric Quad setting, Terminal knee extension, และ Heel slide\r\n4. ประเมินอาการปวด บวม แดงร้อน บริเวณข้อเข่าหลังการฝึก พร้อมประคบเย็นหลังฝึกเสร็จ\r\n5. ฝึกสอนการเดินโดยใช้อุปกรณ์ช่วยเดิน (Walker) และการก้าวเดินที่ถูกต้อง\r\nResponse: ผู้ป่วยสามารถงอเข่าบนเครื่อง CPM ได้... องศาโดยไม่ปวดรุนแรง, ยกขาตรง (SLR) ได้มั่นคง, ฝึกเดินด้วย Walker ได้ระยะทาง... เมตร สัญญาณชีพคงที่ ปลอดภัยดี");
+            AddQuickOrthoButton(pnlQuickButtons, "🦿 TKA", ".tka", "Focus: การพยาบาลหลังผ่าตัดเปลี่ยนข้อเข่าเทียม (Post-Op TKA)\r\nGoal: การไหลเวียนโลหิตและเส้นประสาทปลายเท้าปกติ (CMS Intact) ควบคุมความปวดได้ดี สายระบายทำงานมีประสิทธิภาพ และไม่เกิดภาวะข้อเข่างอติดหรือ DVT\r\nData: รับย้ายผู้ป่วยหลังทำผ่าตัด Total Knee Arthroplasty (TKA) เข่าข้าง... แผลผ่าตัดปิด pressure dressing แนบสนิทดี, มีสายระบาย (Redivac/Hemovac) ต่อลงขวดสุญญากาศ มีเลือดออกสะสม... ml ลักษณะ serosanguinous, CMS check ปลายเท้า: ปลายเท้าอุ่น capillary refill < 2 วินาที, คลำชีพจร Dorsalis pedis pulse ได้ชัดเจน, กระดิกนิ้วเท้าและข้อเท้าได้ ไม่บวมตึง, Pain score = .../10\r\nAction:\r\n1. ประเมินสัญญาณชีพ และตรวจประเมินระบบประสาทและหลอดเลือดส่วนปลาย (CMS check: Color, Motion, Sensation, Pulse, Temp) ทุก 1 ชม. x 4 ครั้ง และทุก 2-4 ชม.\r\n2. จัดท่านอนหงาย หนุนหมอนรองใต้ข้อเท้าให้เหยียดตรงและยกขาสูงเล็กน้อย (ห้ามหนุนหมอนใต้ข้อพับเข่าเด็ดขาด เพื่อป้องกันภาวะข้อเข่างอติด Knee flexion contracture)\r\n3. ประคบเย็นรอบข้อเข่า (Cryotherapy / Cold pack) ครั้งละ 20-30 นาที ทุก 2-3 ชม. เพื่อลดอาการบวมและบรรเทาความปวด\r\n4. ดูแลสายระบายแผลผ่าตัดให้อยู่ในระบบสุญญากาศ บันทึกปริมาณและสีของเลือดที่ออก หากออก > 100 ml/hr ติดต่อกัน 2 ชม. ให้รายงานแพทย์ทันที\r\n5. แนะนำและกระตุ้นการบริหารกล้ามเนื้อขา: กระดกข้อเท้าขึ้น-ลง (Ankle pumping exercise) 20-30 ครั้ง/ชม. และเกร็งกล้ามเนื้อต้นขาเหยียดเข่าตรงกดลงบนที่นอน (Quadriceps setting exercise) เพื่อป้องกันลิ่มเลือดอุดตันในหลอดเลือดดำ (DVT)\r\nResponse: สัญญาณชีพคงที่, CMS check ปลายเท้าปกติ ปลายเท้าอุ่น ชีพจรเต้นดี ขยับนิ้วเท้าได้, แผลผ่าตัดไม่มีเลือดสดซึมเปื้อน, สายระบายออกลดลง, ปฏิบัติการบริหารกล้ามเนื้อขาได้ถูกต้อง");
+            AddQuickOrthoButton(pnlQuickButtons, "🩼 THA", ".tha", "Focus: การพยาบาลหลังผ่าตัดเปลี่ยนข้อสะโพกเทียมและเฝ้าระวังข้อสะโพกหลุด (Post-Op THA & Dislocation Prevention)\r\nGoal: ข้อสะโพกเทียมอยู่ในตำแหน่งที่ถูกต้อง ไม่เกิดภาวะข้อสะโพกหลุด (No Dislocation) CMS ปลายเท้าปกติ และฟื้นฟูการเดินได้อย่างปลอดภัย\r\nData: รับย้ายผู้ป่วยหลังทำผ่าตัด Total Hip Arthroplasty (THA) สะโพกข้าง... แผลผ่าตัดปิด pressure dressing เรียบร้อย ไม่มีเลือดสดซึม, มีสายระบาย (Redivac) เลือดออกสะสม... ml, ปลายเท้าอุ่น ขยับนิ้วเท้าและข้อเท้าได้ปกติ, Pain score = .../10\r\nAction:\r\n1. ตรวจวัดสัญญาณชีพและประเมิน CMS check ปลายเท้าข้างที่ผ่าตัดอย่างสม่ำเสมอ\r\n2. จัดท่านอนหงายและวางหมอนรูปสามเหลี่ยม (Abduction pillow) ระหว่างขาทั้งสองข้างตลอดเวลาที่อยู่บนเตียง เพื่อจัดให้ขากางออกเล็กน้อย (Abduction 15-20 องศา) และป้องกันขาหุบหรือหมุนเข้าด้านใน (Internal rotation)\r\n3. ปฏิบัติตามข้อควรระวังเพื่อป้องกันข้อสะโพกเทียมหลุด (Hip Precautions) อย่างเคร่งครัด:\r\n   - ห้ามงอข้อสะโพกเกิน 90 องศา (ห้ามก้มตัวลงหยิบของที่พื้น, ห้ามนั่งเก้าอี้เตี้ยหรือชักโครกต่ำ ให้ใช้ที่นั่งเสริมชักโครก Raised toilet seat)\r\n   - ห้ามนอนตะแคงโดยไม่มีหมอนหนุนคั่นระหว่างขาทั้งสองข้างเด็ดขาด\r\n   - ห้ามนั่งไขว่ห้าง (Do not cross legs)\r\n4. ดูแลสายระบายสุญญากาศและบันทึกปริมาณเลือดที่ออก\r\n5. กระตุ้นให้ทำ Ankle pumping exercise บ่อยๆ เพื่อป้องกัน DVT\r\nResponse: ข้อสะโพกอยู่ในแนวปกติ ไม่พบอาการข้อสะโพกหลุด (ขาไม่สั้นเต่อ ปลายเท้าไม่บิดหมุนผิดรูป), ปลายเท้าอุ่น ขยับได้ดี CMS ปกติ, ผู้ป่วยและญาติเข้าใจและปฏิบัติตามข้อห้ามการงอสะโพกได้ถูกต้อง");
+            AddQuickOrthoButton(pnlQuickButtons, "🛡️ Spine", ".laminectomy", "Focus: เฝ้าระวังการกดทับไขสันหลังและเส้นประสาทหลังผ่าตัดกระดูกสันหลัง (Post-Op Spine Surgery / Neurological Check)\r\nGoal: การทำงานของเส้นประสาทและไขสันหลังปกติ (Motor & Sensory Intact) อาการชาและปวดร้าวลดลง แผลผ่าตัดแห้งดี และไม่มี CSF leak\r\nData: รับย้ายผู้ป่วยหลังทำผ่าตัด Laminectomy / Discectomy ระดับ... แผลผ่าตัดบริเวณหลังปิด dressing แนบสนิท, มีสายระบายเลือด... ml, รู้สึกตัวดี, Pain score = .../10\r\nAction:\r\n1. ตรวจวัดสัญญาณชีพและตรวจประเมินระบบประสาทส่วนปลาย (Neurological & Motor power check: กระดกข้อเท้า นิ้วเท้า เหยียด-งอเข่า และการรับความรู้สึก) ทุก 1 ชม. x 4 ครั้ง และทุก 2-4 ชม.\r\n2. จัดท่านอนหงายราบหรือศีรษะสูงไม่เกิน 30 องศา (ตามคำสั่งแพทย์)\r\n3. การพลิกตัวต้องใช้วิธีพลิกตัวแบบท่อนซุง (Log rolling technique) โดยมีเจ้าหน้าที่ช่วยอย่างน้อย 2-3 คน รักษาระนาบศีรษะ ลำตัว และสะโพกให้ตรงเป็นแนวเดียวกันตลอดเวลา ห้ามบิดเอี้ยวลำตัวเด็ดขาด\r\n4. ตรวจสอบแผลผ่าตัดและสายระบายอย่างใกล้ชิด: สังเกตลักษณะของสารคัดหลั่ง หากมีน้ำใสหรือสีเหลืองฟางข้าวออกมากผิดปกติร่วมกับผู้ป่วยบ่นปวดศีรษะ ให้สงสัยภาวะน้ำไขสันหลังรั่ว (CSF leakage) และรายงานแพทย์ทันที\r\n5. ประเมินการขับถ่ายปัสสาวะ (Bladder function) และดูแลให้ยาแก้ปวดตามแผน\r\nResponse: ระบบประสาทส่วนปลายปกติ Motor power ขาทั้ง 2 ข้าง grade V, อาการชาปลายเท้าลดลง, แผลผ่าตัดแห้งดี ไม่มี CSF leak, พลิกตัวแบบ Log rolling ได้ราบรื่น");
+            AddQuickOrthoButton(pnlQuickButtons, "🧱 Cast", ".cast", "Focus: เสี่ยงต่อการกดทับของเฝือกและผิวหนังบาดเจ็บ\r\nGoal: เฝือกคงรูปดี ไม่แตกหัก ไม่กดทับเนื้อเยื่อ ไม่เกิดแผลกดทับใต้เฝือก การไหลเวียนโลหิตส่วนปลายปกติ และผู้ป่วยดูแลเฝือกได้ถูกต้อง\r\nData: ผู้ป่วยได้รับการใส่เฝือก (Cast / Splint / Slab) บริเวณ... มีอาการตึง แน่น หรือปวดรยางค์ส่วนที่ใส่เฝือก\r\nAction:\r\n- ตรวจสอบสภาพเฝือกไม่แตกหัก ไม่เปียกชื้น และไม่รัดแน่นเกินไป\r\n- ตรวจสอบขอบเฝือกไม่กดทับผิวหนัง\r\n- สังเกตการไหลเวียนโลหิตปลายรยางค์\r\n- แนะนำห้ามนำสิ่งแปลกปลอมแคะเกาในเฝือก ระวังไม่ให้เฝือกเปียกน้ำ\r\n- แนะนำการเกร็งกล้ามเนื้อใต้เฝือก (Isometric exercise) เพื่อคงสภาพกล้ามเนื้อ\r\nResponse: เฝือกแห้ง แข็งแรงดี ไม่รัดแน่น ปลายรยางค์อุ่น สีชมพู คลำชีพจรได้ ขยับนิ้วได้ ไม่บวม ไม่มีอาการชา ขอบเฝือกไม่กดทับผิวหนัง");
+            AddQuickOrthoButton(pnlQuickButtons, "⚠️ Fall", ".fall", "Focus: เสี่ยงต่อการพลัดตกหกล้มเนื่องจากข้อจำกัดในการเคลื่อนไหวและยาที่มีผลต่อความดันโลหิต/การรับรู้\r\nGoal: ผู้ป่วยและญาติมีความตระหนักและปฏิบัติตามมาตรการป้องกันการพลัดตกหกล้ม ไม่เกิดอุบัติเหตุพลัดตกหกล้มตลอดการพักรักษาตัวในโรงพยาบาล\r\nData: ประเมินความเสี่ยงต่อการพลัดตกหกล้ม (Morse Fall Scale / Hendrich II Fall Model) ได้... คะแนน (จัดอยู่ในกลุ่ม High Risk)\r\nAction:\r\n- ติดป้ายสัญลักษณ์เสี่ยงล้มที่ข้อมือและหัวเตียง\r\n- ยกไม้กั้นเตียงขึ้นทั้ง 2 ข้างตลอดเวลา\r\n- ปรับระดับเตียงลงต่ำสุดและล็อกล้อเตียง\r\n- วางกริ่งเรียกพยาบาลและของใช้จำเป็นในระยะเอื้อมถึง\r\n- จัดสภาพแวดล้อมให้แห้ง สะอาด มีแสงสว่างเพียงพอ\r\n- ให้สุขศึกษาผู้ป่วยและญาติให้เรียกพยาบาลทุกครั้งที่ต้องการลุกจากเตียง\r\nResponse: ผู้ป่วยและญาติเข้าใจมาตรการป้องกันการพลัดตกหกล้ม ให้ความร่วมมือในการกดกริ่งเรียกพยาบาล ไม่พบอุบัติเหตุพลัดตกหกล้ม ปลอดภัยดี");
 
             Button btnQuickCalc = new Button();
             btnQuickCalc.Text = "🧮 คำนวณ SOS/ยา";
@@ -3322,6 +3326,36 @@ public void RefreshAllBedButtons() {
             btn.Margin = new Padding(2, 1, 2, 1);
             btn.Cursor = Cursors.Hand;
             btn.Click += (s, e) => InsertSnippetAtCursor(snippet);
+            pnl.Controls.Add(btn);
+        }
+
+        private void AddQuickOrthoButton(FlowLayoutPanel pnl, string title, string shortcut, string fallbackSnippet) {
+            Button btn = new Button();
+            btn.Text = title;
+            btn.Font = new Font("Segoe UI", 8.2f, FontStyle.Regular);
+            btn.BackColor = Color.White;
+            btn.ForeColor = Color.FromArgb(30, 41, 59);
+            btn.FlatStyle = FlatStyle.Flat;
+            btn.FlatAppearance.BorderColor = Color.FromArgb(203, 213, 225);
+            btn.FlatAppearance.MouseOverBackColor = Color.FromArgb(224, 242, 254);
+            btn.Height = 25;
+            btn.AutoSize = true;
+            btn.Margin = new Padding(2, 1, 2, 1);
+            btn.Cursor = Cursors.Hand;
+            ToolTip tt = new ToolTip();
+            tt.SetToolTip(btn, string.Format("คลิกเพื่อแทรกข้อวินิจฉัย/DAR {0} ({1}) ลงในบันทึกเตียงนี้", title, shortcut));
+            btn.Click += (s, e) => {
+                List<TemplateItem> tpls = context.GetTemplates();
+                TemplateItem match = null;
+                if (tpls != null) {
+                    match = tpls.Find(t => t.Shortcut.Equals(shortcut, StringComparison.OrdinalIgnoreCase) || 
+                                           (shortcut == ".ortho" && t.Shortcut.Equals(".cms", StringComparison.OrdinalIgnoreCase)));
+                }
+                string contentToInsert = (match != null && !string.IsNullOrEmpty(match.Content)) ? match.Content : fallbackSnippet;
+                if (!string.IsNullOrEmpty(contentToInsert)) {
+                    InsertSnippetAtCursor(contentToInsert);
+                }
+            };
             pnl.Controls.Add(btn);
         }
 
@@ -4667,6 +4701,7 @@ public void RefreshAllBedButtons() {
             }
 
             Color cFocus = Color.FromArgb(79, 70, 229);    // Indigo #4f46e5
+            Color cGoal = Color.FromArgb(217, 119, 6);     // Amber 600 #d97706
             Color cData = Color.FromArgb(2, 132, 199);     // Sky Blue #0284c7
             Color cAction = Color.FromArgb(5, 150, 105);   // Emerald #059669
             Color cResp = Color.FromArgb(13, 148, 136);    // Teal #0d9488
@@ -4674,7 +4709,7 @@ public void RefreshAllBedButtons() {
 
             bool hasDar = false;
             foreach (string l in lines) {
-                if (l.Trim().StartsWith("Focus:") || l.Trim().StartsWith("Data:") || 
+                if (l.Trim().StartsWith("Focus:") || l.Trim().StartsWith("Goal:") || l.Trim().StartsWith("Data:") || 
                     l.Trim().StartsWith("Action:") || l.Trim().StartsWith("Response:")) {
                     hasDar = true;
                     break;
@@ -4696,6 +4731,13 @@ public void RefreshAllBedButtons() {
                     string val = trimmed.Substring("Focus:".Length).Trim();
                     if (!string.IsNullOrEmpty(val)) {
                         AppendSectionBody(rtb, val, cFocus, fBold);
+                    }
+                } else if (trimmed.StartsWith("Goal:")) {
+                    curSection = "goal";
+                    AppendSectionHeader(rtb, "[GOAL] เป้าหมายทางการพยาบาลและผลลัพธ์ที่คาดหวัง", cGoal, fHdr);
+                    string val = trimmed.Substring("Goal:".Length).Trim();
+                    if (!string.IsNullOrEmpty(val)) {
+                        AppendSectionBody(rtb, val, cGoal, fBold);
                     }
                 } else if (trimmed.StartsWith("Data:")) {
                     curSection = "data";
@@ -4720,8 +4762,8 @@ public void RefreshAllBedButtons() {
                     }
                 } else {
                     if (!string.IsNullOrEmpty(line)) {
-                        Color col = curSection == "focus" ? cFocus : cText;
-                        Font fnt = (curSection == "focus" || line.Contains("ห้าม") || line.Contains("ระวัง") || line.Contains("เฝ้าระวัง") || line.Contains("**")) ? fBold : fBody;
+                        Color col = curSection == "focus" ? cFocus : (curSection == "goal" ? cGoal : cText);
+                        Font fnt = (curSection == "focus" || curSection == "goal" || line.Contains("ห้าม") || line.Contains("ระวัง") || line.Contains("เฝ้าระวัง") || line.Contains("**")) ? fBold : fBody;
                         string cleanLine = line.Replace("**", "");
                         AppendSectionBody(rtb, cleanLine, col, fnt);
                     } else {

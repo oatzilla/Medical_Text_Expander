@@ -1700,6 +1700,7 @@ function formatDARHtml(content) {
   let currentSection = 'general';
   const sections = {
     focus: [],
+    goal: [],
     data: [],
     action: [],
     response: [],
@@ -1711,6 +1712,10 @@ function formatDARHtml(content) {
     if (trimmed.startsWith('Focus:')) {
       currentSection = 'focus';
       sections.focus.push(trimmed.replace('Focus:', '').trim());
+    } else if (trimmed.startsWith('Goal:')) {
+      currentSection = 'goal';
+      const gVal = trimmed.replace('Goal:', '').trim();
+      if (gVal) sections.goal.push(gVal);
     } else if (trimmed.startsWith('Data:')) {
       currentSection = 'data';
       sections.data.push(trimmed.replace('Data:', '').trim());
@@ -1724,6 +1729,7 @@ function formatDARHtml(content) {
       if (rVal) sections.response.push(rVal);
     } else {
       if (currentSection === 'focus') sections.focus.push(line);
+      else if (currentSection === 'goal') sections.goal.push(line);
       else if (currentSection === 'data') sections.data.push(line);
       else if (currentSection === 'action') sections.action.push(line);
       else if (currentSection === 'response') sections.response.push(line);
@@ -1732,7 +1738,7 @@ function formatDARHtml(content) {
   }
 
   // If not standard DAR (e.g., .vs, .order, shortcuts), show general clean text
-  if (sections.focus.length === 0 && sections.data.length === 0 && sections.action.length === 0) {
+  if (sections.focus.length === 0 && sections.goal.length === 0 && sections.data.length === 0 && sections.action.length === 0) {
     return `
       <div class="dar-section">
         <span class="dar-tag" style="background: rgba(13, 148, 136, 0.15); color: var(--primary);">เนื้อหาข้อความ</span>
@@ -1747,6 +1753,14 @@ function formatDARHtml(content) {
       <div class="dar-section focus-sec">
         <span class="dar-tag"><i class="fa-solid fa-bullseye"></i> Focus (ข้อวินิจฉัย/ปัญหาทางการพยาบาล)</span>
         <div class="dar-text">${escapeHtml(sections.focus.join('\n').trim())}</div>
+      </div>
+    `;
+  }
+  if (sections.goal.length > 0) {
+    html += `
+      <div class="dar-section goal-sec">
+        <span class="dar-tag"><i class="fa-solid fa-flag-checkered"></i> Goal (เป้าหมายทางการพยาบาลและผลลัพธ์ที่คาดหวัง)</span>
+        <div class="dar-text">${escapeHtml(sections.goal.join('\n').trim())}</div>
       </div>
     `;
   }
