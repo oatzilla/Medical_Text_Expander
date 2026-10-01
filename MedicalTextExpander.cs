@@ -33,7 +33,6 @@ namespace MedicalTextExpander {
 
         [STAThread]
         public static void Main(string[] args) {
-            try { File.AppendAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "trace.log"), "Main started: " + DateTime.Now.ToString() + "\r\n"); } catch {}
             bool forceRestart = false;
             if (args != null) {
                 foreach (string arg in args) {
@@ -47,7 +46,6 @@ namespace MedicalTextExpander {
 
             Process current = Process.GetCurrentProcess();
             Process[] existingProcesses = Process.GetProcessesByName(current.ProcessName);
-            try { File.AppendAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "trace.log"), "existingProcesses: " + existingProcesses.Length + "\r\n"); } catch {}
 
             if (forceRestart) {
                 KillOtherInstances(current.Id);
@@ -78,7 +76,6 @@ namespace MedicalTextExpander {
                     } catch {}
 
                     if (ackReceived) {
-                        try { File.AppendAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "trace.log"), "ackReceived, returning\r\n"); } catch {}
                         return;
                     }
 
@@ -97,7 +94,6 @@ namespace MedicalTextExpander {
             } catch {
                 createdNew = true;
             }
-            try { File.AppendAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "trace.log"), "createdNew: " + createdNew + "\r\n"); } catch {}
 
             try {
                 using (EventWaitHandle activateEvent = new EventWaitHandle(false, EventResetMode.AutoReset, EventName))
