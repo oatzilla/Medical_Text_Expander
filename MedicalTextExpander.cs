@@ -33,6 +33,7 @@ namespace MedicalTextExpander {
 
         [STAThread]
         public static void Main(string[] args) {
+            try { File.AppendAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "trace.log"), "Main started: " + DateTime.Now.ToString() + "\r\n"); } catch {}
             bool forceRestart = false;
             if (args != null) {
                 foreach (string arg in args) {
@@ -46,6 +47,7 @@ namespace MedicalTextExpander {
 
             Process current = Process.GetCurrentProcess();
             Process[] existingProcesses = Process.GetProcessesByName(current.ProcessName);
+            try { File.AppendAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "trace.log"), "existingProcesses: " + existingProcesses.Length + "\r\n"); } catch {}
 
             if (forceRestart) {
                 KillOtherInstances(current.Id);
@@ -76,7 +78,7 @@ namespace MedicalTextExpander {
                     } catch {}
 
                     if (ackReceived) {
-                        // อินสแตนซ์เดิมทำงานปกติและเด้งหน้าต่างขึ้นมาแล้ว จบโปรเซสใหม่นี้ได้
+                        try { File.AppendAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "trace.log"), "ackReceived, returning\r\n"); } catch {}
                         return;
                     }
 
@@ -95,15 +97,17 @@ namespace MedicalTextExpander {
             } catch {
                 createdNew = true;
             }
+            try { File.AppendAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "trace.log"), "createdNew: " + createdNew + "\r\n"); } catch {}
 
             try {
                 using (EventWaitHandle activateEvent = new EventWaitHandle(false, EventResetMode.AutoReset, EventName))
                 using (EventWaitHandle ackEvent = new EventWaitHandle(false, EventResetMode.AutoReset, AckEventName)) {
                     Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
                     Application.ThreadException += (s, e) => {
-                        // Suppress safe non-fatal UI layout exceptions
+                        try { File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "crash.log"), "ThreadException: " + e.Exception.ToString()); } catch {}
                     };
                     AppDomain.CurrentDomain.UnhandledException += (s, e) => {
+                        try { File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "crash.log"), "UnhandledException: " + (e.ExceptionObject != null ? e.ExceptionObject.ToString() : "null")); } catch {}
                     };
 
                     Application.EnableVisualStyles();
@@ -113,7 +117,7 @@ namespace MedicalTextExpander {
                     try {
                         context = new ExpanderContext();
                     } catch (Exception exInit) {
-                        try { File.WriteAllText(@"C:\PhisApp\Medical_Text_Expander\crash.log", exInit.ToString()); } catch {}
+                        try { File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "crash.log"), "exInit: " + exInit.ToString()); } catch {}
                         MessageBox.Show("ข้อผิดพลาดในการเริ่มต้นโปรแกรม:\n" + exInit.ToString(), "Medical Expander Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                         return;
                     }
@@ -123,7 +127,7 @@ namespace MedicalTextExpander {
                         while (true) {
                             try {
                                 if (activateEvent.WaitOne()) {
-                                    // แจ้งตอบรับอินสแตนซ์ใหม่ว่าเรายังมีชีวิตอยู่และกำลังเปิดหน้าต่าง
+                                    // แจ้งตอบรับอินสแตนซ์เดิมว่าเรายังมีชีวิตอยู่และกำลังเปิดหน้าต่าง
                                     try {
                                         ackEvent.Set();
                                     } catch {}
@@ -141,7 +145,7 @@ namespace MedicalTextExpander {
                     Application.Run(context);
                 }
             } catch (Exception exApp) {
-                try { File.WriteAllText(@"C:\PhisApp\Medical_Text_Expander\crash.log", exApp.ToString()); } catch {}
+                try { File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "crash.log"), "exApp: " + exApp.ToString()); } catch {}
                 MessageBox.Show("ข้อผิดพลาดของโปรแกรม:\n" + exApp.ToString(), "Medical Expander Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             } finally {
                 if (mutex != null) {
@@ -196,7 +200,7 @@ namespace MedicalTextExpander {
     }
 
     public static class AppUpdater {
-        public const string CurrentVersion = "1.5.8";
+        public const string CurrentVersion = "1.6.0";
         public const string DefaultGitHubRepo = "oatzilla/Medical_Text_Expander";
 
         public static void CheckForUpdatesAsync(string repo, bool isManual, Form parent = null, string token = null) {
@@ -1195,6 +1199,12 @@ namespace MedicalTextExpander {
             }
             SaveConfigFile();
         }
+
+        private string adminPassword = "9844";
+        public string AdminPassword {
+            get { return string.IsNullOrEmpty(adminPassword) ? "9844" : adminPassword; }
+            set { adminPassword = value; SaveConfigFile(); }
+        }
         private FileSystemWatcher watcher = null;
         private string iconPath;
         private bool isEnabled = true;
@@ -1441,6 +1451,9 @@ namespace MedicalTextExpander {
                             if (bool.TryParse(t.Substring("SupabaseEnabled=".Length).Trim(), out b)) {
                                 supabaseEnabled = b;
                             }
+                        } else if (t.StartsWith("AdminPassword=", StringComparison.OrdinalIgnoreCase)) {
+                            string ap = t.Substring("AdminPassword=".Length).Trim();
+                            if (!string.IsNullOrEmpty(ap)) adminPassword = ap;
                         }
                     }
                 } catch {}
@@ -1484,6 +1497,7 @@ namespace MedicalTextExpander {
                 sb.AppendLine("SupabaseUrl=" + supabaseUrl);
                 sb.AppendLine("SupabaseKey=" + supabaseKey);
                 sb.AppendLine("SupabaseEnabled=" + supabaseEnabled.ToString().ToLower());
+                sb.AppendLine("AdminPassword=" + (string.IsNullOrEmpty(adminPassword) ? "9844" : adminPassword));
                 File.WriteAllText(settingsIniPath, sb.ToString(), Encoding.UTF8);
             } catch {}
         }
@@ -1858,12 +1872,21 @@ namespace MedicalTextExpander {
             ShowNotification(string.Format("บันทึกผลการคำนวณลงเตียง {0} เรียบร้อยแล้ว", bedNum));
         }
 
-        public void ShowSyncSettings() {
+        public bool PromptAdminPassword(IWin32Window owner = null) {
+            using (AdminPasswordDialog dlg = new AdminPasswordDialog(AdminPassword)) {
+                return dlg.ShowDialog(owner) == DialogResult.OK;
+            }
+        }
+
+        public void ShowSyncSettings(IWin32Window owner = null) {
+            if (!PromptAdminPassword(owner)) return;
             SyncSettingsForm form = new SyncSettingsForm(this, sharedConfigPath, sharedBedNotesDir);
-            form.ShowDialog();
+            if (owner != null) form.ShowDialog(owner);
+            else form.ShowDialog();
         }
 
         public void EditTemplates() {
+            if (!PromptAdminPassword(null)) return;
             string fileToEdit = (!string.IsNullOrEmpty(sharedConfigPath) && File.Exists(sharedConfigPath)) 
                 ? sharedConfigPath 
                 : localConfigPath;
@@ -1888,6 +1911,7 @@ namespace MedicalTextExpander {
         }
 
         private void ToggleStartup(object sender, EventArgs e) {
+            if (!PromptAdminPassword(null)) return;
             ToolStripMenuItem item = sender as ToolStripMenuItem;
             string runKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
             string appName = "ePHIS_Medical_Expander";
@@ -2231,7 +2255,6 @@ namespace MedicalTextExpander {
         private Button btnZoomIn;
         private Button btnCheckUpdate;
 
-        private Button btnPaste;
         private Button btnCopy;
         private Button btnInsertTime;
         private Button btnHistory;
@@ -2401,17 +2424,6 @@ namespace MedicalTextExpander {
             pnlBottom.Height = 52;
             pnlBottom.BackColor = Color.FromArgb(238, 240, 246);
 
-            btnPaste = new Button();
-            btnPaste.Text = "📋 วางลงหน้าจอ e-PHIS (Ctrl+Enter)";
-            btnPaste.Size = new Size(240, 34);
-            btnPaste.BackColor = Color.FromArgb(13, 148, 136);
-            btnPaste.ForeColor = Color.White;
-            btnPaste.FlatStyle = FlatStyle.Flat;
-            btnPaste.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
-            btnPaste.Cursor = Cursors.Hand;
-            btnPaste.Click += (s, e) => PasteToActiveWindow();
-            pnlBottom.Controls.Add(btnPaste);
-
             btnCopy = new Button();
             btnCopy.Text = "📋 คัดลอก (Copy)";
             btnCopy.Size = new Size(115, 34);
@@ -2481,7 +2493,7 @@ namespace MedicalTextExpander {
             btnSyncSettings.FlatStyle = FlatStyle.Flat;
             btnSyncSettings.Font = new Font("Segoe UI", 9f);
             btnSyncSettings.Cursor = Cursors.Hand;
-            btnSyncSettings.Click += (s, e) => context.ShowSyncSettings();
+            btnSyncSettings.Click += (s, e) => context.ShowSyncSettings(this);
             pnlBottom.Controls.Add(btnSyncSettings);
 
 
@@ -2958,8 +2970,6 @@ namespace MedicalTextExpander {
             bool isNarrow = (w < 920);
 
             if (isVeryNarrow) {
-                btnPaste.Text = "📋 วาง";
-                btnPaste.Size = new Size(70, 34);
                 btnCopy.Text = "คัดลอก";
                 btnCopy.Size = new Size(58, 34);
                 btnInsertTime.Text = "🕒";
@@ -2975,8 +2985,6 @@ namespace MedicalTextExpander {
                 btnClose.Text = "ปิด";
                 btnClose.Size = new Size(46, 34);
             } else if (isNarrow) {
-                btnPaste.Text = "📋 วาง e-PHIS";
-                btnPaste.Size = new Size(130, 34);
                 btnCopy.Text = "📋 คัดลอก";
                 btnCopy.Size = new Size(75, 34);
                 btnInsertTime.Text = "🕒 เวลา";
@@ -2992,8 +3000,6 @@ namespace MedicalTextExpander {
                 btnClose.Text = "ปิด";
                 btnClose.Size = new Size(50, 34);
             } else {
-                btnPaste.Text = "📋 วางลงหน้าจอ e-PHIS (Ctrl+Enter)";
-                btnPaste.Size = new Size(240, 34);
                 btnCopy.Text = "📋 คัดลอก (Copy)";
                 btnCopy.Size = new Size(115, 34);
                 btnInsertTime.Text = "🕒 ใส่วันที่/เวลา";
@@ -3011,9 +3017,6 @@ namespace MedicalTextExpander {
             }
 
             int lx = 10;
-            btnPaste.Location = new Point(lx, 9);
-            lx += btnPaste.Width + 5;
-
             btnCopy.Location = new Point(lx, 9);
             lx += btnCopy.Width + 5;
 
@@ -4123,7 +4126,7 @@ public void RefreshAllBedButtons() {
             btnSync.FlatStyle = FlatStyle.Flat;
             btnSync.Font = new Font("Segoe UI", 9.5f);
             btnSync.Cursor = Cursors.Hand;
-            btnSync.Click += (s, e) => context.ShowSyncSettings();
+            btnSync.Click += (s, e) => context.ShowSyncSettings(this);
             pnlBottom.Controls.Add(btnSync);
 
             btnClose = new Button();
@@ -4829,6 +4832,133 @@ public void RefreshAllBedButtons() {
         }
     }
 
+    // =========================================================================
+    // หน้าต่างยืนยันรหัสผ่านผู้ดูแลระบบ (Admin Password Security Dialog)
+    // =========================================================================
+    public class AdminPasswordDialog : Form {
+        private string correctPassword;
+        private TextBox txtPassword;
+        private Label lblError;
+        private Button btnOk;
+        private Button btnCancel;
+        private Button btnTogglePass;
+
+        public AdminPasswordDialog(string targetPassword) {
+            correctPassword = targetPassword;
+            InitializeUI();
+        }
+
+        private void InitializeUI() {
+            this.Text = "🔒 ยืนยันสิทธิ์ผู้ดูแลระบบ (Admin Security)";
+            this.Size = new Size(420, 240);
+            this.StartPosition = FormStartPosition.CenterScreen;
+            this.FormBorderStyle = FormBorderStyle.FixedDialog;
+            this.MaximizeBox = false;
+            this.MinimizeBox = false;
+            this.ShowInTaskbar = false;
+            this.BackColor = Color.FromArgb(248, 250, 252);
+            this.Font = new Font("Leelawadee UI", 9.5f, FontStyle.Regular);
+
+            Panel pnlHeader = new Panel();
+            pnlHeader.Dock = DockStyle.Top;
+            pnlHeader.Height = 52;
+            pnlHeader.BackColor = Color.FromArgb(15, 23, 42);
+
+            Label lblTitle = new Label();
+            lblTitle.Text = "🔒 ความปลอดภัยของระบบ (Access Control)";
+            lblTitle.ForeColor = Color.White;
+            lblTitle.Font = new Font("Leelawadee UI", 10.5f, FontStyle.Bold);
+            lblTitle.Location = new Point(14, 14);
+            lblTitle.AutoSize = true;
+            pnlHeader.Controls.Add(lblTitle);
+            this.Controls.Add(pnlHeader);
+
+            Label lblPrompt = new Label();
+            lblPrompt.Text = "กรุณากรอกรหัสผ่านเพื่อเข้าสู่การตั้งค่าโปรแกรม:";
+            lblPrompt.Location = new Point(20, 65);
+            lblPrompt.AutoSize = true;
+            lblPrompt.ForeColor = Color.FromArgb(51, 65, 85);
+            this.Controls.Add(lblPrompt);
+
+            txtPassword = new TextBox();
+            txtPassword.Location = new Point(24, 92);
+            txtPassword.Size = new Size(295, 32);
+            txtPassword.Font = new Font("Segoe UI", 12f, FontStyle.Bold);
+            txtPassword.PasswordChar = '●';
+            txtPassword.TextAlign = HorizontalAlignment.Center;
+            this.Controls.Add(txtPassword);
+
+            btnTogglePass = new Button();
+            btnTogglePass.Text = "👁️";
+            btnTogglePass.Location = new Point(325, 92);
+            btnTogglePass.Size = new Size(45, 30);
+            btnTogglePass.Font = new Font("Segoe UI", 10f);
+            btnTogglePass.Cursor = Cursors.Hand;
+            btnTogglePass.Click += (s, e) => {
+                txtPassword.PasswordChar = (txtPassword.PasswordChar == '●') ? '\0' : '●';
+            };
+            this.Controls.Add(btnTogglePass);
+
+            lblError = new Label();
+            lblError.Location = new Point(24, 127);
+            lblError.Size = new Size(356, 20);
+            lblError.ForeColor = Color.FromArgb(225, 29, 72);
+            lblError.Font = new Font("Leelawadee UI", 8.5f, FontStyle.Bold);
+            lblError.TextAlign = ContentAlignment.MiddleCenter;
+            lblError.Visible = false;
+            this.Controls.Add(lblError);
+
+            btnOk = new Button();
+            btnOk.Text = "เข้าสู่การตั้งค่า (OK)";
+            btnOk.Location = new Point(155, 155);
+            btnOk.Size = new Size(140, 34);
+            btnOk.BackColor = Color.FromArgb(13, 148, 136);
+            btnOk.ForeColor = Color.White;
+            btnOk.FlatStyle = FlatStyle.Flat;
+            btnOk.FlatAppearance.BorderSize = 0;
+            btnOk.Font = new Font("Leelawadee UI", 9f, FontStyle.Bold);
+            btnOk.Cursor = Cursors.Hand;
+            btnOk.Click += (s, e) => ValidatePassword();
+            this.Controls.Add(btnOk);
+
+            btnCancel = new Button();
+            btnCancel.Text = "ยกเลิก";
+            btnCancel.Location = new Point(302, 155);
+            btnCancel.Size = new Size(80, 34);
+            btnCancel.BackColor = Color.FromArgb(226, 232, 240);
+            btnCancel.ForeColor = Color.FromArgb(71, 85, 105);
+            btnCancel.FlatStyle = FlatStyle.Flat;
+            btnCancel.FlatAppearance.BorderSize = 0;
+            btnCancel.Font = new Font("Leelawadee UI", 9f);
+            btnCancel.Cursor = Cursors.Hand;
+            btnCancel.Click += (s, e) => {
+                this.DialogResult = DialogResult.Cancel;
+                this.Close();
+            };
+            this.Controls.Add(btnCancel);
+
+            this.AcceptButton = btnOk;
+            this.CancelButton = btnCancel;
+
+            this.Shown += (s, e) => {
+                txtPassword.Focus();
+            };
+        }
+
+        private void ValidatePassword() {
+            if (txtPassword.Text.Trim() == correctPassword) {
+                this.DialogResult = DialogResult.OK;
+                this.Close();
+            } else {
+                try { System.Media.SystemSounds.Hand.Play(); } catch {}
+                lblError.Text = "❌ รหัสผ่านไม่ถูกต้อง! กรุณาลองใหม่อีกครั้ง";
+                lblError.Visible = true;
+                txtPassword.SelectAll();
+                txtPassword.Focus();
+            }
+        }
+    }
+
     public class SyncSettingsForm : Form {
         private ExpanderContext context;
         private CheckBox chkEnableSupabase;
@@ -4840,6 +4970,7 @@ public void RefreshAllBedButtons() {
         private TextBox txtSharedPath;
         private TextBox txtSharedBedNotes;
         private TextBox txtGitHubRepo;
+        private TextBox txtAdminPassword;
         private Label lblStatus;
         private Button btnBrowsePath;
         private Button btnBrowseBedNotes;
@@ -5060,10 +5191,36 @@ public void RefreshAllBedButtons() {
             btnCheckNow.Click += (s, e) => {
                 AppUpdater.CheckForUpdatesAsync(txtGitHubRepo.Text.Trim(), true, this, context.GetGitHubToken());
             };
-            this.Controls.Add(btnCheckNow);
+            // 4. Admin Security Password
+            Label lblAdminPass = new Label();
+            lblAdminPass.Text = "4. 🔒 รหัสผ่านผู้ดูแลระบบ (Admin Password สำหรับเข้าตั้งค่า):";
+            lblAdminPass.Location = new Point(16, 472);
+            lblAdminPass.AutoSize = true;
+            lblAdminPass.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
+            lblAdminPass.ForeColor = Color.FromArgb(15, 118, 110);
+            this.Controls.Add(lblAdminPass);
+
+            txtAdminPassword = new TextBox();
+            txtAdminPassword.Location = new Point(18, 497);
+            txtAdminPassword.Size = new Size(200, 29);
+            txtAdminPassword.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
+            txtAdminPassword.PasswordChar = '●';
+            txtAdminPassword.Text = context.AdminPassword;
+            this.Controls.Add(txtAdminPassword);
+
+            Button btnTogglePass = new Button();
+            btnTogglePass.Text = "👁️ ดูรหัส";
+            btnTogglePass.Location = new Point(225, 496);
+            btnTogglePass.Size = new Size(80, 30);
+            btnTogglePass.Font = new Font("Segoe UI", 8.5f);
+            btnTogglePass.Cursor = Cursors.Hand;
+            btnTogglePass.Click += (s, e) => {
+                txtAdminPassword.PasswordChar = (txtAdminPassword.PasswordChar == '●') ? '\0' : '●';
+            };
+            this.Controls.Add(btnTogglePass);
 
             lblStatus = new Label();
-            lblStatus.Location = new Point(18, 475);
+            lblStatus.Location = new Point(18, 537);
             lblStatus.Size = new Size(600, 36);
             lblStatus.Text = string.IsNullOrEmpty(currentTemplatePath) 
                 ? "สถานะ LAN: ไม่ได้เชื่อมต่อโฟลเดอร์ในวงแลน" 
@@ -5073,7 +5230,7 @@ public void RefreshAllBedButtons() {
 
             btnTest = new Button();
             btnTest.Text = "🔍 ทดสอบเชื่อมต่อ LAN";
-            btnTest.Location = new System.Drawing.Point(18, 520);
+            btnTest.Location = new System.Drawing.Point(18, 580);
             btnTest.Size = new Size(180, 40);
             btnTest.Font = new Font("Segoe UI", 9.5f);
             btnTest.Click += (s, e) => {
@@ -5095,7 +5252,7 @@ public void RefreshAllBedButtons() {
 
             btnSave = new Button();
             btnSave.Text = "💾 บันทึกการตั้งค่าทั้งหมด";
-            btnSave.Location = new System.Drawing.Point(210, 520);
+            btnSave.Location = new System.Drawing.Point(210, 580);
             btnSave.Size = new Size(220, 40);
             btnSave.BackColor = Color.FromArgb(13, 148, 136);
             btnSave.ForeColor = Color.White;
@@ -5104,17 +5261,20 @@ public void RefreshAllBedButtons() {
             btnSave.Click += (s, e) => {
                 string pTpl = txtSharedPath.Text.Trim();
                 string pBed = txtSharedBedNotes.Text.Trim();
+                if (!string.IsNullOrEmpty(txtAdminPassword.Text.Trim())) {
+                    context.AdminPassword = txtAdminPassword.Text.Trim();
+                }
                 context.SaveSettings(pTpl, pBed);
                 context.SetGitHubRepo(txtGitHubRepo.Text.Trim());
                 context.SetSupabaseConfig(txtSupabaseUrl.Text.Trim(), txtSupabaseKey.Text.Trim(), chkEnableSupabase.Checked);
-                MessageBox.Show("บันทึกการตั้งค่าเรียบร้อยแล้ว! ระบบคลาวด์และวงแลนพร้อมทำงานทันที", "สำเร็จ", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show("บันทึกการตั้งค่าเรียบร้อยแล้ว! ระบบความปลอดภัย คลาวด์ และวงแลนพร้อมทำงานทันที", "สำเร็จ", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 this.Close();
             };
             this.Controls.Add(btnSave);
 
             btnClear = new Button();
             btnClear.Text = "ใช้ในเครื่องนี้เท่านั้น";
-            btnClear.Location = new System.Drawing.Point(442, 520);
+            btnClear.Location = new System.Drawing.Point(442, 580);
             btnClear.Size = new Size(175, 40);
             btnClear.Font = new Font("Segoe UI", 9.5f);
             btnClear.Click += (s, e) => {

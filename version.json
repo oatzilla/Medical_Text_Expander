@@ -1,8 +1,8 @@
 {
-  "version": "1.5.9",
+  "version": "1.6.0",
   "downloadUrl": "https://raw.githubusercontent.com/oatzilla/Medical_Text_Expander/main/Medical_Text_Expander.exe",
   "download_url": "https://raw.githubusercontent.com/oatzilla/Medical_Text_Expander/main/Medical_Text_Expander.exe",
   "releaseDate": "2026-10-01",
   "release_date": "2026-10-01",
-  "changelog": "- แก้ไขปัญหาป็อปอัพบันทึกข้อมูลผู้ป่วยรายเตียงบนหน้าเว็บปิดตัวเองลง โดยเพิ่มระบบ Safe Backdrop Click ป้องกันการสัมผัสหรือลากเมาส์หลุดขอบ\n- เพิ่มระบบแจ้งเตือนยืนยันก่อนปิด (Confirm Discard) เมื่อมีข้อความที่กำลังแก้ไขค้างอยู่\n- เพิ่มระบบสำรองฉบับร่างอัตโนมัติ (Real-Time Auto-Draft) ใน LocalStorage ป้องกันข้อมูลสูญหาย 100%\n- ปรับให้ตำแหน่งเคอร์เซอร์และมุมมองเริ่มต้นที่บรรทัดบนสุด (Start at Top) เมื่อเปิดหน้าต่างแก้ไขข้อมูลผู้ป่วย"
+  "changelog": "- นำปุ่ม \"วางลงหน้าจอ e-PHIS (Ctrl+Enter)\" ออกจากแถบเครื่องมือด้านล่างของหน้าต่างข้อมูลเตียง 1-30 ตามความต้องการ\n- เพิ่มระบบความปลอดภัยและการควบคุมสิทธิ์ (Security & Access Control) กำหนดรหัสผ่านผู้ดูแลระบบ (Admin Password: 9844) ก่อนเข้าสู่การตั้งค่าโปรแกรม ซิงค์ข้อมูลวอร์ด และแก้ไขไฟล์เทมเพลต\n- เพิ่มหน้าต่างยืนยันรหัสผ่าน (Admin Security Dialog) พร้อมปุ่มเปิด/ปิดการแสดงรหัสผ่าน\n- เพิ่มหัวข้อตั้งค่ารหัสผ่านผู้ดูแลระบบในหน้าต่างการเชื่อมต่อข้อมูลวอร์ด (SyncSettingsForm) สามารถดูและแก้ไขรหัสผ่านได้"
 }
