@@ -18,6 +18,7 @@ if ($LASTEXITCODE -eq 0) {
     Write-Host '[OK] Main branch pushed successfully!' -ForegroundColor Green
     Write-Host ''
     Write-Host '[2/2] Deploying gh-pages branch for Web Portal...' -ForegroundColor Yellow
+    git fetch origin gh-pages
     $tree = (git write-tree --prefix=docs/).Trim()
     $commit = (git commit-tree $tree -p origin/gh-pages -m "deploy: update web portal v1.6.0").Trim()
     git update-ref refs/heads/gh-pages $commit
