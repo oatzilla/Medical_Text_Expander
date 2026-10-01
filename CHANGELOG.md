@@ -4,6 +4,51 @@
 
 ---
 
+## [v1.6.1] - 2026-10-01
+### ความต้องการของผู้ใช้ (User Requirements)
+- เพิ่มคลังเทมเพลต Focus Charting (DAR) สำหรับการพยาบาลผู้ป่วยระยะสุดท้าย (Palliative & End-of-Life Care), การพยาบาลผู้ป่วยที่มีปัญหาทางระบบประสาทและสมอง (Neurological & Neurosurgical Nursing), การพยาบาลผู้ป่วยที่ใส่เครื่องช่วยหายใจและดูแลทางเดินหายใจ (Ventilator & Airway Care), และการพยาบาลผู้ป่วยวิกฤตและหัตถการช่วยชีวิตสำคัญที่ยังขาด (Critical Care & Life Support)
+
+### การแก้ไขและปรับปรุง (Solution & Implementation)
+1. **เพิ่ม 24 เทมเพลตใหม่ครอบคลุม 4 หมวดหมู่วิกฤต (ขยายคลังรวมเป็น 110 หัวข้อ)**:
+   - **หมวด 16: การพยาบาลผู้ป่วยระยะสุดท้ายและการดูแลแบบประคับประคอง (6 หัวข้อ)**
+     * `.palliative` = การดูแลแบบประคับประคองระยะสุดท้าย (Palliative & Comfort Care)
+     * `.terminalpain` = การจัดการความปวดระยะสุดท้าย (Terminal Pain Management)
+     * `.deathrattle` = ภาวะหายใจมีเสียงครืดคราดระยะใกล้เสียชีวิต (Death Rattle / Terminal Secretions)
+     * `.terminaldyspnea` = ภาวะหายใจลำบากและหิวอากาศระยะสุดท้าย (Terminal Dyspnea & Air Hunger)
+     * `.deliriumpalliative` = ภาวะเพ้อสับสนกระสับกระส่ายระยะสุดท้าย (Terminal Agitation & Delirium)
+     * `.postmortem` = การดูแลผู้ป่วยและครอบครัวหลังเสียชีวิต (Post-Mortem Care & Bereavement)
+   - **หมวด 17: การพยาบาลระบบประสาทและสมอง (6 หัวข้อ)**
+     * `.icp` = ภาวะความดันในกะโหลกศีรษะสูง (Increased Intracranial Pressure - IICP)
+     * `.seizure` = การพยาบาลขณะชักและหลังชัก (Seizure Care & Status Epilepticus)
+     * `.gcsdrop` = ภาวะการเปลี่ยนแปลงระดับความรู้สึกตัว (Altered Level of Consciousness / GCS Drop)
+     * `.tbi` = การบาดเจ็บที่ศีรษะและสมอง (Traumatic Brain Injury / Head Injury)
+     * `.sci` = การบาดเจ็บกระดูกสันหลังและไขสันหลัง (Spinal Cord Injury / Neuro Care)
+     * `.delirium` = ภาวะสับสนเฉียบพลันในหอผู้ป่วย (Hospital / Ward Delirium Management)
+   - **หมวด 18: การพยาบาลผู้ป่วยใส่เครื่องช่วยหายใจและดูแลทางเดินหายใจ (6 หัวข้อ)**
+     * `.vent` = การพยาบาลผู้ป่วยใช้เครื่องช่วยหายใจ (Mechanical Ventilator & VAP Bundle)
+     * `.suction` = การดูดเสมหะผ่านท่อช่วยหายใจ (Endotracheal Suctioning Care)
+     * `.ettcare` = การดูแลท่อช่วยหายใจและเปลี่ยนพลาสเตอร์ (ETT Care & Tape Repositioning)
+     * `.tracheo` = การดูแลท่อเจาะคอและแผลเจาะคอ (Tracheostomy Tube & Stoma Care)
+     * `.wean` = การฝึกหย่าเครื่องช่วยหายใจ (Ventilator Weaning & Spontaneous Breathing Trial)
+     * `.extubate` = การพยาบาลหลังถอดท่อช่วยหายใจ (Post-Extubation Care & Stridor Monitoring)
+   - **หมวด 19: การช่วยชีวิตและการพยาบาลผู้ป่วยวิกฤต (6 หัวข้อ)**
+     * `.cpr` = การช่วยฟื้นคืนชีพขั้นสูงและการดูแลหลังฟื้นคืนชีพ (CPR & Post-Cardiac Arrest Care / ROSC)
+     * `.transfusion` = การให้เลือดและส่วนประกอบของเลือด (Blood Transfusion & Reaction Monitoring)
+     * `.cvcline` = การดูแลสายสวนหลอดเลือดดำส่วนกลาง (Central Venous Catheter - CVC / CLABSI Bundle)
+     * `.aline` = การดูแลสายวัดความดันในหลอดเลือดแดง (Arterial Line & Continuous ABP Care)
+     * `.chesttube` = การดูแลท่อระบายทรวงอก (Chest Tube & Underwater Seal Drainage Care)
+     * `.hadrug` = การบริหารยาความเสี่ยงสูงทางหลอดเลือดดำ (High Alert Drug & Vasoactive Inotropes)
+2. **ปรับปรุง Desktop Palette Form (F8)**:
+   - เพิ่มปุ่มตัวกรองหมวดหมู่ใหม่: `[ระยะสุดท้าย] Palliative`, `[ระบบประสาท] Neuro`, `[เครื่องช่วยหายใจ] Ventilator`, `[วิกฤต/กู้ชีพ] Critical Care`
+   - ปรับปรุงตรรกะ `MatchesCategoryFilter` รองรับการจับคู่หมวดหมู่และคีย์ลัดใหม่ครบ 100%
+   - อัปเดตตัวนับเทมเพลตเป็น 110 หัวข้อ
+3. **ปรับปรุง Web & Mobile Portal**:
+   - ซิงค์ `templates.json` ไปยัง `web/` และ `docs/`
+   - เพิ่ม FontAwesome Icons และป้ายกำกับที่เป็นมิตรใน `friendlyCategoryNames` (`fa-dove`, `fa-brain`, `fa-lungs`, `fa-kit-medical`)
+   - อัปเดต Cache Busters เป็น `?v=1.6.1` ใน `index.html` ทั้งสองโฟลเดอร์
+
+---
+
 ## [v1.6.0] - 2026-10-01
 ### ความต้องการของผู้ใช้ (User Requirements)
 1. **นำปุ่ม "วางลงหน้าจอ e-PHIS (Ctrl+Enter)" ออก**:

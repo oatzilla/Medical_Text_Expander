@@ -1,8 +1,8 @@
 {
-  "version": "1.6.0",
+  "version": "1.6.1",
   "downloadUrl": "https://raw.githubusercontent.com/oatzilla/Medical_Text_Expander/main/Medical_Text_Expander.exe",
   "download_url": "https://raw.githubusercontent.com/oatzilla/Medical_Text_Expander/main/Medical_Text_Expander.exe",
   "releaseDate": "2026-10-01",
   "release_date": "2026-10-01",
-  "changelog": "- นำปุ่ม \"วางลงหน้าจอ e-PHIS (Ctrl+Enter)\" ออกจากแถบเครื่องมือด้านล่างของหน้าต่างข้อมูลเตียง 1-30 ตามความต้องการ\n- เพิ่มระบบความปลอดภัยและการควบคุมสิทธิ์ (Security & Access Control) กำหนดรหัสผ่านผู้ดูแลระบบ (Admin Password: 9844) ก่อนเข้าสู่การตั้งค่าโปรแกรม ซิงค์ข้อมูลวอร์ด และแก้ไขไฟล์เทมเพลต\n- เพิ่มหน้าต่างยืนยันรหัสผ่าน (Admin Security Dialog) พร้อมปุ่มเปิด/ปิดการแสดงรหัสผ่าน\n- เพิ่มหัวข้อตั้งค่ารหัสผ่านผู้ดูแลระบบในหน้าต่างการเชื่อมต่อข้อมูลวอร์ด (SyncSettingsForm) สามารถดูและแก้ไขรหัสผ่านได้"
+  "changelog": "- เพิ่ม 24 เทมเพลตข้อวินิจฉัยและกิจกรรมการพยาบาลครอบคลุม 4 หมวดหมู่วิกฤตสำคัญ (ขยายคลังเทมเพลตรวมเป็น 110 หัวข้อ):\n  1. การพยาบาลผู้ป่วยระยะสุดท้าย (Palliative & Comfort Care, Terminal Pain, Death Rattle, Terminal Dyspnea, Terminal Delirium, Post-Mortem Care)\n  2. การพยาบาลระบบประสาทและสมอง (Increased ICP, Seizure Care, GCS Drop, Head Injury / TBI, Spinal Cord Injury, Ward Delirium)\n  3. การพยาบาลผู้ป่วยใส่เครื่องช่วยหายใจ (Mechanical Ventilator & VAP Bundle, Suctioning, ETT Care, Tracheostomy Care, Weaning SBT, Post-Extubation)\n  4. การช่วยชีวิตและการพยาบาลผู้ป่วยวิกฤต (CPR & ROSC, Blood Transfusion, Central Line / CVC CLABSI Bundle, Arterial Line, Chest Tube ICD, High Alert Drugs / Inotropes)\n- เพิ่มปุ่มตัวกรองหมวดหมู่ใหม่ทั้งบนหน้าต่างคลังเทมเพลต Desktop (F8) และ Web & Mobile Portal พร้อมไอคอนเฉพาะหมวดหมู่ครบถ้วน"
 }

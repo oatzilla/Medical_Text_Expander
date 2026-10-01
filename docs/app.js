@@ -1524,7 +1524,11 @@ const friendlyCategoryNames = [
   { icon: "fa-bandage", label: "กระดูกหัก (ORIF/Cast)" },
   { icon: "fa-hospital", label: "ศัลยกรรมเฉพาะทาง" },
   { icon: "fa-vial-circle-check", label: "เกลือแร่ (Electrolytes)" },
-  { icon: "fa-droplet-slash", label: "ค่าเลือดผิดปกติ (Critical Labs)" }
+  { icon: "fa-droplet-slash", label: "ค่าเลือดผิดปกติ (Critical Labs)" },
+  { icon: "fa-dove", label: "ระยะสุดท้าย (Palliative)" },
+  { icon: "fa-brain", label: "ระบบประสาท (Neuro)" },
+  { icon: "fa-lungs", label: "เครื่องช่วยหายใจ (Ventilator)" },
+  { icon: "fa-kit-medical", label: "วิกฤต & ช่วยชีวิต (Critical Care)" }
 ];
 
 // Render Category Pills with Mouse-Wheel Horizontal Scroll

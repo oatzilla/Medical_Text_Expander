@@ -196,7 +196,7 @@ namespace MedicalTextExpander {
     }
 
     public static class AppUpdater {
-        public const string CurrentVersion = "1.6.0";
+        public const string CurrentVersion = "1.6.1";
         public const string DefaultGitHubRepo = "oatzilla/Medical_Text_Expander";
 
         public static void CheckForUpdatesAsync(string repo, bool isManual, Form parent = null, string token = null) {
@@ -3973,7 +3973,7 @@ public void RefreshAllBedButtons() {
             pnlTop.Controls.Add(txtSearch);
 
             lblSearchCount = new Label();
-            lblSearchCount.Text = "62 เทมเพลต";
+            lblSearchCount.Text = "110 เทมเพลต";
             lblSearchCount.ForeColor = Color.FromArgb(204, 251, 241);
             lblSearchCount.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
             lblSearchCount.AutoSize = true;
@@ -4037,7 +4037,11 @@ public void RefreshAllBedButtons() {
             pnlCategories.BackColor = Color.FromArgb(241, 245, 249);
             pnlCategories.Padding = new Padding(10, 5, 10, 5);
 
-            AddCategoryButton("all", "ทั้งหมด (86)");
+            AddCategoryButton("all", "ทั้งหมด (110)");
+            AddCategoryButton("palliative", "[ระยะสุดท้าย] Palliative / Comfort");
+            AddCategoryButton("neuro", "[ระบบประสาท] Stroke / ICP / Seizure");
+            AddCategoryButton("vent", "[เครื่องช่วยหายใจ] ETT / Tracheo / Wean");
+            AddCategoryButton("icu", "[วิกฤต/กู้ชีพ] CPR / Blood / CVC / ICD");
             AddCategoryButton("knee", "[ข้อเข่า] TKA / UKA");
             AddCategoryButton("hip", "[ข้อสะโพก] THA / BHA");
             AddCategoryButton("spine", "[สันหลัง] Laminectomy / PLIF");
@@ -4557,6 +4561,10 @@ public void RefreshAllBedButtons() {
             string c = item.Category.ToLower();
             string s = item.Shortcut.ToLower();
 
+            if (catKey == "palliative") return c.Contains("16.") || c.Contains("palliative") || c.Contains("ระยะสุดท้าย") || c.Contains("ประคับประคอง") || s == ".palliative" || s == ".terminalpain" || s == ".deathrattle" || s == ".terminaldyspnea" || s == ".deliriumpalliative" || s == ".postmortem";
+            if (catKey == "neuro") return c.Contains("17.") || c.Contains("neuro") || c.Contains("ระบบประสาท") || c.Contains("สมอง") || s == ".icp" || s == ".seizure" || s == ".gcsdrop" || s == ".tbi" || s == ".sci" || s == ".delirium" || s == ".stroke";
+            if (catKey == "vent") return c.Contains("18.") || c.Contains("ventilator") || c.Contains("เครื่องช่วยหายใจ") || c.Contains("ทางเดินหายใจ") || s == ".vent" || s == ".suction" || s == ".ettcare" || s == ".tracheo" || s == ".wean" || s == ".extubate";
+            if (catKey == "icu") return c.Contains("19.") || c.Contains("critical") || c.Contains("วิกฤต") || c.Contains("ช่วยชีวิต") || s == ".cpr" || s == ".transfusion" || s == ".cvcline" || s == ".aline" || s == ".chesttube" || s == ".hadrug";
             if (catKey == "knee") return c.Contains("9.") || c.Contains("knee") || c.Contains("ข้อเข่า") || s == ".tka" || s == ".uka" || s == ".tkarehab" || s == ".arthro";
             if (catKey == "hip") return c.Contains("10.") || c.Contains("hip") || c.Contains("ข้อสะโพก") || s == ".tha" || s == ".bha" || s == ".hipcare";
             if (catKey == "spine") return c.Contains("11.") || c.Contains("spine") || c.Contains("สันหลัง") || c.Contains("กระดูกสันหลัง") || s == ".laminectomy" || s == ".plif" || s == ".acdf" || s == ".csfleak" || s == ".discectomy" || s == ".spinerehab";
