@@ -871,6 +871,18 @@ body {
   transform: translateY(0) scale(1);
 }
 
+@keyframes modalShakeAnim {
+  0%, 100% { transform: translateY(0) scale(1); }
+  20%, 60% { transform: translateY(0) scale(1) translateX(-6px); }
+  40%, 80% { transform: translateY(0) scale(1) translateX(6px); }
+}
+
+.modal-card.shake {
+  animation: modalShakeAnim 0.35s ease-in-out !important;
+  border-color: var(--primary) !important;
+  box-shadow: 0 0 0 3px var(--primary-glow), var(--shadow-modal) !important;
+}
+
 .modal-header {
   padding: 14px 18px;
   border-bottom: 1px solid var(--border-subtle);

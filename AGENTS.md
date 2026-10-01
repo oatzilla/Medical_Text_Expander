@@ -1,4 +1,4 @@
-﻿# Guidelines & Architectural Context for AI Agents - Medical Text Expander
+# Guidelines & Architectural Context for AI Agents - Medical Text Expander
 
 เอกสารนี้สรุปข้อกำหนดทางสถาปัตยกรรม กฎการคอมไพล์ ข้อควรระวังพิเศษ และประวัติการแก้ไขในแต่ละเวอร์ชัน เพื่อให้ AI Agents และนักพัฒนาเข้าใจระบบและทำงานต่อได้อย่างถูกต้อง 100%
 
@@ -55,6 +55,8 @@
 
 | เวอร์ชัน | วันที่ | หัวข้อหลัก | รายละเอียดการปรับปรุง |
 |---|---|---|---|
+| **v1.5.9** | 2026-10-01 | Safe Bed Modal & Start at Top | แก้ปัญหาป็อปอัพข้อมูลผู้ป่วยปิดตัวเองลงทำให้ข้อมูลหาย โดยเพิ่ม Safe Backdrop Click, ยืนยันก่อนปิด (Confirm Discard), ระบบสำรอง Real-Time Auto-Draft ใน LocalStorage 100%, และปรับให้เคอร์เซอร์และมุมมองเริ่มที่บรรทัดบนสุด |
+| **v1.5.8** | 2026-10-01 | Drag & Drop Swapping & Compact View | ระบบลากสลับ/ย้ายเตียงผู้ป่วยด้วยเมาส์และทัชสกรีน (Touch Drag บน iPad/มือถือ) พร้อมปุ่มสลับมุมมองตารางเตียงแบบกะทัดรัด (Compact View) ไม่ต้องเลื่อนจอเยอะ |
 | **v1.5.7** | 2026-10-01 | Patient Bed Swap & Transfer | เพิ่มฟังก์ชันสลับ/ย้ายเตียงผู้ป่วยทั้ง Desktop (ปุ่มสลับเตียง, BedSwapDialog, เมนูคลิกขวาเตียง 1-30) และ Web Portal (swapModal, ปุ่มย้าย/สลับบนการ์ด) พร้อมสำรองประวัติและสลับตัวเตือนหัตถการอัตโนมัติ |
 | **v1.5.6** | 2026-09-30 | Universal Newline Normalization | แก้ปัญหาข้อความจากเว็บเรียงต่อกันไม่ยอมตัดบรรทัดบน Desktop โดยเพิ่ม `NormalizeNewlines` (`\r\n`) ใน C# และ `normalizeToCRLF` บน Web Portal พร้อมระบบ Auto-Heal ใน TextChanged |
 | **v1.5.5** | 2026-09-30 | Smart Partial Selection Copy | แก้ปัญหาคัดลอกข้อความเฉพาะส่วนที่เลือก (`SelectedText`) แต่ได้ทั้งเทมเพลต เพิ่ม Right-Click Context Menu, Ctrl+A, และปุ่มแสดงสถานะคัดลอก |

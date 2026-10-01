@@ -1,8 +1,8 @@
 {
-  "version": "1.5.8",
+  "version": "1.5.9",
   "downloadUrl": "https://raw.githubusercontent.com/oatzilla/Medical_Text_Expander/main/Medical_Text_Expander.exe",
   "download_url": "https://raw.githubusercontent.com/oatzilla/Medical_Text_Expander/main/Medical_Text_Expander.exe",
   "releaseDate": "2026-10-01",
   "release_date": "2026-10-01",
-  "changelog": "- เพิ่มฟังก์ชัน 'ลากสลับ/ย้ายเตียงผู้ป่วย (Drag & Drop Bed Swap)' ทั้งบนโปรแกรม Desktop และ Web Portal\n- ปรับลดขนาดเตียงบนหน้าเว็บและจัดตารางเตียงแบบกะทัดรัด (Compact View) ไม่ต้องเลื่อนจอเยอะ แสดงครบทุกเตียงในหน้าจอเดียว\n- เพิ่มปุ่มสลับมุมมอง 'กะทัดรัด' และ 'ขยาย' บนหน้าเว็บ พร้อมจดจำการตั้งค่าอัตโนมัติ\n- รองรับการลากด้วยเมาส์และการสัมผัส (Touch Drag) บนแท็บเล็ต iPad และสมาร์ตโฟน"
+  "changelog": "- แก้ไขปัญหาป็อปอัพบันทึกข้อมูลผู้ป่วยรายเตียงบนหน้าเว็บปิดตัวเองลง โดยเพิ่มระบบ Safe Backdrop Click ป้องกันการสัมผัสหรือลากเมาส์หลุดขอบ\n- เพิ่มระบบแจ้งเตือนยืนยันก่อนปิด (Confirm Discard) เมื่อมีข้อความที่กำลังแก้ไขค้างอยู่\n- เพิ่มระบบสำรองฉบับร่างอัตโนมัติ (Real-Time Auto-Draft) ใน LocalStorage ป้องกันข้อมูลสูญหาย 100%\n- ปรับให้ตำแหน่งเคอร์เซอร์และมุมมองเริ่มต้นที่บรรทัดบนสุด (Start at Top) เมื่อเปิดหน้าต่างแก้ไขข้อมูลผู้ป่วย"
 }

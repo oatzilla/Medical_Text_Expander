@@ -219,14 +219,32 @@ function setupEventListeners() {
     });
   });
 
-  // Edit Modal
-  modalCloseBtn.addEventListener('click', closeEditModal);
-  btnCancelEdit.addEventListener('click', closeEditModal);
-  editModal.addEventListener('click', (e) => {
-    if (e.target === editModal) closeEditModal();
+  // Edit Modal Safe Handlers
+  modalCloseBtn.addEventListener('click', safeCloseEditModal);
+  btnCancelEdit.addEventListener('click', safeCloseEditModal);
+  
+  // Track mousedown to ensure clicks originate on backdrop and not dragged from inside the modal card
+  editModal.addEventListener('mousedown', (e) => {
+    editModalMouseDownOnBackdrop = (e.target === editModal);
   });
 
-  noteTextarea.addEventListener('input', updateCharCount);
+  editModal.addEventListener('click', (e) => {
+    // Only handle if both mousedown and click occurred strictly on backdrop
+    if (e.target === editModal && editModalMouseDownOnBackdrop) {
+      if (hasUnsavedEditChanges()) {
+        shakeEditModal();
+        showToast('⚠️ กำลังแก้ไขข้อมูลเตียงนี้อยู่ กรุณากด "บันทึกลง Cloud" หรือกด "ยกเลิก"', 'warning');
+      } else {
+        closeEditModal();
+      }
+    }
+    editModalMouseDownOnBackdrop = false;
+  });
+
+  noteTextarea.addEventListener('input', () => {
+    updateCharCount();
+    saveEditDraft();
+  });
 
   // Quick Tags
   quickTagBtns.forEach(btn => {
@@ -239,6 +257,12 @@ function setupEventListeners() {
   btnSaveBedNote.addEventListener('click', saveCurrentBed);
   btnClearBedNote.addEventListener('click', clearCurrentBed);
   btnViewHistoryFromModal.addEventListener('click', () => {
+    if (hasUnsavedEditChanges()) {
+      if (!confirm('มีข้อความที่กำลังแก้ไขและยังไม่ได้บันทึก ต้องการเปิดดูประวัติย้อนหลังโดยละทิ้งข้อความใช่หรือไม่?')) {
+        return;
+      }
+      clearEditDraft(activeBedNumber);
+    }
     closeEditModal();
     openHistoryModal(activeBedNumber);
   });
@@ -267,6 +291,7 @@ function setupEventListeners() {
       if (curBed) {
         curBed.content = noteTextarea.value;
       }
+      saveEditDraft();
       closeEditModal();
       openSwapModal(activeBedNumber);
     });
@@ -296,9 +321,23 @@ function setupEventListeners() {
   // Keyboard Shortcuts
   window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
-      if (editModal.classList.contains('open')) closeEditModal();
-      if (historyModal.classList.contains('open')) closeHistoryModal();
-      if (swapModal && swapModal.classList.contains('open')) closeSwapModal();
+      if (templateModal && templateModal.classList.contains('open')) {
+        closeTemplateModal();
+      } else if (editModal && editModal.classList.contains('open')) {
+        safeCloseEditModal();
+      } else if (historyModal && historyModal.classList.contains('open')) {
+        closeHistoryModal();
+      } else if (swapModal && swapModal.classList.contains('open')) {
+        closeSwapModal();
+      }
+    }
+  });
+
+  // Protect against accidental page refresh / navigation while editing
+  window.addEventListener('beforeunload', (e) => {
+    if (hasUnsavedEditChanges()) {
+      e.preventDefault();
+      e.returnValue = '';
     }
   });
 }
@@ -551,15 +590,85 @@ function updateStats() {
 }
 
 // ==========================================
-// Edit Note Modal
+// Edit Note Modal & Safe Editing System
 // ==========================================
+let originalEditContent = '';
+let editModalMouseDownOnBackdrop = false;
+
+function hasUnsavedEditChanges() {
+  if (!editModal || !editModal.classList.contains('open')) return false;
+  const currentVal = (noteTextarea.value || '').trim();
+  const origVal = (originalEditContent || '').trim();
+  return currentVal !== origVal;
+}
+
+function saveEditDraft(bedNum) {
+  const b = bedNum || activeBedNumber;
+  if (!b) return;
+  try {
+    const val = noteTextarea.value;
+    if (val !== originalEditContent && val.trim().length > 0) {
+      localStorage.setItem(`ward_bed_draft_${b}`, val);
+    } else {
+      localStorage.removeItem(`ward_bed_draft_${b}`);
+    }
+  } catch {}
+}
+
+function clearEditDraft(bedNum) {
+  const b = bedNum || activeBedNumber;
+  if (!b) return;
+  try {
+    localStorage.removeItem(`ward_bed_draft_${b}`);
+  } catch {}
+}
+
+function shakeEditModal() {
+  const card = editModal ? editModal.querySelector('.modal-card') : null;
+  if (card) {
+    card.classList.remove('shake');
+    void card.offsetWidth; // Force CSS animation reflow
+    card.classList.add('shake');
+    setTimeout(() => {
+      if (card) card.classList.remove('shake');
+    }, 400);
+  }
+}
+
+function safeCloseEditModal() {
+  if (hasUnsavedEditChanges()) {
+    const confirmDiscard = confirm('⚠️ มีข้อความที่กำลังแก้ไขและยังไม่ได้บันทึกลง Cloud\n\nต้องการยกเลิกและละทิ้งข้อความที่กำลังพิมพ์ใช่หรือไม่?');
+    if (!confirmDiscard) {
+      return false;
+    }
+    clearEditDraft(activeBedNumber);
+  }
+  closeEditModal();
+  return true;
+}
+
 window.openEditModal = function(bedNum) {
   activeBedNumber = bedNum;
   const bed = bedsData.find(b => b.bed_number === bedNum) || { content: '', updated_by: '' };
 
   modalBedBadge.textContent = `เตียง ${String(bedNum).padStart(2, '0')}`;
   modalTitle.textContent = bed.content && bed.content.trim() ? `แก้ไขข้อมูลผู้ป่วย เตียง ${bedNum}` : `ลงบันทึกข้อมูลใหม่ เตียง ${bedNum}`;
-  noteTextarea.value = bed.content || '';
+  
+  const serverContent = bed.content || '';
+  originalEditContent = serverContent;
+
+  // Check if an unsaved draft exists
+  let initialContent = serverContent;
+  let hasDraft = false;
+  try {
+    const draft = localStorage.getItem(`ward_bed_draft_${bedNum}`);
+    if (draft !== null && draft !== serverContent && draft.trim().length > 0) {
+      initialContent = draft;
+      hasDraft = true;
+    }
+  } catch {}
+
+  noteTextarea.value = initialContent;
   
   if (bed.updated_by) {
     authorInput.value = bed.updated_by;
@@ -568,13 +677,33 @@ window.openEditModal = function(bedNum) {
   }
 
   updateCharCount();
+  document.body.classList.add('modal-open');
   editModal.classList.add('open');
   editModal.setAttribute('aria-hidden', 'false');
   
-  setTimeout(() => noteTextarea.focus(), 150);
+  // Start editing point from the TOP (not bottom)
+  noteTextarea.scrollTop = 0;
+  noteTextarea.setSelectionRange(0, 0);
+
+  const modalBody = editModal.querySelector('.modal-body');
+  if (modalBody) modalBody.scrollTop = 0;
+
+  setTimeout(() => {
+    noteTextarea.focus({ preventScroll: true });
+    noteTextarea.setSelectionRange(0, 0);
+    noteTextarea.scrollTop = 0;
+    if (modalBody) modalBody.scrollTop = 0;
+
+    if (hasDraft) {
+      showToast(`📝 กู้คืนข้อความฉบับร่างของเตียง ${bedNum} ที่พิมพ์ค้างไว้ให้เรียบร้อย`, 'info');
+    }
+  }, 100);
 };
 
 function closeEditModal() {
+  if (!templateModal || !templateModal.classList.contains('open')) {
+    document.body.classList.remove('modal-open');
+  }
   editModal.classList.remove('open');
   editModal.setAttribute('aria-hidden', 'true');
 }
@@ -598,6 +727,7 @@ function insertSnippet(snippet) {
   const nextPos = curPos + prefix.length + snippet.length + 1;
   noteTextarea.setSelectionRange(nextPos, nextPos);
   updateCharCount();
+  saveEditDraft();
 }
 
 // Save Bed Note to Supabase
@@ -659,6 +789,9 @@ async function saveCurrentBed() {
       bed.updated_by = author;
       prevContentMap.set(activeBedNumber, content);
     }
+
+    clearEditDraft(activeBedNumber);
+    originalEditContent = content;
 
     showToast(`✅ บันทึกเตียง ${activeBedNumber} ลง Cloud สำเร็จแล้ว!`, 'success');
     closeEditModal();
@@ -725,6 +858,9 @@ async function clearCurrentBed() {
       curBed.content = '';
       curBed.updated_at = nowUtc;
     }
+
+    clearEditDraft(activeBedNumber);
+    originalEditContent = '';
 
     showToast(`ล้างข้อมูลเตียง ${activeBedNumber} เรียบร้อย (สำรองในประวัติแล้ว)`, 'success');
     closeEditModal();
@@ -1360,7 +1496,9 @@ function openTemplateModal(source = 'navbar') {
 
 // Close Template Modal
 function closeTemplateModal() {
-  document.body.classList.remove('modal-open');
+  if (!editModal || !editModal.classList.contains('open')) {
+    document.body.classList.remove('modal-open');
+  }
   if (templateModal) {
     templateModal.classList.remove('open');
     templateModal.setAttribute('aria-hidden', 'true');
@@ -1700,13 +1838,24 @@ function applyTemplateToNote(replace = false) {
     // Inside Edit Bed Note modal
     if (replace) {
       noteTextarea.value = contentToApply;
+      noteTextarea.scrollTop = 0;
+      noteTextarea.setSelectionRange(0, 0);
     } else {
       insertSnippet(contentToApply);
     }
     updateCharCount();
+    saveEditDraft();
     closeTemplateModal();
     showToast(`✨ ${replace ? 'แทนที่ข้อความ' : 'แทรกข้อวินิจฉัย'} [${selectedTemplate.shortcut}] เรียบร้อย`, 'success');
-    noteTextarea.focus();
+    if (replace) {
+      setTimeout(() => {
+        noteTextarea.focus({ preventScroll: true });
+        noteTextarea.setSelectionRange(0, 0);
+        noteTextarea.scrollTop = 0;
+      }, 50);
+    } else {
+      noteTextarea.focus();
+    }
   } else {
     // From Navbar: Target a specific bed
     const targetBed = targetBedSelect ? parseInt(targetBedSelect.value, 10) : activeBedNumber;
@@ -1718,13 +1867,20 @@ function applyTemplateToNote(replace = false) {
     setTimeout(() => {
       if (replace) {
         noteTextarea.value = contentToApply;
+        noteTextarea.scrollTop = 0;
+        noteTextarea.setSelectionRange(0, 0);
       } else {
         const curText = noteTextarea.value.trim();
         noteTextarea.value = curText ? `${curText}\n\n${contentToApply}` : contentToApply;
       }
       updateCharCount();
+      saveEditDraft();
       showToast(`✨ นำข้อวินิจฉัย [${selectedTemplate.shortcut}] ใส่เตียง ${String(targetBed).padStart(2, '0')} เรียบร้อย`, 'success');
-      noteTextarea.focus();
+      noteTextarea.focus({ preventScroll: true });
+      if (replace) {
+        noteTextarea.setSelectionRange(0, 0);
+        noteTextarea.scrollTop = 0;
+      }
     }, 150);
   }
 }
