@@ -3254,6 +3254,26 @@ body.modal-open {
   box-shadow: 0 4px 12px rgba(16, 185, 129, 0.35);
 }
 
+.btn-doc-edit {
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  color: #2563eb;
+  border-radius: var(--radius-sm);
+  padding: 7px 11px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: all var(--transition-fast);
+}
+
+.btn-doc-edit:hover {
+  background: rgba(37, 99, 235, 0.1);
+  border-color: #2563eb;
+}
+
 .btn-doc-delete {
   background: transparent;
   border: 1px solid var(--border-subtle);

@@ -1,8 +1,8 @@
 {
-  "version": "1.6.8",
+  "version": "1.6.9",
   "downloadUrl": "https://raw.githubusercontent.com/oatzilla/Medical_Text_Expander/main/Medical_Text_Expander.exe",
   "download_url": "https://raw.githubusercontent.com/oatzilla/Medical_Text_Expander/main/Medical_Text_Expander.exe",
   "releaseDate": "2026-10-03",
   "release_date": "2026-10-03",
-  "changelog": "- แก้ไขปัญหา Flexbox flex-shrink ที่ล็อกความสูงหน้าต่างอัปโหลดเอกสารบนเว็บ ทำให้หน้าต่างเลื่อนลง (Scroll) ไม่ได้บนหน้าจอขนาดกะทัดรัด\r\n- ปรับแต่ง Body ให้แสดง Scrollbar สีเขียวเด่นชัด เลื่อนได้เต็มความสูงจนเห็นปุ่ม [บันทึกและอัปโหลดเอกสารขึ้น Cloud] อย่างสมบูรณ์ 100%\r\n- เพิ่มระบบ Auto-Scroll เลื่อนหน้าจอลงมายังฟอร์มอัปโหลดและปุ่มบันทึกอัตโนมัติเมื่อปลดล็อกหรือเลือกไฟล์"
+  "changelog": "- ระบบจัดการเอกสารสำหรับ Admin ครบวงจร ทั้งบน Desktop Program และ Web Portal\r\n- เพิ่มปุ่ม [✏️ แก้ไขชื่อ & หมวดหมู่] เปลี่ยนชื่อเรื่องที่แสดงในระบบและเลือกหมวดหมู่เอกสารใหม่ได้ทันที\r\n- เพิ่มปุ่ม [🗑️ ลบเอกสารออกจากระบบ] พร้อมระบบยืนยันความปลอดภัย ซิงค์ลบไฟล์ทั้งในเครื่องและ Cloud อัตโนมัติ\r\n- เพิ่มปุ่ม [🔄 เปลี่ยน/แทนที่ไฟล์เดิม] สำหรับ Desktop Program อัปเดตไฟล์เวอร์ชันใหม่เข้าแทนที่เอกสารเดิมได้ทันที\r\n- ปรับปรุงหน้าต่าง Document Center เป็นตาราง ListView แยกคอลัมน์ชัดเจน พร้อมช่องค้นหาเอกสารแบบ Real-Time และตัวกรองหมวดหมู่"
 }

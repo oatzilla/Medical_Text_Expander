@@ -2200,38 +2200,173 @@ namespace MedicalTextExpander {
         }
     }
 
+    public class WardDocItem {
+        public string Id { get; set; }
+        public string Title { get; set; }
+        public string Category { get; set; }
+        public string FileName { get; set; }
+        public string DownloadName { get; set; }
+        public string FileType { get; set; }
+        public long Size { get; set; }
+        public string UpdatedAt { get; set; }
+        public string UpdatedBy { get; set; }
+        public string Base64 { get; set; }
+        public string LocalPath { get; set; }
+        public bool ExistsLocally {
+            get { return !string.IsNullOrEmpty(LocalPath) && File.Exists(LocalPath); }
+        }
+    }
+
+    public class EditWardDocDialog : Form {
+        public string NewTitle { get; private set; }
+        public string NewCategory { get; private set; }
+        public string UploaderName { get; private set; }
+
+        private TextBox txtTitle;
+        private ComboBox cboCategory;
+        private TextBox txtUploader;
+
+        public EditWardDocDialog(WardDocItem item, string defaultUploader) {
+            this.Text = "✏️ แก้ไขชื่อและหมวดหมู่เอกสาร - Medical Text Expander";
+            this.Size = new Size(540, 310);
+            this.StartPosition = FormStartPosition.CenterParent;
+            this.FormBorderStyle = FormBorderStyle.FixedDialog;
+            this.MaximizeBox = false;
+            this.MinimizeBox = false;
+            this.BackColor = Color.FromArgb(248, 250, 252);
+            this.Font = new Font("Segoe UI", 9.5f);
+
+            Panel pnlTop = new Panel {
+                Dock = DockStyle.Top,
+                Height = 44,
+                BackColor = Color.FromArgb(37, 99, 235)
+            };
+            Label lblH = new Label {
+                Text = "✏️ แก้ไขชื่อและหมวดหมู่เอกสารประจำวอร์ด",
+                ForeColor = Color.White,
+                Font = new Font("Segoe UI", 10.5f, FontStyle.Bold),
+                Location = new Point(14, 11),
+                AutoSize = true
+            };
+            pnlTop.Controls.Add(lblH);
+            this.Controls.Add(pnlTop);
+
+            Label lblFile = new Label {
+                Text = "ชื่อไฟล์: " + (item.FileName ?? "--"),
+                Location = new Point(20, 56),
+                Size = new Size(480, 22),
+                Font = new Font("Segoe UI", 9f, FontStyle.Bold),
+                ForeColor = Color.FromArgb(5, 150, 105)
+            };
+            this.Controls.Add(lblFile);
+
+            Label lblT = new Label { Text = "ชื่อเอกสาร:", Location = new Point(20, 88), Size = new Size(110, 24), Font = new Font("Segoe UI", 9f, FontStyle.Bold) };
+            this.Controls.Add(lblT);
+            txtTitle = new TextBox { Text = item.Title ?? item.FileName, Location = new Point(130, 85), Size = new Size(370, 27) };
+            this.Controls.Add(txtTitle);
+
+            Label lblC = new Label { Text = "หมวดหมู่:", Location = new Point(20, 126), Size = new Size(110, 24), Font = new Font("Segoe UI", 9f, FontStyle.Bold) };
+            this.Controls.Add(lblC);
+            cboCategory = new ComboBox {
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                Location = new Point(130, 123),
+                Size = new Size(370, 28)
+            };
+            cboCategory.Items.AddRange(new object[] {
+                "แบบฟอร์มบันทึกทางการพยาบาล",
+                "แบบประเมินทางการพยาบาล",
+                "แนวทาง CPG / หัตถการ",
+                "เอกสารและแบบฟอร์มทั่วไป"
+            });
+            int catIdx = cboCategory.Items.IndexOf(item.Category);
+            cboCategory.SelectedIndex = catIdx >= 0 ? catIdx : 0;
+            this.Controls.Add(cboCategory);
+
+            Label lblU = new Label { Text = "ผู้แก้ไข:", Location = new Point(20, 164), Size = new Size(110, 24), Font = new Font("Segoe UI", 9f, FontStyle.Bold) };
+            this.Controls.Add(lblU);
+            txtUploader = new TextBox { Text = string.IsNullOrEmpty(defaultUploader) ? Environment.MachineName : defaultUploader, Location = new Point(130, 161), Size = new Size(370, 27) };
+            this.Controls.Add(txtUploader);
+
+            Button btnSave = new Button {
+                Text = "💾 บันทึกการแก้ไข",
+                Location = new Point(130, 212),
+                Size = new Size(160, 38),
+                BackColor = Color.FromArgb(37, 99, 235),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
+                Cursor = Cursors.Hand
+            };
+            btnSave.Click += (s, e) => {
+                if (string.IsNullOrEmpty(txtTitle.Text.Trim())) {
+                    MessageBox.Show("กรุณาระบุชื่อเอกสารครับ", "แจ้งเตือน", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+                NewTitle = txtTitle.Text.Trim();
+                NewCategory = cboCategory.SelectedItem != null ? cboCategory.SelectedItem.ToString() : item.Category;
+                UploaderName = txtUploader.Text.Trim();
+                this.DialogResult = DialogResult.OK;
+                this.Close();
+            };
+            this.Controls.Add(btnSave);
+
+            Button btnCancel = new Button {
+                Text = "ยกเลิก",
+                Location = new Point(300, 212),
+                Size = new Size(110, 38),
+                FlatStyle = FlatStyle.Flat,
+                Cursor = Cursors.Hand
+            };
+            btnCancel.Click += (s, e) => {
+                this.DialogResult = DialogResult.Cancel;
+                this.Close();
+            };
+            this.Controls.Add(btnCancel);
+        }
+    }
+
     public class WardDocumentCenterDialog : Form {
         private ExpanderContext context;
-        private ComboBox cboDocumentList;
-        private Label lblFileName;
-        private Label lblFileSize;
-        private Label lblFileTime;
-        private Label lblCloudSyncInfo;
+        private List<WardDocItem> allDocuments = new List<WardDocItem>();
+        private List<WardDocItem> filteredDocuments = new List<WardDocItem>();
+        private WardDocItem selectedDoc = null;
+        private bool isAdminUnlocked = false;
 
+        // UI Controls
+        private TextBox txtSearch;
+        private ComboBox cboCategoryFilter;
+        private Button btnRefresh;
+        private Button btnSyncFromCloudTop;
+
+        private ListView lvDocuments;
+        private Label lblDocDetailTitle;
+        private Label lblDocDetailMeta;
         private Button btnOpenDoc;
         private Button btnSaveAs;
-        private Button btnSyncFromCloud;
 
-        // Admin controls
+        // Admin Controls
         private GroupBox grpAdmin;
         private Panel pnlAdminGate;
         private TextBox txtAdminPass;
         private Button btnUnlockAdmin;
-        private Panel pnlAdminUnlocked;
-        private Label lblSelectedFile;
-        private TextBox txtDocTitle;
-        private ComboBox cboDocCategory;
-        private TextBox txtUploaderName;
-        private Button btnChooseFile;
-        private Button btnUploadNewVersion;
 
-        private string chosenFilePath = null;
-        private List<string> chosenFilePaths = new List<string>();
+        private Panel pnlAdminUnlocked;
+        private Button btnEditDoc;
+        private Button btnReplaceFile;
+        private Button btnDeleteDoc;
+
+        private Button btnChooseNewFiles;
+        private Label lblNewFiles;
+        private ComboBox cboNewCategory;
+        private TextBox txtUploaderName;
+        private Button btnUploadNew;
+
+        private List<string> chosenNewFilePaths = new List<string>();
 
         public WardDocumentCenterDialog(ExpanderContext ctx) {
             context = ctx;
             InitializeUI();
-            LoadLocalDocuments();
+            LoadDocuments();
         }
 
         private string GetTemplatesDirectory() {
@@ -2245,7 +2380,7 @@ namespace MedicalTextExpander {
 
         private void InitializeUI() {
             this.Text = "📁 ศูนย์รวมเอกสารและแบบฟอร์มประจำวอร์ด - Medical Text Expander";
-            this.Size = new Size(680, 640);
+            this.Size = new Size(880, 720);
             this.StartPosition = FormStartPosition.CenterParent;
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
             this.MaximizeBox = false;
@@ -2256,7 +2391,7 @@ namespace MedicalTextExpander {
             // Header Banner
             Panel pnlHeader = new Panel();
             pnlHeader.Dock = DockStyle.Top;
-            pnlHeader.Height = 68;
+            pnlHeader.Height = 64;
             pnlHeader.BackColor = Color.FromArgb(16, 185, 129); // Emerald Green
 
             Label lblHeaderTitle = new Label();
@@ -2268,7 +2403,7 @@ namespace MedicalTextExpander {
             pnlHeader.Controls.Add(lblHeaderTitle);
 
             Label lblHeaderSub = new Label();
-            lblHeaderSub.Text = "เปิดใช้งานแบบฟอร์ม บันทึก I/O และเอกสารทางการพยาบาล หรืออัปโหลดไฟล์ใหม่ขึ้น Cloud";
+            lblHeaderSub.Text = "เปิดใช้งานแบบฟอร์ม บันทึก I/O และเอกสารทางการพยาบาล หรือจัดการ แก้ไขชื่อ ลบ และอัปโหลดขึ้น Cloud";
             lblHeaderSub.Font = new Font("Segoe UI", 9f);
             lblHeaderSub.ForeColor = Color.FromArgb(209, 250, 229);
             lblHeaderSub.Location = new Point(18, 36);
@@ -2277,124 +2412,164 @@ namespace MedicalTextExpander {
 
             this.Controls.Add(pnlHeader);
 
-            // Card 1: Documents in local & cloud
-            GroupBox grpCurrent = new GroupBox();
-            grpCurrent.Text = " 📁 รายการเอกสารและแบบฟอร์มประจำวอร์ด ";
-            grpCurrent.Location = new Point(18, 80);
-            grpCurrent.Size = new Size(628, 195);
-            grpCurrent.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
-            grpCurrent.ForeColor = Color.FromArgb(15, 23, 42);
+            // Filter Bar
+            Panel pnlFilter = new Panel();
+            pnlFilter.Location = new Point(18, 72);
+            pnlFilter.Size = new Size(830, 32);
 
-            Label lblSelectDoc = new Label();
-            lblSelectDoc.Text = "เลือกเอกสาร:";
-            lblSelectDoc.Location = new Point(16, 26);
-            lblSelectDoc.Size = new Size(90, 24);
-            lblSelectDoc.Font = new Font("Segoe UI", 9f, FontStyle.Regular);
-            lblSelectDoc.ForeColor = Color.FromArgb(71, 85, 105);
-            grpCurrent.Controls.Add(lblSelectDoc);
+            Label lblSearchPrompt = new Label();
+            lblSearchPrompt.Text = "🔍 ค้นหา:";
+            lblSearchPrompt.Location = new Point(0, 6);
+            lblSearchPrompt.Size = new Size(60, 22);
+            lblSearchPrompt.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
+            lblSearchPrompt.ForeColor = Color.FromArgb(71, 85, 105);
+            pnlFilter.Controls.Add(lblSearchPrompt);
 
-            cboDocumentList = new ComboBox();
-            cboDocumentList.DropDownStyle = ComboBoxStyle.DropDownList;
-            cboDocumentList.Location = new Point(110, 23);
-            cboDocumentList.Size = new Size(498, 28);
-            cboDocumentList.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
-            cboDocumentList.SelectedIndexChanged += (s, e) => OnDocumentSelectionChanged();
-            grpCurrent.Controls.Add(cboDocumentList);
+            txtSearch = new TextBox();
+            txtSearch.Location = new Point(64, 3);
+            txtSearch.Size = new Size(240, 27);
+            txtSearch.TextChanged += (s, e) => ApplyFilter();
+            pnlFilter.Controls.Add(txtSearch);
 
-            lblFileName = new Label();
-            lblFileName.Text = "ชื่อไฟล์: --";
-            lblFileName.Location = new Point(16, 58);
-            lblFileName.Size = new Size(592, 22);
-            lblFileName.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
-            lblFileName.ForeColor = Color.FromArgb(5, 150, 105);
-            grpCurrent.Controls.Add(lblFileName);
+            Label lblCatPrompt = new Label();
+            lblCatPrompt.Text = "หมวดหมู่:";
+            lblCatPrompt.Location = new Point(318, 6);
+            lblCatPrompt.Size = new Size(65, 22);
+            lblCatPrompt.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
+            lblCatPrompt.ForeColor = Color.FromArgb(71, 85, 105);
+            pnlFilter.Controls.Add(lblCatPrompt);
 
-            lblFileSize = new Label();
-            lblFileSize.Text = "ขนาด: -- KB";
-            lblFileSize.Location = new Point(16, 82);
-            lblFileSize.Size = new Size(260, 20);
-            lblFileSize.Font = new Font("Segoe UI", 9f);
-            lblFileSize.ForeColor = Color.FromArgb(71, 85, 105);
-            grpCurrent.Controls.Add(lblFileSize);
+            cboCategoryFilter = new ComboBox();
+            cboCategoryFilter.DropDownStyle = ComboBoxStyle.DropDownList;
+            cboCategoryFilter.Location = new Point(386, 3);
+            cboCategoryFilter.Size = new Size(240, 28);
+            cboCategoryFilter.Items.AddRange(new object[] {
+                "ทั้งหมด (All)",
+                "แบบฟอร์มบันทึกทางการพยาบาล",
+                "แบบประเมินทางการพยาบาล",
+                "แนวทาง CPG / หัตถการ",
+                "เอกสารและแบบฟอร์มทั่วไป"
+            });
+            cboCategoryFilter.SelectedIndex = 0;
+            cboCategoryFilter.SelectedIndexChanged += (s, e) => ApplyFilter();
+            pnlFilter.Controls.Add(cboCategoryFilter);
 
-            lblFileTime = new Label();
-            lblFileTime.Text = "อัปเดตล่าสุด: --";
-            lblFileTime.Location = new Point(280, 82);
-            lblFileTime.Size = new Size(328, 20);
-            lblFileTime.Font = new Font("Segoe UI", 9f);
-            lblFileTime.ForeColor = Color.FromArgb(71, 85, 105);
-            grpCurrent.Controls.Add(lblFileTime);
+            btnRefresh = new Button();
+            btnRefresh.Text = "🔄 รีเฟรช";
+            btnRefresh.Location = new Point(634, 2);
+            btnRefresh.Size = new Size(85, 29);
+            btnRefresh.FlatStyle = FlatStyle.Flat;
+            btnRefresh.Cursor = Cursors.Hand;
+            btnRefresh.Click += (s, e) => LoadDocuments();
+            pnlFilter.Controls.Add(btnRefresh);
 
-            lblCloudSyncInfo = new Label();
-            lblCloudSyncInfo.Text = "สถานะ Cloud: ตรวจสอบการเชื่อมต่อ...";
-            lblCloudSyncInfo.Location = new Point(16, 106);
-            lblCloudSyncInfo.Size = new Size(592, 20);
-            lblCloudSyncInfo.Font = new Font("Segoe UI", 9f);
-            lblCloudSyncInfo.ForeColor = Color.FromArgb(100, 116, 139);
-            grpCurrent.Controls.Add(lblCloudSyncInfo);
+            btnSyncFromCloudTop = new Button();
+            btnSyncFromCloudTop.Text = "☁️ ซิงค์ Cloud";
+            btnSyncFromCloudTop.Location = new Point(725, 2);
+            btnSyncFromCloudTop.Size = new Size(105, 29);
+            btnSyncFromCloudTop.BackColor = Color.FromArgb(238, 242, 255);
+            btnSyncFromCloudTop.ForeColor = Color.FromArgb(79, 70, 229);
+            btnSyncFromCloudTop.FlatStyle = FlatStyle.Flat;
+            btnSyncFromCloudTop.Font = new Font("Segoe UI", 9f, FontStyle.Bold);
+            btnSyncFromCloudTop.Cursor = Cursors.Hand;
+            btnSyncFromCloudTop.Click += (s, e) => SyncDocumentsFromCloudManual();
+            pnlFilter.Controls.Add(btnSyncFromCloudTop);
+
+            this.Controls.Add(pnlFilter);
+
+            // ListView of Documents
+            lvDocuments = new ListView();
+            lvDocuments.Location = new Point(18, 110);
+            lvDocuments.Size = new Size(830, 185);
+            lvDocuments.View = View.Details;
+            lvDocuments.FullRowSelect = true;
+            lvDocuments.GridLines = true;
+            lvDocuments.HideSelection = false;
+            lvDocuments.MultiSelect = false;
+            lvDocuments.Columns.Add("ชื่อเอกสาร", 260);
+            lvDocuments.Columns.Add("หมวดหมู่", 180);
+            lvDocuments.Columns.Add("ชื่อไฟล์", 170);
+            lvDocuments.Columns.Add("ขนาด", 75);
+            lvDocuments.Columns.Add("อัปเดตล่าสุด", 125);
+            lvDocuments.SelectedIndexChanged += (s, e) => OnListViewSelectionChanged();
+            lvDocuments.DoubleClick += (s, e) => OpenSelectedDocument();
+            this.Controls.Add(lvDocuments);
+
+            // Selected Document Details & Action Bar
+            Panel pnlDetails = new Panel();
+            pnlDetails.Location = new Point(18, 302);
+            pnlDetails.Size = new Size(830, 56);
+            pnlDetails.BackColor = Color.FromArgb(241, 245, 249);
+            pnlDetails.BorderStyle = BorderStyle.FixedSingle;
+
+            lblDocDetailTitle = new Label();
+            lblDocDetailTitle.Text = "📄 เอกสารที่เลือก: (ยังไม่ได้เลือก)";
+            lblDocDetailTitle.Location = new Point(12, 8);
+            lblDocDetailTitle.Size = new Size(520, 20);
+            lblDocDetailTitle.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
+            lblDocDetailTitle.ForeColor = Color.FromArgb(15, 23, 42);
+            pnlDetails.Controls.Add(lblDocDetailTitle);
+
+            lblDocDetailMeta = new Label();
+            lblDocDetailMeta.Text = "คลิกเลือกเอกสารในตารางด้านบนเพื่อเปิดใช้งาน บันทึกสำเนา แก้ไข หรือลบ";
+            lblDocDetailMeta.Location = new Point(12, 30);
+            lblDocDetailMeta.Size = new Size(520, 18);
+            lblDocDetailMeta.Font = new Font("Segoe UI", 8.5f);
+            lblDocDetailMeta.ForeColor = Color.FromArgb(100, 116, 139);
+            pnlDetails.Controls.Add(lblDocDetailMeta);
 
             btnOpenDoc = new Button();
-            btnOpenDoc.Text = "📂 เปิดใช้งานไฟล์ทันที";
-            btnOpenDoc.Location = new Point(16, 140);
-            btnOpenDoc.Size = new Size(195, 38);
+            btnOpenDoc.Text = "📂 เปิดใช้งานทันที";
+            btnOpenDoc.Location = new Point(540, 9);
+            btnOpenDoc.Size = new Size(140, 36);
             btnOpenDoc.BackColor = Color.FromArgb(16, 185, 129);
             btnOpenDoc.ForeColor = Color.White;
             btnOpenDoc.FlatStyle = FlatStyle.Flat;
             btnOpenDoc.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
             btnOpenDoc.Cursor = Cursors.Hand;
+            btnOpenDoc.Enabled = false;
             btnOpenDoc.Click += (s, e) => OpenSelectedDocument();
-            grpCurrent.Controls.Add(btnOpenDoc);
+            pnlDetails.Controls.Add(btnOpenDoc);
 
             btnSaveAs = new Button();
-            btnSaveAs.Text = "💾 บันทึกสำเนา (Save As)";
-            btnSaveAs.Location = new Point(222, 140);
-            btnSaveAs.Size = new Size(195, 38);
-            btnSaveAs.BackColor = Color.FromArgb(241, 245, 249);
-            btnSaveAs.ForeColor = Color.FromArgb(30, 41, 59);
+            btnSaveAs.Text = "💾 บันทึกสำเนา";
+            btnSaveAs.Location = new Point(688, 9);
+            btnSaveAs.Size = new Size(130, 36);
+            btnSaveAs.BackColor = Color.White;
+            btnSaveAs.ForeColor = Color.FromArgb(51, 65, 85);
             btnSaveAs.FlatStyle = FlatStyle.Flat;
             btnSaveAs.Font = new Font("Segoe UI", 9f, FontStyle.Bold);
             btnSaveAs.Cursor = Cursors.Hand;
+            btnSaveAs.Enabled = false;
             btnSaveAs.Click += (s, e) => SaveCopyAs();
-            grpCurrent.Controls.Add(btnSaveAs);
+            pnlDetails.Controls.Add(btnSaveAs);
 
-            btnSyncFromCloud = new Button();
-            btnSyncFromCloud.Text = "☁️ ซิงค์จาก Cloud";
-            btnSyncFromCloud.Location = new Point(428, 140);
-            btnSyncFromCloud.Size = new Size(180, 38);
-            btnSyncFromCloud.BackColor = Color.FromArgb(238, 242, 255);
-            btnSyncFromCloud.ForeColor = Color.FromArgb(79, 70, 229);
-            btnSyncFromCloud.FlatStyle = FlatStyle.Flat;
-            btnSyncFromCloud.Font = new Font("Segoe UI", 9f, FontStyle.Bold);
-            btnSyncFromCloud.Cursor = Cursors.Hand;
-            btnSyncFromCloud.Click += (s, e) => SyncDocumentsFromCloudManual();
-            grpCurrent.Controls.Add(btnSyncFromCloud);
+            this.Controls.Add(pnlDetails);
 
-            this.Controls.Add(grpCurrent);
-
-            // Card 2: Admin Section
+            // Card: Admin Management Section
             grpAdmin = new GroupBox();
-            grpAdmin.Text = " 🔒 สำหรับ Admin / หัวหน้าเวร: จัดการและอัปโหลดเอกสารใหม่ขึ้น Cloud ";
-            grpAdmin.Location = new Point(18, 288);
-            grpAdmin.Size = new Size(628, 248);
+            grpAdmin.Text = " 🔒 สำหรับ Admin / หัวหน้าเวร: จัดการ แก้ไขชื่อ ลบ และอัปโหลดเอกสารใหม่ ";
+            grpAdmin.Location = new Point(18, 366);
+            grpAdmin.Size = new Size(830, 254);
             grpAdmin.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
             grpAdmin.ForeColor = Color.FromArgb(79, 70, 229);
 
-            // Gate Panel
+            // Admin Gate Panel (Locked)
             pnlAdminGate = new Panel();
-            pnlAdminGate.Location = new Point(16, 26);
-            pnlAdminGate.Size = new Size(596, 210);
+            pnlAdminGate.Location = new Point(14, 25);
+            pnlAdminGate.Size = new Size(802, 218);
 
             Label lblGateDesc = new Label();
-            lblGateDesc.Text = "กรุณาใส่รหัสผ่านผู้ดูแลระบบ (Admin Password) เพื่อเลือกไฟล์และอัปเดตเอกสารใหม่ขึ้น Cloud:";
-            lblGateDesc.Location = new Point(4, 20);
-            lblGateDesc.Size = new Size(580, 24);
+            lblGateDesc.Text = "กรุณาใส่รหัสผ่านผู้ดูแลระบบ (Admin Password: 9844) เพื่อแก้ไขชื่อ, หมวดหมู่, ลบเอกสาร หรืออัปโหลดไฟล์ใหม่ขึ้น Cloud:";
+            lblGateDesc.Location = new Point(6, 25);
+            lblGateDesc.Size = new Size(780, 24);
             lblGateDesc.Font = new Font("Segoe UI", 9.5f);
             lblGateDesc.ForeColor = Color.FromArgb(51, 65, 85);
             pnlAdminGate.Controls.Add(lblGateDesc);
 
             txtAdminPass = new TextBox();
-            txtAdminPass.Location = new Point(8, 54);
-            txtAdminPass.Size = new Size(220, 27);
+            txtAdminPass.Location = new Point(10, 60);
+            txtAdminPass.Size = new Size(240, 27);
             txtAdminPass.PasswordChar = '*';
             txtAdminPass.Font = new Font("Segoe UI", 10f);
             txtAdminPass.KeyDown += (s, e) => { if (e.KeyCode == Keys.Enter) UnlockAdmin(); };
@@ -2402,8 +2577,8 @@ namespace MedicalTextExpander {
 
             btnUnlockAdmin = new Button();
             btnUnlockAdmin.Text = "🔓 ปลดล็อกสิทธิ์ Admin";
-            btnUnlockAdmin.Location = new Point(238, 52);
-            btnUnlockAdmin.Size = new Size(170, 31);
+            btnUnlockAdmin.Location = new Point(260, 58);
+            btnUnlockAdmin.Size = new Size(180, 31);
             btnUnlockAdmin.BackColor = Color.FromArgb(79, 70, 229);
             btnUnlockAdmin.ForeColor = Color.White;
             btnUnlockAdmin.FlatStyle = FlatStyle.Flat;
@@ -2414,92 +2589,152 @@ namespace MedicalTextExpander {
 
             grpAdmin.Controls.Add(pnlAdminGate);
 
-            // Unlocked Panel
+            // Admin Unlocked Panel
             pnlAdminUnlocked = new Panel();
-            pnlAdminUnlocked.Location = new Point(16, 26);
-            pnlAdminUnlocked.Size = new Size(596, 210);
+            pnlAdminUnlocked.Location = new Point(14, 25);
+            pnlAdminUnlocked.Size = new Size(802, 218);
             pnlAdminUnlocked.Visible = false;
 
-            btnChooseFile = new Button();
-            btnChooseFile.Text = "📂 เลือกไฟล์เอกสาร (.xlsx, .docx, .pdf)...";
-            btnChooseFile.Location = new Point(8, 10);
-            btnChooseFile.Size = new Size(270, 34);
-            btnChooseFile.BackColor = Color.FromArgb(240, 253, 244);
-            btnChooseFile.ForeColor = Color.FromArgb(22, 101, 52);
-            btnChooseFile.FlatStyle = FlatStyle.Flat;
-            btnChooseFile.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
-            btnChooseFile.Cursor = Cursors.Hand;
-            btnChooseFile.Click += (s, e) => ChooseNewFile();
-            pnlAdminUnlocked.Controls.Add(btnChooseFile);
+            Label lblAdminBadge = new Label();
+            lblAdminBadge.Text = "✅ ได้รับสิทธิ์ผู้ดูแลระบบเรียบร้อย (Admin Mode) - สามารถจัดการเอกสารได้ทันที";
+            lblAdminBadge.Location = new Point(8, 4);
+            lblAdminBadge.Size = new Size(780, 22);
+            lblAdminBadge.Font = new Font("Segoe UI", 9f, FontStyle.Bold);
+            lblAdminBadge.ForeColor = Color.FromArgb(16, 185, 129);
+            pnlAdminUnlocked.Controls.Add(lblAdminBadge);
 
-            lblSelectedFile = new Label();
-            lblSelectedFile.Text = "(ยังไม่ได้เลือกไฟล์ใหม่)";
-            lblSelectedFile.Location = new Point(290, 16);
-            lblSelectedFile.Size = new Size(295, 24);
-            lblSelectedFile.Font = new Font("Segoe UI", 9f);
-            lblSelectedFile.ForeColor = Color.FromArgb(100, 116, 139);
-            pnlAdminUnlocked.Controls.Add(lblSelectedFile);
+            // Row 1: Manage Selected Document Buttons
+            Panel pnlSelectedActions = new Panel();
+            pnlSelectedActions.Location = new Point(6, 28);
+            pnlSelectedActions.Size = new Size(790, 48);
+            pnlSelectedActions.BackColor = Color.FromArgb(243, 244, 246);
+            pnlSelectedActions.BorderStyle = BorderStyle.FixedSingle;
 
-            Label lblTitlePrompt = new Label();
-            lblTitlePrompt.Text = "ชื่อเอกสาร:";
-            lblTitlePrompt.Location = new Point(8, 56);
-            lblTitlePrompt.Size = new Size(130, 24);
-            lblTitlePrompt.Font = new Font("Segoe UI", 9f);
-            lblTitlePrompt.ForeColor = Color.FromArgb(51, 65, 85);
-            pnlAdminUnlocked.Controls.Add(lblTitlePrompt);
+            Label lblSelActPrompt = new Label();
+            lblSelActPrompt.Text = "จัดการเอกสารที่เลือก:";
+            lblSelActPrompt.Location = new Point(10, 14);
+            lblSelActPrompt.Size = new Size(150, 22);
+            lblSelActPrompt.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
+            lblSelActPrompt.ForeColor = Color.FromArgb(30, 41, 59);
+            pnlSelectedActions.Controls.Add(lblSelActPrompt);
 
-            txtDocTitle = new TextBox();
-            txtDocTitle.Location = new Point(140, 53);
-            txtDocTitle.Size = new Size(440, 27);
-            pnlAdminUnlocked.Controls.Add(txtDocTitle);
+            btnEditDoc = new Button();
+            btnEditDoc.Text = "✏️ แก้ไขชื่อ & หมวดหมู่";
+            btnEditDoc.Location = new Point(170, 8);
+            btnEditDoc.Size = new Size(185, 32);
+            btnEditDoc.BackColor = Color.FromArgb(37, 99, 235); // Blue
+            btnEditDoc.ForeColor = Color.White;
+            btnEditDoc.FlatStyle = FlatStyle.Flat;
+            btnEditDoc.Font = new Font("Segoe UI", 9f, FontStyle.Bold);
+            btnEditDoc.Cursor = Cursors.Hand;
+            btnEditDoc.Enabled = false;
+            btnEditDoc.Click += (s, e) => EditSelectedDocument();
+            pnlSelectedActions.Controls.Add(btnEditDoc);
 
-            Label lblCategoryPrompt = new Label();
-            lblCategoryPrompt.Text = "หมวดหมู่:";
-            lblCategoryPrompt.Location = new Point(8, 92);
-            lblCategoryPrompt.Size = new Size(130, 24);
-            lblCategoryPrompt.Font = new Font("Segoe UI", 9f);
-            lblCategoryPrompt.ForeColor = Color.FromArgb(51, 65, 85);
-            pnlAdminUnlocked.Controls.Add(lblCategoryPrompt);
+            btnReplaceFile = new Button();
+            btnReplaceFile.Text = "🔄 เปลี่ยน/แทนที่ไฟล์เดิม";
+            btnReplaceFile.Location = new Point(365, 8);
+            btnReplaceFile.Size = new Size(185, 32);
+            btnReplaceFile.BackColor = Color.FromArgb(217, 119, 6); // Amber
+            btnReplaceFile.ForeColor = Color.White;
+            btnReplaceFile.FlatStyle = FlatStyle.Flat;
+            btnReplaceFile.Font = new Font("Segoe UI", 9f, FontStyle.Bold);
+            btnReplaceFile.Cursor = Cursors.Hand;
+            btnReplaceFile.Enabled = false;
+            btnReplaceFile.Click += (s, e) => ReplaceSelectedDocumentFile();
+            pnlSelectedActions.Controls.Add(btnReplaceFile);
 
-            cboDocCategory = new ComboBox();
-            cboDocCategory.DropDownStyle = ComboBoxStyle.DropDownList;
-            cboDocCategory.Items.AddRange(new object[] {
+            btnDeleteDoc = new Button();
+            btnDeleteDoc.Text = "🗑️ ลบเอกสารออกจากระบบ";
+            btnDeleteDoc.Location = new Point(560, 8);
+            btnDeleteDoc.Size = new Size(215, 32);
+            btnDeleteDoc.BackColor = Color.FromArgb(220, 38, 38); // Red
+            btnDeleteDoc.ForeColor = Color.White;
+            btnDeleteDoc.FlatStyle = FlatStyle.Flat;
+            btnDeleteDoc.Font = new Font("Segoe UI", 9f, FontStyle.Bold);
+            btnDeleteDoc.Cursor = Cursors.Hand;
+            btnDeleteDoc.Enabled = false;
+            btnDeleteDoc.Click += (s, e) => DeleteSelectedDocument();
+            pnlSelectedActions.Controls.Add(btnDeleteDoc);
+
+            pnlAdminUnlocked.Controls.Add(pnlSelectedActions);
+
+            // Row 2: Upload New Documents Section
+            Label lblUploadHeader = new Label();
+            lblUploadHeader.Text = "➕ อัปโหลดเอกสารใหม่ขึ้น Cloud:";
+            lblUploadHeader.Location = new Point(8, 84);
+            lblUploadHeader.Size = new Size(250, 20);
+            lblUploadHeader.Font = new Font("Segoe UI", 9f, FontStyle.Bold);
+            lblUploadHeader.ForeColor = Color.FromArgb(13, 148, 136);
+            pnlAdminUnlocked.Controls.Add(lblUploadHeader);
+
+            btnChooseNewFiles = new Button();
+            btnChooseNewFiles.Text = "📂 เลือกไฟล์ใหม่ (.xlsx, .docx, .pdf)...";
+            btnChooseNewFiles.Location = new Point(8, 108);
+            btnChooseNewFiles.Size = new Size(270, 32);
+            btnChooseNewFiles.BackColor = Color.FromArgb(240, 253, 244);
+            btnChooseNewFiles.ForeColor = Color.FromArgb(22, 101, 52);
+            btnChooseNewFiles.FlatStyle = FlatStyle.Flat;
+            btnChooseNewFiles.Font = new Font("Segoe UI", 9f, FontStyle.Bold);
+            btnChooseNewFiles.Cursor = Cursors.Hand;
+            btnChooseNewFiles.Click += (s, e) => ChooseNewFiles();
+            pnlAdminUnlocked.Controls.Add(btnChooseNewFiles);
+
+            lblNewFiles = new Label();
+            lblNewFiles.Text = "(ยังไม่ได้เลือกไฟล์ใหม่)";
+            lblNewFiles.Location = new Point(290, 114);
+            lblNewFiles.Size = new Size(495, 22);
+            lblNewFiles.Font = new Font("Segoe UI", 9f);
+            lblNewFiles.ForeColor = Color.FromArgb(100, 116, 139);
+            pnlAdminUnlocked.Controls.Add(lblNewFiles);
+
+            Label lblNewCat = new Label();
+            lblNewCat.Text = "หมวดหมู่เริ่มต้น:";
+            lblNewCat.Location = new Point(8, 149);
+            lblNewCat.Size = new Size(110, 22);
+            lblNewCat.Font = new Font("Segoe UI", 9f);
+            lblNewCat.ForeColor = Color.FromArgb(51, 65, 85);
+            pnlAdminUnlocked.Controls.Add(lblNewCat);
+
+            cboNewCategory = new ComboBox();
+            cboNewCategory.DropDownStyle = ComboBoxStyle.DropDownList;
+            cboNewCategory.Items.AddRange(new object[] {
                 "แบบฟอร์มบันทึกทางการพยาบาล",
                 "แบบประเมินทางการพยาบาล",
                 "แนวทาง CPG / หัตถการ",
                 "เอกสารและแบบฟอร์มทั่วไป"
             });
-            cboDocCategory.SelectedIndex = 0;
-            cboDocCategory.Location = new Point(140, 89);
-            cboDocCategory.Size = new Size(240, 28);
-            pnlAdminUnlocked.Controls.Add(cboDocCategory);
+            cboNewCategory.SelectedIndex = 0;
+            cboNewCategory.Location = new Point(122, 146);
+            cboNewCategory.Size = new Size(230, 28);
+            pnlAdminUnlocked.Controls.Add(cboNewCategory);
 
             Label lblUploader = new Label();
             lblUploader.Text = "ชื่อผู้แก้ไข/หัวหน้าเวร:";
-            lblUploader.Location = new Point(8, 128);
-            lblUploader.Size = new Size(130, 24);
+            lblUploader.Location = new Point(365, 149);
+            lblUploader.Size = new Size(140, 22);
             lblUploader.Font = new Font("Segoe UI", 9f);
             lblUploader.ForeColor = Color.FromArgb(51, 65, 85);
             pnlAdminUnlocked.Controls.Add(lblUploader);
 
             txtUploaderName = new TextBox();
-            txtUploaderName.Location = new Point(140, 125);
-            txtUploaderName.Size = new Size(240, 27);
+            txtUploaderName.Location = new Point(510, 146);
+            txtUploaderName.Size = new Size(270, 27);
             txtUploaderName.Text = Environment.MachineName;
             pnlAdminUnlocked.Controls.Add(txtUploaderName);
 
-            btnUploadNewVersion = new Button();
-            btnUploadNewVersion.Text = "☁️ บันทึกและอัปโหลดเอกสารสู่ Cloud";
-            btnUploadNewVersion.Location = new Point(8, 164);
-            btnUploadNewVersion.Size = new Size(420, 38);
-            btnUploadNewVersion.BackColor = Color.FromArgb(13, 148, 136);
-            btnUploadNewVersion.ForeColor = Color.White;
-            btnUploadNewVersion.FlatStyle = FlatStyle.Flat;
-            btnUploadNewVersion.Font = new Font("Segoe UI", 10f, FontStyle.Bold);
-            btnUploadNewVersion.Cursor = Cursors.Hand;
-            btnUploadNewVersion.Enabled = false;
-            btnUploadNewVersion.Click += (s, e) => UploadNewDocument();
-            pnlAdminUnlocked.Controls.Add(btnUploadNewVersion);
+            btnUploadNew = new Button();
+            btnUploadNew.Text = "☁️ บันทึกและอัปโหลดเอกสารใหม่สู่ Cloud";
+            btnUploadNew.Location = new Point(8, 180);
+            btnUploadNew.Size = new Size(344, 34);
+            btnUploadNew.BackColor = Color.FromArgb(13, 148, 136); // Teal
+            btnUploadNew.ForeColor = Color.White;
+            btnUploadNew.FlatStyle = FlatStyle.Flat;
+            btnUploadNew.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
+            btnUploadNew.Cursor = Cursors.Hand;
+            btnUploadNew.Enabled = false;
+            btnUploadNew.Click += (s, e) => UploadNewDocuments();
+            pnlAdminUnlocked.Controls.Add(btnUploadNew);
 
             grpAdmin.Controls.Add(pnlAdminUnlocked);
             this.Controls.Add(grpAdmin);
@@ -2507,7 +2742,7 @@ namespace MedicalTextExpander {
             // Bottom Close Button
             Button btnClose = new Button();
             btnClose.Text = "ปิดหน้าต่าง";
-            btnClose.Location = new Point(275, 550);
+            btnClose.Location = new Point(375, 630);
             btnClose.Size = new Size(130, 36);
             btnClose.FlatStyle = FlatStyle.Flat;
             btnClose.Cursor = Cursors.Hand;
@@ -2518,9 +2753,11 @@ namespace MedicalTextExpander {
         private void UnlockAdmin() {
             string pass = (txtAdminPass.Text ?? "").Trim();
             if (pass == context.AdminPassword || pass == "9844") {
+                isAdminUnlocked = true;
                 pnlAdminGate.Visible = false;
                 pnlAdminUnlocked.Visible = true;
                 txtAdminPass.Text = "";
+                UpdateSelectedDocUI();
             } else {
                 MessageBox.Show("รหัสผ่านผู้ดูแลระบบไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง", "รหัสผ่านไม่ถูกต้อง", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 txtAdminPass.Focus();
@@ -2528,87 +2765,373 @@ namespace MedicalTextExpander {
             }
         }
 
-        private void ChooseNewFile() {
-            using (OpenFileDialog ofd = new OpenFileDialog()) {
-                ofd.Filter = "Ward Documents (*.xlsx;*.xls;*.docx;*.doc;*.pdf)|*.xlsx;*.xls;*.docx;*.doc;*.pdf|All Files (*.*)|*.*";
-                ofd.Title = "เลือกไฟล์เอกสารหรือแบบฟอร์มประจำวอร์ด (เลือกได้หลายไฟล์)";
-                ofd.Multiselect = true;
-                if (ofd.ShowDialog(this) == DialogResult.OK) {
-                    chosenFilePaths.Clear();
-                    chosenFilePaths.AddRange(ofd.FileNames);
-                    chosenFilePath = ofd.FileName;
-                    if (chosenFilePaths.Count == 1) {
-                        FileInfo fi = new FileInfo(chosenFilePath);
-                        lblSelectedFile.Text = fi.Name + string.Format(" ({0:N1} KB)", fi.Length / 1024.0);
-                        if (string.IsNullOrEmpty(txtDocTitle.Text.Trim())) {
-                            txtDocTitle.Text = Path.GetFileNameWithoutExtension(fi.Name);
-                        }
-                    } else {
-                        lblSelectedFile.Text = string.Format("เลือก {0} ไฟล์พร้อมกัน", chosenFilePaths.Count);
-                        if (string.IsNullOrEmpty(txtDocTitle.Text.Trim())) {
-                            txtDocTitle.Text = string.Format("ชุดเอกสาร {0} ไฟล์", chosenFilePaths.Count);
+        private void OnListViewSelectionChanged() {
+            if (lvDocuments.SelectedItems.Count > 0) {
+                selectedDoc = (WardDocItem)lvDocuments.SelectedItems[0].Tag;
+            } else {
+                selectedDoc = null;
+            }
+            UpdateSelectedDocUI();
+        }
+
+        private void UpdateSelectedDocUI() {
+            if (selectedDoc != null) {
+                lblDocDetailTitle.Text = "📄 เอกสารที่เลือก: " + (selectedDoc.Title ?? selectedDoc.FileName);
+                string status = selectedDoc.ExistsLocally ? "พร้อมใช้งานในเครื่อง" : "อยู่บน Cloud (คลิกเพื่อโหลด)";
+                lblDocDetailMeta.Text = string.Format("ไฟล์: {0} | หมวดหมู่: {1} | ขนาด: {2:N1} KB | สถานะ: {3}",
+                    selectedDoc.FileName, selectedDoc.Category, selectedDoc.Size / 1024.0, status);
+
+                btnOpenDoc.Enabled = true;
+                btnSaveAs.Enabled = true;
+                btnEditDoc.Enabled = isAdminUnlocked;
+                btnReplaceFile.Enabled = isAdminUnlocked;
+                btnDeleteDoc.Enabled = isAdminUnlocked;
+            } else {
+                lblDocDetailTitle.Text = "📄 เอกสารที่เลือก: (ยังไม่ได้เลือกเอกสาร)";
+                lblDocDetailMeta.Text = "คลิกเลือกเอกสารในตารางด้านบนเพื่อเปิดใช้งาน บันทึกสำเนา แก้ไข หรือลบ";
+                btnOpenDoc.Enabled = false;
+                btnSaveAs.Enabled = false;
+                btnEditDoc.Enabled = false;
+                btnReplaceFile.Enabled = false;
+                btnDeleteDoc.Enabled = false;
+            }
+        }
+
+        private void LoadDocuments() {
+            allDocuments.Clear();
+            string templatesDir = GetTemplatesDirectory();
+            string catalogPath = Path.Combine(templatesDir, "catalog.json");
+
+            // 1. Try reading catalog.json
+            if (File.Exists(catalogPath)) {
+                try {
+                    string json = File.ReadAllText(catalogPath, Encoding.UTF8);
+                    allDocuments = ParseDocumentsCatalog(json);
+                } catch (Exception ex) {
+                    Debug.WriteLine("Read catalog.json error: " + ex.Message);
+                }
+            }
+
+            // 2. Scan physical files in templates directory
+            if (Directory.Exists(templatesDir)) {
+                var files = Directory.GetFiles(templatesDir, "*.*");
+                foreach (var f in files) {
+                    FileInfo fi = new FileInfo(f);
+                    string ext = fi.Extension.ToLower();
+                    if (ext == ".json") continue;
+                    if (ext == ".xlsx" || ext == ".xls" || ext == ".docx" || ext == ".doc" || ext == ".pdf" || ext == ".txt" || ext == ".csv") {
+                        var existing = allDocuments.Find(d => d.FileName.Equals(fi.Name, StringComparison.OrdinalIgnoreCase));
+                        if (existing != null) {
+                            existing.LocalPath = f;
+                            if (existing.Size <= 0) existing.Size = fi.Length;
+                        } else {
+                            var item = new WardDocItem();
+                            item.Id = "doc_local_" + Math.Abs(fi.Name.GetHashCode());
+                            item.FileName = fi.Name;
+                            item.DownloadName = fi.Name;
+                            item.Title = Path.GetFileNameWithoutExtension(fi.Name);
+                            item.Category = GetDefaultCategoryForFile(fi.Name);
+                            item.FileType = ext.TrimStart('.');
+                            item.Size = fi.Length;
+                            item.UpdatedAt = fi.LastWriteTimeUtc.ToString("o");
+                            item.UpdatedBy = "Local";
+                            item.LocalPath = f;
+                            allDocuments.Add(item);
                         }
                     }
-                    lblSelectedFile.ForeColor = Color.DarkGreen;
-                    btnUploadNewVersion.Enabled = true;
+                }
+            }
+
+            // Also check root IO template
+            string rootIo = Path.Combine(context.AppBaseDir, "แบบฟอร์ม IO.xlsx");
+            if (File.Exists(rootIo) && !allDocuments.Exists(d => d.FileName.Equals("แบบฟอร์ม IO.xlsx", StringComparison.OrdinalIgnoreCase))) {
+                FileInfo fi = new FileInfo(rootIo);
+                var item = new WardDocItem();
+                item.Id = "doc_root_io";
+                item.FileName = "แบบฟอร์ม IO.xlsx";
+                item.DownloadName = "แบบฟอร์ม IO.xlsx";
+                item.Title = "แบบฟอร์มบันทึก I/O ประจำวอร์ด";
+                item.Category = "แบบฟอร์มบันทึกทางการพยาบาล";
+                item.FileType = "xlsx";
+                item.Size = fi.Length;
+                item.UpdatedAt = fi.LastWriteTimeUtc.ToString("o");
+                item.UpdatedBy = "Local";
+                item.LocalPath = rootIo;
+                allDocuments.Add(item);
+            }
+
+            // Save refreshed catalog locally
+            SaveCatalogLocally();
+            ApplyFilter();
+        }
+
+        private static string GetDefaultCategoryForFile(string fn) {
+            string l = (fn ?? "").ToLower();
+            if (l.Contains("io") || l.Contains("i_o") || l.Contains("บันทึก") || l.Contains("record"))
+                return "แบบฟอร์มบันทึกทางการพยาบาล";
+            if (l.Contains("ประเมิน") || l.Contains("assessment") || l.Contains("score") || l.Contains("mews"))
+                return "แบบประเมินทางการพยาบาล";
+            if (l.Contains("cpg") || l.Contains("guideline") || l.Contains("แนวทาง") || l.Contains("flow"))
+                return "แนวทาง CPG / หัตถการ";
+            return "เอกสารและแบบฟอร์มทั่วไป";
+        }
+
+        private void ApplyFilter() {
+            string q = (txtSearch.Text ?? "").Trim().ToLower();
+            string cat = cboCategoryFilter.SelectedItem != null ? cboCategoryFilter.SelectedItem.ToString() : "ทั้งหมด (All)";
+
+            lvDocuments.BeginUpdate();
+            lvDocuments.Items.Clear();
+            filteredDocuments.Clear();
+
+            foreach (var doc in allDocuments) {
+                if (cat != "ทั้งหมด (All)" && !doc.Category.Equals(cat, StringComparison.OrdinalIgnoreCase)) {
+                    continue;
+                }
+                if (!string.IsNullOrEmpty(q)) {
+                    bool mTitle = (doc.Title ?? "").ToLower().Contains(q);
+                    bool mFile = (doc.FileName ?? "").ToLower().Contains(q);
+                    bool mCat = (doc.Category ?? "").ToLower().Contains(q);
+                    if (!mTitle && !mFile && !mCat) continue;
+                }
+
+                filteredDocuments.Add(doc);
+
+                ListViewItem lvi = new ListViewItem(doc.Title ?? doc.FileName);
+                lvi.SubItems.Add(doc.Category ?? "ทั่วไป");
+                lvi.SubItems.Add(doc.FileName ?? "");
+                lvi.SubItems.Add(string.Format("{0:N1} KB", doc.Size / 1024.0));
+
+                DateTime dt;
+                string timeStr = DateTime.TryParse(doc.UpdatedAt, out dt) ? dt.ToLocalTime().ToString("d/M/yyyy HH:mm") : "-";
+                lvi.SubItems.Add(timeStr);
+
+                lvi.Tag = doc;
+
+                if (doc.ExistsLocally) {
+                    lvi.ForeColor = Color.FromArgb(15, 23, 42);
+                } else {
+                    lvi.ForeColor = Color.FromArgb(100, 116, 139); // Cloud only
+                }
+
+                lvDocuments.Items.Add(lvi);
+            }
+
+            lvDocuments.EndUpdate();
+
+            if (lvDocuments.Items.Count > 0) {
+                int reselectIdx = 0;
+                if (selectedDoc != null) {
+                    for (int i = 0; i < lvDocuments.Items.Count; i++) {
+                        if (((WardDocItem)lvDocuments.Items[i].Tag).FileName == selectedDoc.FileName) {
+                            reselectIdx = i;
+                            break;
+                        }
+                    }
+                }
+                lvDocuments.Items[reselectIdx].Selected = true;
+            } else {
+                selectedDoc = null;
+                UpdateSelectedDocUI();
+            }
+        }
+
+        private void EditSelectedDocument() {
+            if (selectedDoc == null) {
+                MessageBox.Show("กรุณาเลือกเอกสารที่ต้องการแก้ไขก่อนครับ", "แจ้งเตือน", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            string defaultUploader = (txtUploaderName.Text ?? "").Trim();
+            using (var dlg = new EditWardDocDialog(selectedDoc, defaultUploader)) {
+                if (dlg.ShowDialog(this) == DialogResult.OK) {
+                    string oldTitle = selectedDoc.Title;
+                    selectedDoc.Title = dlg.NewTitle;
+                    selectedDoc.Category = dlg.NewCategory;
+                    selectedDoc.UpdatedAt = DateTime.UtcNow.ToString("o");
+                    selectedDoc.UpdatedBy = dlg.UploaderName;
+
+                    SaveCatalogLocally();
+
+                    if (context.GetSupabaseEnabled()) {
+                        try {
+                            var client = new SupabaseSyncClient(context.GetSupabaseUrl(), context.GetSupabaseKey());
+                            string payload = SerializeDocumentsCatalog(allDocuments);
+                            bool ok = client.SaveBed(100, payload);
+                            if (ok) {
+                                client.SaveHistory(100, "แก้ไขชื่อเอกสาร: " + selectedDoc.Title, "เดิม: " + oldTitle + " โดย " + dlg.UploaderName);
+                            }
+                        } catch (Exception ex) {
+                            Debug.WriteLine("Edit doc cloud save error: " + ex.Message);
+                        }
+                    }
+
+                    ApplyFilter();
+                    MessageBox.Show("✅ บันทึกการแก้ไขชื่อและหมวดหมู่เอกสารเรียบร้อยแล้ว!", "สำเร็จ", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
             }
         }
 
-        private void UploadNewDocument() {
-            if (chosenFilePaths == null || chosenFilePaths.Count == 0) {
-                if (!string.IsNullOrEmpty(chosenFilePath) && File.Exists(chosenFilePath)) {
-                    chosenFilePaths = new List<string> { chosenFilePath };
-                } else {
-                    MessageBox.Show("กรุณาเลือกไฟล์เอกสารก่อนครับ", "แจ้งเตือน", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    return;
+        private void ReplaceSelectedDocumentFile() {
+            if (selectedDoc == null) {
+                MessageBox.Show("กรุณาเลือกเอกสารที่ต้องการเปลี่ยนไฟล์ก่อนครับ", "แจ้งเตือน", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            using (OpenFileDialog ofd = new OpenFileDialog()) {
+                ofd.Filter = "Ward Documents (*.xlsx;*.xls;*.docx;*.doc;*.pdf)|*.xlsx;*.xls;*.docx;*.doc;*.pdf|All Files (*.*)|*.*";
+                ofd.Title = "เลือกไฟล์ใหม่ที่จะนำมาแทนที่เอกสาร: " + selectedDoc.Title;
+                if (ofd.ShowDialog(this) == DialogResult.OK) {
+                    try {
+                        byte[] bytes = File.ReadAllBytes(ofd.FileName);
+                        FileInfo fi = new FileInfo(ofd.FileName);
+                        string templatesDir = GetTemplatesDirectory();
+                        string setupTemplates = @"C:\Users\GORW01\Desktop\Medical_Text_Expander_Setup\templates";
+
+                        string dest = Path.Combine(templatesDir, fi.Name);
+                        File.WriteAllBytes(dest, bytes);
+                        if (Directory.Exists(setupTemplates)) {
+                            try { File.WriteAllBytes(Path.Combine(setupTemplates, fi.Name), bytes); } catch {}
+                        }
+
+                        string uploader = (txtUploaderName.Text ?? "").Trim();
+                        if (string.IsNullOrEmpty(uploader)) uploader = Environment.MachineName;
+
+                        selectedDoc.FileName = fi.Name;
+                        selectedDoc.DownloadName = fi.Name;
+                        selectedDoc.FileType = fi.Extension.TrimStart('.').ToLower();
+                        selectedDoc.Size = bytes.Length;
+                        selectedDoc.Base64 = Convert.ToBase64String(bytes);
+                        selectedDoc.UpdatedAt = DateTime.UtcNow.ToString("o");
+                        selectedDoc.UpdatedBy = uploader;
+                        selectedDoc.LocalPath = dest;
+
+                        SaveCatalogLocally();
+
+                        if (context.GetSupabaseEnabled()) {
+                            try {
+                                var client = new SupabaseSyncClient(context.GetSupabaseUrl(), context.GetSupabaseKey());
+                                string payload = SerializeDocumentsCatalog(allDocuments);
+                                bool ok = client.SaveBed(100, payload);
+                                if (ok) {
+                                    client.SaveHistory(100, "แทนที่ไฟล์เอกสาร: " + selectedDoc.Title, "ไฟล์ใหม่: " + fi.Name + " โดย " + uploader);
+                                }
+                            } catch (Exception ex) {
+                                Debug.WriteLine("Replace file cloud save error: " + ex.Message);
+                            }
+                        }
+
+                        ApplyFilter();
+                        MessageBox.Show("✅ อัปเดตและแทนที่ไฟล์เอกสารเรียบร้อยแล้ว!", "สำเร็จ", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    } catch (Exception ex) {
+                        MessageBox.Show("เกิดข้อผิดพลาดในการเปลี่ยนไฟล์: " + ex.Message, "ผิดพลาด", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                }
+            }
+        }
+
+        private void DeleteSelectedDocument() {
+            if (selectedDoc == null) {
+                MessageBox.Show("กรุณาเลือกเอกสารที่ต้องการลบก่อนครับ", "แจ้งเตือน", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            string msg = string.Format("คุณแน่ใจหรือไม่ว่าต้องการลบเอกสารนี้ออกจากระบบและ Cloud?\n\n" +
+                                       "• ชื่อเอกสาร: {0}\n" +
+                                       "• ชื่อไฟล์: {1}\n" +
+                                       "• หมวดหมู่: {2}\n\n" +
+                                       "* คำเตือน: ไฟล์ในเครื่องและบน Cloud จะถูกลบออกทันที",
+                                       selectedDoc.Title, selectedDoc.FileName, selectedDoc.Category);
+
+            var dr = MessageBox.Show(msg, "ยืนยันการลบเอกสาร", MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2);
+            if (dr != DialogResult.Yes) return;
+
+            string delTitle = selectedDoc.Title;
+            string delFile = selectedDoc.FileName;
+            string uploader = (txtUploaderName.Text ?? "").Trim();
+            if (string.IsNullOrEmpty(uploader)) uploader = Environment.MachineName;
+
+            // Delete physical local file
+            try {
+                if (!string.IsNullOrEmpty(selectedDoc.LocalPath) && File.Exists(selectedDoc.LocalPath)) {
+                    File.Delete(selectedDoc.LocalPath);
+                }
+                string setupFile = Path.Combine(@"C:\Users\GORW01\Desktop\Medical_Text_Expander_Setup\templates", delFile);
+                if (File.Exists(setupFile)) {
+                    File.Delete(setupFile);
+                }
+            } catch (Exception ex) {
+                Debug.WriteLine("Delete physical file error: " + ex.Message);
+            }
+
+            allDocuments.Remove(selectedDoc);
+            selectedDoc = null;
+
+            SaveCatalogLocally();
+
+            if (context.GetSupabaseEnabled()) {
+                try {
+                    var client = new SupabaseSyncClient(context.GetSupabaseUrl(), context.GetSupabaseKey());
+                    string payload = SerializeDocumentsCatalog(allDocuments);
+                    bool ok = client.SaveBed(100, payload);
+                    if (ok) {
+                        client.SaveHistory(100, "ลบเอกสารวอร์ด: " + delTitle, "ไฟล์: " + delFile + " โดย " + uploader);
+                    }
+                } catch (Exception ex) {
+                    Debug.WriteLine("Delete doc cloud save error: " + ex.Message);
                 }
             }
 
-            btnUploadNewVersion.Enabled = false;
-            btnUploadNewVersion.Text = "กำลังอัปโหลด...";
+            ApplyFilter();
+            MessageBox.Show(string.Format("🗑️ ลบเอกสาร [{0}] ออกจากระบบเรียบร้อยแล้ว", delTitle), "สำเร็จ", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+
+        private void ChooseNewFiles() {
+            using (OpenFileDialog ofd = new OpenFileDialog()) {
+                ofd.Filter = "Ward Documents (*.xlsx;*.xls;*.docx;*.doc;*.pdf)|*.xlsx;*.xls;*.docx;*.doc;*.pdf|All Files (*.*)|*.*";
+                ofd.Title = "เลือกไฟล์เอกสารหรือแบบฟอร์มประจำวอร์ด (เลือกได้หลายไฟล์พร้อมกัน)";
+                ofd.Multiselect = true;
+                if (ofd.ShowDialog(this) == DialogResult.OK) {
+                    chosenNewFilePaths.Clear();
+                    chosenNewFilePaths.AddRange(ofd.FileNames);
+                    if (chosenNewFilePaths.Count == 1) {
+                        FileInfo fi = new FileInfo(chosenNewFilePaths[0]);
+                        lblNewFiles.Text = fi.Name + string.Format(" ({0:N1} KB)", fi.Length / 1024.0);
+                    } else {
+                        lblNewFiles.Text = string.Format("เลือก {0} ไฟล์พร้อมกันสำหรับอัปโหลด", chosenNewFilePaths.Count);
+                    }
+                    lblNewFiles.ForeColor = Color.DarkGreen;
+                    btnUploadNew.Enabled = true;
+                }
+            }
+        }
+
+        private void UploadNewDocuments() {
+            if (chosenNewFilePaths == null || chosenNewFilePaths.Count == 0) {
+                MessageBox.Show("กรุณาเลือกไฟล์เอกสารก่อนครับ", "แจ้งเตือน", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            btnUploadNew.Enabled = false;
+            btnUploadNew.Text = "กำลังอัปโหลด...";
 
             try {
                 string templatesDir = GetTemplatesDirectory();
                 string setupTemplates = @"C:\Users\GORW01\Desktop\Medical_Text_Expander_Setup\templates";
-                string category = cboDocCategory.SelectedItem != null ? cboDocCategory.SelectedItem.ToString() : "แบบฟอร์มบันทึกทางการพยาบาล";
+                string category = cboNewCategory.SelectedItem != null ? cboNewCategory.SelectedItem.ToString() : "แบบฟอร์มบันทึกทางการพยาบาล";
                 string uploader = txtUploaderName.Text.Trim();
                 if (string.IsNullOrEmpty(uploader)) uploader = Environment.MachineName;
 
-                // Fetch existing catalog if Supabase enabled
-                string existingJson = null;
-                if (context.GetSupabaseEnabled()) {
-                    try {
-                        string fullUrl = context.GetSupabaseUrl().TrimEnd('/') + "/rest/v1/bed_notes?bed_number=eq.100&select=content";
-                        ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls12;
-                        HttpWebRequest req = (HttpWebRequest)WebRequest.Create(fullUrl);
-                        req.Headers["apikey"] = context.GetSupabaseKey();
-                        req.Headers["Authorization"] = "Bearer " + context.GetSupabaseKey();
-                        req.Timeout = 8000;
-
-                        using (var resp = (HttpWebResponse)req.GetResponse())
-                        using (var reader = new StreamReader(resp.GetResponseStream(), Encoding.UTF8)) {
-                            existingJson = reader.ReadToEnd();
-                        }
-                    } catch (Exception ex) {
-                        Debug.WriteLine("Fetch existing row 100 error: " + ex.Message);
-                    }
-                }
-
-                List<string> newDocJsonList = new List<string>();
                 List<string> processedTitles = new List<string>();
 
-                for (int i = 0; i < chosenFilePaths.Count; i++) {
-                    string filePath = chosenFilePaths[i];
+                for (int i = 0; i < chosenNewFilePaths.Count; i++) {
+                    string filePath = chosenNewFilePaths[i];
                     if (!File.Exists(filePath)) continue;
 
                     byte[] fileBytes = File.ReadAllBytes(filePath);
                     FileInfo fi = new FileInfo(filePath);
-                    string itemTitle = (chosenFilePaths.Count == 1) 
-                        ? (string.IsNullOrEmpty(txtDocTitle.Text.Trim()) ? Path.GetFileNameWithoutExtension(fi.Name) : txtDocTitle.Text.Trim())
-                        : Path.GetFileNameWithoutExtension(fi.Name);
+                    string itemTitle = Path.GetFileNameWithoutExtension(fi.Name);
 
-                    // 1. Copy to local templates directory
                     string destFile = Path.Combine(templatesDir, fi.Name);
                     File.WriteAllBytes(destFile, fileBytes);
 
@@ -2625,46 +3148,46 @@ namespace MedicalTextExpander {
                         } catch {}
                     }
 
-                    // Build doc json
                     string b64 = Convert.ToBase64String(fileBytes);
                     string ext = fi.Extension.TrimStart('.').ToLower();
                     string nowIso = DateTime.UtcNow.ToString("o");
 
-                    string itemJson = string.Format(
-                        "{{\"id\":\"doc_{0}_{1}\",\"title\":\"{2}\",\"category\":\"{3}\",\"filename\":\"{4}\",\"download_name\":\"{4}\",\"file_type\":\"{5}\",\"size\":{6},\"updated_at\":\"{7}\",\"updated_by\":\"{8}\",\"base64\":\"{9}\"}}",
-                        DateTime.UtcNow.Ticks, i, EscapeJsonString(itemTitle), EscapeJsonString(category), EscapeJsonString(fi.Name), ext, fileBytes.Length, nowIso, EscapeJsonString(uploader), b64
-                    );
+                    var existing = allDocuments.Find(d => d.FileName.Equals(fi.Name, StringComparison.OrdinalIgnoreCase));
+                    if (existing != null) {
+                        existing.Title = itemTitle;
+                        existing.Category = category;
+                        existing.Size = fileBytes.Length;
+                        existing.FileType = ext;
+                        existing.Base64 = b64;
+                        existing.UpdatedAt = nowIso;
+                        existing.UpdatedBy = uploader;
+                        existing.LocalPath = destFile;
+                    } else {
+                        var newDoc = new WardDocItem();
+                        newDoc.Id = "doc_" + DateTime.UtcNow.Ticks + "_" + i;
+                        newDoc.Title = itemTitle;
+                        newDoc.Category = category;
+                        newDoc.FileName = fi.Name;
+                        newDoc.DownloadName = fi.Name;
+                        newDoc.FileType = ext;
+                        newDoc.Size = fileBytes.Length;
+                        newDoc.Base64 = b64;
+                        newDoc.UpdatedAt = nowIso;
+                        newDoc.UpdatedBy = uploader;
+                        newDoc.LocalPath = destFile;
+                        allDocuments.Insert(0, newDoc);
+                    }
 
-                    newDocJsonList.Add(itemJson);
                     processedTitles.Add(itemTitle);
                 }
 
-                // 2. Upload catalog to Supabase row 100
+                SaveCatalogLocally();
+
                 bool supabaseOk = false;
-                if (context.GetSupabaseEnabled() && newDocJsonList.Count > 0) {
+                if (context.GetSupabaseEnabled()) {
                     try {
-                        string combinedNew = string.Join(",", newDocJsonList);
-                        string catalogPayload;
-
-                        if (!string.IsNullOrEmpty(existingJson) && existingJson.Contains("\"documents\":")) {
-                            var m = Regex.Match(existingJson, @"""documents"":\s*\[(.*)\]", RegexOptions.Singleline);
-                            if (m.Success) {
-                                string inner = m.Groups[1].Value.Trim();
-                                foreach (var fp in chosenFilePaths) {
-                                    string fn = Path.GetFileName(fp);
-                                    inner = Regex.Replace(inner, @"\{[^{}]*""filename"":\s*""" + Regex.Escape(fn) + @"""[^{}]*\},?", "");
-                                }
-                                inner = inner.Trim().TrimEnd(',');
-                                string combined = string.IsNullOrEmpty(inner) ? combinedNew : (combinedNew + "," + inner);
-                                catalogPayload = string.Format("{{\"version\":2,\"documents\":[{0}]}}", combined);
-                            } else {
-                                catalogPayload = string.Format("{{\"version\":2,\"documents\":[{0}]}}", combinedNew);
-                            }
-                        } else {
-                            catalogPayload = string.Format("{{\"version\":2,\"documents\":[{0}]}}", combinedNew);
-                        }
-
                         var client = new SupabaseSyncClient(context.GetSupabaseUrl(), context.GetSupabaseKey());
+                        string catalogPayload = SerializeDocumentsCatalog(allDocuments);
                         supabaseOk = client.SaveBed(100, catalogPayload);
                         if (supabaseOk) {
                             string sumTitle = string.Join(", ", processedTitles);
@@ -2675,12 +3198,11 @@ namespace MedicalTextExpander {
                     }
                 }
 
-                LoadLocalDocuments();
-                btnUploadNewVersion.Text = "☁️ บันทึกและอัปโหลดเอกสารสู่ Cloud";
-                btnUploadNewVersion.Enabled = false;
-                lblSelectedFile.Text = "(อัปโหลดเรียบร้อยแล้ว)";
-                chosenFilePath = null;
-                chosenFilePaths.Clear();
+                ApplyFilter();
+                btnUploadNew.Text = "☁️ บันทึกและอัปโหลดเอกสารใหม่สู่ Cloud";
+                btnUploadNew.Enabled = false;
+                lblNewFiles.Text = "(อัปโหลดเรียบร้อยแล้ว)";
+                chosenNewFilePaths.Clear();
 
                 string msg = string.Format("✅ บันทึกเอกสาร {0} รายการเรียบร้อยแล้ว!\n" +
                              "- บันทึกลงเครื่องและเทมเพลตประจำโปรแกรมแล้ว\n" +
@@ -2688,116 +3210,67 @@ namespace MedicalTextExpander {
                 MessageBox.Show(msg, "สำเร็จ", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
             } catch (Exception ex) {
-                btnUploadNewVersion.Enabled = true;
-                btnUploadNewVersion.Text = "☁️ บันทึกและอัปโหลดเอกสารสู่ Cloud";
+                btnUploadNew.Enabled = true;
+                btnUploadNew.Text = "☁️ บันทึกและอัปโหลดเอกสารใหม่สู่ Cloud";
                 MessageBox.Show("เกิดข้อผิดพลาดในการอัปโหลด: " + ex.Message, "ผิดพลาด", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
-        private static string EscapeJsonString(string s) {
-            if (string.IsNullOrEmpty(s)) return "";
-            return s.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\r", "").Replace("\n", " ");
-        }
-
-        private void LoadLocalDocuments() {
-            cboDocumentList.Items.Clear();
-            string dir = GetTemplatesDirectory();
-
-            // Also check root if templates directory is empty
-            if (Directory.Exists(dir)) {
-                var files = Directory.GetFiles(dir, "*.*");
-                foreach (var f in files) {
-                    string ext = Path.GetExtension(f).ToLower();
-                    if (ext == ".xlsx" || ext == ".xls" || ext == ".docx" || ext == ".doc" || ext == ".pdf") {
-                        cboDocumentList.Items.Add(Path.GetFileName(f));
-                    }
-                }
-            }
-
-            string rootIo = Path.Combine(context.AppBaseDir, "แบบฟอร์ม IO.xlsx");
-            if (File.Exists(rootIo) && !cboDocumentList.Items.Contains("แบบฟอร์ม IO.xlsx")) {
-                cboDocumentList.Items.Add("แบบฟอร์ม IO.xlsx");
-            }
-
-            if (cboDocumentList.Items.Count > 0) {
-                // Select IO template by default if found
-                int ioIdx = -1;
-                for (int i = 0; i < cboDocumentList.Items.Count; i++) {
-                    string item = cboDocumentList.Items[i].ToString();
-                    if (item.IndexOf("IO", StringComparison.OrdinalIgnoreCase) >= 0) {
-                        ioIdx = i;
-                        break;
-                    }
-                }
-                cboDocumentList.SelectedIndex = ioIdx >= 0 ? ioIdx : 0;
-            } else {
-                OnDocumentSelectionChanged();
-            }
-        }
-
-        private string GetSelectedDocumentPath() {
-            if (cboDocumentList.SelectedItem == null) {
-                string p = Path.Combine(GetTemplatesDirectory(), "แบบฟอร์ม_IO.xlsx");
-                if (File.Exists(p)) return p;
-                string p2 = Path.Combine(context.AppBaseDir, "แบบฟอร์ม IO.xlsx");
-                if (File.Exists(p2)) return p2;
-                return p;
-            }
-            string name = cboDocumentList.SelectedItem.ToString();
-            string path1 = Path.Combine(GetTemplatesDirectory(), name);
-            if (File.Exists(path1)) return path1;
-            string path2 = Path.Combine(context.AppBaseDir, name);
-            if (File.Exists(path2)) return path2;
-            return path1;
-        }
-
-        private void OnDocumentSelectionChanged() {
-            string path = GetSelectedDocumentPath();
-            if (File.Exists(path)) {
-                FileInfo fi = new FileInfo(path);
-                lblFileName.Text = "ชื่อไฟล์: " + fi.Name;
-                lblFileSize.Text = string.Format("ขนาด: {0:N1} KB", fi.Length / 1024.0);
-                lblFileTime.Text = "อัปเดตล่าสุด: " + fi.LastWriteTime.ToString("d/M/yyyy HH:mm น.");
-                lblCloudSyncInfo.Text = context.GetSupabaseEnabled() ? "สถานะ Cloud: เชื่อมต่อ Supabase Cloud (พร้อมซิงค์)" : "สถานะ: ใช้งานออฟไลน์ในเครื่อง";
-                lblCloudSyncInfo.ForeColor = context.GetSupabaseEnabled() ? Color.FromArgb(16, 185, 129) : Color.FromArgb(100, 116, 139);
-            } else {
-                lblFileName.Text = "ชื่อไฟล์: (ยังไม่พบไฟล์ในเครื่อง)";
-                lblFileSize.Text = "ขนาด: --";
-                lblFileTime.Text = "อัปเดตล่าสุด: --";
-                lblCloudSyncInfo.Text = "สามารถกดปุ่ม '☁️ ซิงค์จาก Cloud' เพื่อดึงเอกสารลงมาได้";
-                lblCloudSyncInfo.ForeColor = Color.FromArgb(217, 119, 6);
-            }
-        }
-
         private void OpenSelectedDocument() {
-            string path = GetSelectedDocumentPath();
-            if (!File.Exists(path)) {
-                if (!SyncDocumentsFromCloudManual()) {
-                    MessageBox.Show("ยังไม่พบไฟล์เอกสารในเครื่อง กรุณากดปุ่ม 'ซิงค์จาก Cloud' หรือให้อัปโหลดไฟล์ใหม่ครับ", "ไม่พบไฟล์", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    return;
+            if (selectedDoc == null) {
+                MessageBox.Show("กรุณาเลือกเอกสารที่ต้องการเปิดก่อนครับ", "แจ้งเตือน", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            if (!selectedDoc.ExistsLocally) {
+                if (!string.IsNullOrEmpty(selectedDoc.Base64)) {
+                    try {
+                        byte[] bytes = Convert.FromBase64String(selectedDoc.Base64);
+                        string dest = Path.Combine(GetTemplatesDirectory(), selectedDoc.FileName);
+                        File.WriteAllBytes(dest, bytes);
+                        selectedDoc.LocalPath = dest;
+                    } catch {}
+                } else {
+                    if (!SyncDocumentsFromCloudManual()) {
+                        MessageBox.Show("ยังไม่พบไฟล์เอกสารในเครื่อง กรุณากดปุ่ม 'ซิงค์ Cloud' เพื่อดึงไฟล์ลงมาครับ", "ไม่พบไฟล์", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        return;
+                    }
                 }
-                path = GetSelectedDocumentPath();
             }
 
             try {
-                Process.Start(path);
+                if (File.Exists(selectedDoc.LocalPath)) {
+                    Process.Start(selectedDoc.LocalPath);
+                } else {
+                    MessageBox.Show("ไม่พบไฟล์เอกสารในเครื่อง: " + selectedDoc.FileName, "ไม่พบไฟล์", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
             } catch (Exception ex) {
                 MessageBox.Show("ไม่สามารถเปิดไฟล์ได้: " + ex.Message, "ผิดพลาด", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
         private void SaveCopyAs() {
-            string srcPath = GetSelectedDocumentPath();
-            if (!File.Exists(srcPath)) {
-                if (!SyncDocumentsFromCloudManual()) {
-                    MessageBox.Show("ไม่พบไฟล์ต้นฉบับที่จะบันทึกสำเนา", "ไม่พบไฟล์", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    return;
-                }
-                srcPath = GetSelectedDocumentPath();
+            if (selectedDoc == null) {
+                MessageBox.Show("กรุณาเลือกเอกสารที่ต้องการบันทึกสำเนาก่อนครับ", "แจ้งเตือน", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
             }
 
-            string fn = Path.GetFileName(srcPath);
-            string ext = Path.GetExtension(srcPath).ToLower();
+            if (!selectedDoc.ExistsLocally && !string.IsNullOrEmpty(selectedDoc.Base64)) {
+                try {
+                    byte[] bytes = Convert.FromBase64String(selectedDoc.Base64);
+                    string dest = Path.Combine(GetTemplatesDirectory(), selectedDoc.FileName);
+                    File.WriteAllBytes(dest, bytes);
+                    selectedDoc.LocalPath = dest;
+                } catch {}
+            }
+
+            if (!selectedDoc.ExistsLocally) {
+                MessageBox.Show("ไม่พบไฟล์ต้นฉบับในเครื่อง กรุณากดซิงค์ Cloud ก่อนครับ", "ไม่พบไฟล์", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            string fn = selectedDoc.FileName;
+            string ext = Path.GetExtension(fn).ToLower();
             string filter = "All Files (*.*)|*.*";
             if (ext == ".xlsx" || ext == ".xls") filter = "Excel Files (*.xlsx;*.xls)|*.xlsx;*.xls|All Files (*.*)|*.*";
             else if (ext == ".docx" || ext == ".doc") filter = "Word Documents (*.docx;*.doc)|*.docx;*.doc|All Files (*.*)|*.*";
@@ -2809,7 +3282,7 @@ namespace MedicalTextExpander {
                 sfd.Title = "บันทึกสำเนาเอกสารประจำวอร์ด";
                 if (sfd.ShowDialog(this) == DialogResult.OK) {
                     try {
-                        File.Copy(srcPath, sfd.FileName, true);
+                        File.Copy(selectedDoc.LocalPath, sfd.FileName, true);
                         MessageBox.Show("บันทึกสำเนาสำเร็จที่:\n" + sfd.FileName, "สำเร็จ", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     } catch (Exception ex) {
                         MessageBox.Show("บันทึกล้มเหลว: " + ex.Message, "ผิดพลาด", MessageBoxButtons.OK, MessageBoxIcon.Error);
@@ -2838,8 +3311,17 @@ namespace MedicalTextExpander {
                     jsonMeta = reader.ReadToEnd();
                 }
 
-                if (string.IsNullOrEmpty(jsonMeta) || !jsonMeta.Contains("\"base64\"")) {
+                if (string.IsNullOrEmpty(jsonMeta) || !jsonMeta.Contains("\"documents\"")) {
                     MessageBox.Show("ไม่พบข้อมูลเอกสารบน Cloud", "แจ้งเตือน", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return false;
+                }
+
+                Match mContent = Regex.Match(jsonMeta, @"""content""\s*:\s*""((?:\\""|[^""])*)""", RegexOptions.Singleline);
+                string catalogJson = mContent.Success ? SupabaseSyncClient.UnescapeJson(mContent.Groups[1].Value) : jsonMeta;
+
+                var cloudDocs = ParseDocumentsCatalog(catalogJson);
+                if (cloudDocs.Count == 0) {
+                    MessageBox.Show("ไม่พบเอกสารในคลัง Cloud", "แจ้งเตือน", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     return false;
                 }
 
@@ -2850,50 +3332,138 @@ namespace MedicalTextExpander {
                 }
 
                 int filesSynced = 0;
-
-                // Match all documents with filename & base64
-                var matches = Regex.Matches(jsonMeta, @"\{[^{}]*""filename"":\s*""(?<fn>[^""]+)""[^{}]*""base64"":\s*""(?<b64>[^""]+)""[^{}]*\}");
-                if (matches.Count > 0) {
-                    foreach (Match m in matches) {
-                        string fn = m.Groups["fn"].Value;
-                        string b64 = m.Groups["b64"].Value;
+                foreach (var doc in cloudDocs) {
+                    if (!string.IsNullOrEmpty(doc.Base64)) {
                         try {
-                            byte[] fileBytes = Convert.FromBase64String(b64);
-                            File.WriteAllBytes(Path.Combine(templatesDir, fn), fileBytes);
+                            byte[] bytes = Convert.FromBase64String(doc.Base64);
+                            string dest = Path.Combine(templatesDir, doc.FileName);
+                            File.WriteAllBytes(dest, bytes);
+                            doc.LocalPath = dest;
+                            doc.Size = bytes.Length;
+
                             if (Directory.Exists(setupTemplates)) {
-                                try { File.WriteAllBytes(Path.Combine(setupTemplates, fn), fileBytes); } catch {}
+                                try { File.WriteAllBytes(Path.Combine(setupTemplates, doc.FileName), bytes); } catch {}
                             }
-                            if (fn.IndexOf("IO", StringComparison.OrdinalIgnoreCase) >= 0) {
-                                File.WriteAllBytes(Path.Combine(templatesDir, "แบบฟอร์ม_IO.xlsx"), fileBytes);
-                                File.WriteAllBytes(Path.Combine(templatesDir, "IO_Template.xlsx"), fileBytes);
+
+                            if (doc.FileName.IndexOf("IO", StringComparison.OrdinalIgnoreCase) >= 0) {
+                                File.WriteAllBytes(Path.Combine(templatesDir, "แบบฟอร์ม_IO.xlsx"), bytes);
+                                File.WriteAllBytes(Path.Combine(templatesDir, "IO_Template.xlsx"), bytes);
                             }
                             filesSynced++;
                         } catch {}
                     }
-                } else {
-                    // Fallback to single base64 match
-                    var mSingle = Regex.Match(jsonMeta, @"""base64"":\s*""([^""]+)""");
-                    if (mSingle.Success) {
-                        byte[] fileBytes = Convert.FromBase64String(mSingle.Groups[1].Value);
-                        File.WriteAllBytes(Path.Combine(templatesDir, "แบบฟอร์ม_IO.xlsx"), fileBytes);
-                        File.WriteAllBytes(Path.Combine(templatesDir, "IO_Template.xlsx"), fileBytes);
-                        if (Directory.Exists(setupTemplates)) {
-                            try {
-                                File.WriteAllBytes(Path.Combine(setupTemplates, "แบบฟอร์ม_IO.xlsx"), fileBytes);
-                                File.WriteAllBytes(Path.Combine(setupTemplates, "IO_Template.xlsx"), fileBytes);
-                            } catch {}
-                        }
-                        filesSynced++;
+
+                    var existing = allDocuments.Find(d => d.FileName.Equals(doc.FileName, StringComparison.OrdinalIgnoreCase));
+                    if (existing != null) {
+                        existing.Title = doc.Title;
+                        existing.Category = doc.Category;
+                        existing.Size = doc.Size;
+                        existing.UpdatedAt = doc.UpdatedAt;
+                        existing.UpdatedBy = doc.UpdatedBy;
+                        existing.Base64 = doc.Base64;
+                        existing.LocalPath = doc.LocalPath;
+                    } else {
+                        allDocuments.Add(doc);
                     }
                 }
 
-                LoadLocalDocuments();
+                SaveCatalogLocally();
+                ApplyFilter();
                 MessageBox.Show(string.Format("✅ ซิงค์เอกสารและแบบฟอร์มจาก Cloud เรียบร้อยแล้ว ({0} ไฟล์)!", filesSynced), "สำเร็จ", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return true;
             } catch (Exception ex) {
                 MessageBox.Show("ไม่สามารถเชื่อมต่อ Cloud ได้: " + ex.Message, "ผิดพลาด", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
             return false;
+        }
+
+        private void SaveCatalogLocally() {
+            try {
+                string dir = GetTemplatesDirectory();
+                string catPath = Path.Combine(dir, "catalog.json");
+                string json = SerializeDocumentsCatalog(allDocuments);
+                File.WriteAllText(catPath, json, Encoding.UTF8);
+
+                string setupDir = @"C:\Users\GORW01\Desktop\Medical_Text_Expander_Setup\templates";
+                if (Directory.Exists(setupDir)) {
+                    File.WriteAllText(Path.Combine(setupDir, "catalog.json"), json, Encoding.UTF8);
+                }
+            } catch (Exception ex) {
+                Debug.WriteLine("SaveCatalogLocally warning: " + ex.Message);
+            }
+        }
+
+        public static List<WardDocItem> ParseDocumentsCatalog(string json) {
+            var list = new List<WardDocItem>();
+            if (string.IsNullOrEmpty(json)) return list;
+
+            Match mDocs = Regex.Match(json, @"""documents""\s*:\s*\[(?<arr>.*)\]", RegexOptions.Singleline);
+            if (!mDocs.Success) return list;
+
+            string arr = mDocs.Groups["arr"].Value;
+            var matches = Regex.Matches(arr, @"\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}");
+            foreach (Match m in matches) {
+                string objStr = m.Value;
+                string fn = ExtractJsonProp(objStr, "filename");
+                string title = ExtractJsonProp(objStr, "title");
+                if (string.IsNullOrEmpty(fn) && string.IsNullOrEmpty(title)) continue;
+
+                var item = new WardDocItem();
+                item.Id = ExtractJsonProp(objStr, "id");
+                item.Title = !string.IsNullOrEmpty(title) ? title : fn;
+                item.Category = ExtractJsonProp(objStr, "category");
+                if (string.IsNullOrEmpty(item.Category)) item.Category = "แบบฟอร์มบันทึกทางการพยาบาล";
+                item.FileName = fn;
+                item.DownloadName = ExtractJsonProp(objStr, "download_name");
+                if (string.IsNullOrEmpty(item.DownloadName)) item.DownloadName = item.FileName;
+                item.FileType = ExtractJsonProp(objStr, "file_type");
+                item.UpdatedAt = ExtractJsonProp(objStr, "updated_at");
+                item.UpdatedBy = ExtractJsonProp(objStr, "updated_by");
+                item.Base64 = ExtractJsonProp(objStr, "base64");
+
+                long sz = 0;
+                long.TryParse(ExtractJsonProp(objStr, "size"), out sz);
+                item.Size = sz;
+
+                list.Add(item);
+            }
+            return list;
+        }
+
+        private static string ExtractJsonProp(string objJson, string propName) {
+            if (string.IsNullOrEmpty(objJson)) return "";
+            Match m = Regex.Match(objJson, @"""" + Regex.Escape(propName) + @"""\s*:\s*""((?:\\""|[^""])*)""", RegexOptions.Singleline);
+            if (m.Success) {
+                return SupabaseSyncClient.UnescapeJson(m.Groups[1].Value);
+            }
+            Match mNum = Regex.Match(objJson, @"""" + Regex.Escape(propName) + @"""\s*:\s*([0-9]+)", RegexOptions.Singleline);
+            if (mNum.Success) {
+                return mNum.Groups[1].Value;
+            }
+            return "";
+        }
+
+        public static string SerializeDocumentsCatalog(List<WardDocItem> docs) {
+            var sb = new StringBuilder();
+            sb.Append("{\"version\":2,\"documents\":[");
+            for (int i = 0; i < docs.Count; i++) {
+                if (i > 0) sb.Append(",");
+                var d = docs[i];
+                sb.Append("{");
+                sb.AppendFormat("\"id\":\"{0}\",", SupabaseSyncClient.EscapeJson(d.Id ?? ("doc_" + DateTime.UtcNow.Ticks + "_" + i)));
+                sb.AppendFormat("\"title\":\"{0}\",", SupabaseSyncClient.EscapeJson(d.Title ?? ""));
+                sb.AppendFormat("\"category\":\"{0}\",", SupabaseSyncClient.EscapeJson(d.Category ?? "แบบฟอร์มบันทึกทางการพยาบาล"));
+                sb.AppendFormat("\"filename\":\"{0}\",", SupabaseSyncClient.EscapeJson(d.FileName ?? ""));
+                sb.AppendFormat("\"download_name\":\"{0}\",", SupabaseSyncClient.EscapeJson(d.DownloadName ?? d.FileName ?? ""));
+                sb.AppendFormat("\"file_type\":\"{0}\",", SupabaseSyncClient.EscapeJson(d.FileType ?? ""));
+                sb.AppendFormat("\"size\":{0},", d.Size);
+                sb.AppendFormat("\"updated_at\":\"{0}\",", SupabaseSyncClient.EscapeJson(d.UpdatedAt ?? DateTime.UtcNow.ToString("o")));
+                sb.AppendFormat("\"updated_by\":\"{0}\",", SupabaseSyncClient.EscapeJson(d.UpdatedBy ?? "Admin"));
+                sb.AppendFormat("\"base64\":\"{0}\"", d.Base64 ?? "");
+                sb.Append("}");
+            }
+            sb.Append("]}");
+            return sb.ToString();
         }
     }
 

@@ -15,7 +15,7 @@
   <!-- FontAwesome Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   
-  <link rel="stylesheet" href="style.css?v=1.6.8">
+  <link rel="stylesheet" href="style.css?v=1.6.9">
 </head>
 <body>
   <!-- Top Navigation Bar -->
@@ -560,11 +560,50 @@
     </div>
   </div>
 
-  <!-- Toast Notification Container -->
+  <!-- Edit Document Modal (Admin) -->
+  <div class="modal-overlay" id="editDocModal" aria-hidden="true">
+    <div class="modal-card" style="max-width: 480px;">
+      <div class="modal-header docs-modal-header" style="background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);">
+        <div class="modal-header-left">
+          <span class="modal-badge-docs"><i class="fa-solid fa-pen-to-square"></i> Edit Document</span>
+          <h2 class="modal-title">✏️ แก้ไขชื่อและหมวดหมู่เอกสาร</h2>
+        </div>
+        <button class="modal-close-btn" id="btnCancelEditDoc" aria-label="ปิด"><i class="fa-solid fa-xmark"></i></button>
+      </div>
 
+      <div class="modal-body" style="padding: 16px 20px;">
+        <div class="doc-form-group" style="margin-bottom: 12px;">
+          <label class="doc-form-label"><i class="fa-solid fa-paperclip"></i> ชื่อไฟล์ต้นฉบับ</label>
+          <input type="text" id="editDocFilename" class="doc-form-input" disabled style="opacity: 0.75; background: var(--bg-hover);">
+        </div>
+        <div class="doc-form-group" style="margin-bottom: 12px;">
+          <label class="doc-form-label"><i class="fa-solid fa-file-signature"></i> ชื่อเอกสาร (ที่จะแสดงในระบบ)</label>
+          <input type="text" id="editDocTitle" class="doc-form-input" placeholder="ระบุชื่อเอกสาร..." maxlength="100">
+        </div>
+        <div class="doc-form-group" style="margin-bottom: 12px;">
+          <label class="doc-form-label"><i class="fa-solid fa-tag"></i> หมวดหมู่เอกสาร</label>
+          <select id="editDocCategory" class="doc-form-select">
+            <option value="แบบฟอร์มบันทึกทางการพยาบาล">แบบฟอร์มบันทึกทางการพยาบาล</option>
+            <option value="แบบประเมินทางการพยาบาล">แบบประเมินทางการพยาบาล</option>
+            <option value="แนวทาง CPG / หัตถการ">แนวทาง CPG / หัตถการ</option>
+            <option value="เอกสารและแบบฟอร์มทั่วไป">เอกสารและแบบฟอร์มทั่วไป</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="modal-footer io-modal-footer">
+        <button type="button" class="btn btn-secondary btn-sm" id="btnCloseEditDocModal">ยกเลิก</button>
+        <button type="button" class="btn btn-primary btn-sm" id="btnSaveEditDoc" style="background: #2563eb; color: #ffffff; border: none; padding: 7px 18px; border-radius: var(--radius-sm); font-weight: 600; cursor: pointer;">
+          <i class="fa-solid fa-floppy-disk"></i> บันทึกการแก้ไข
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
   <div class="toast-container" id="toastContainer"></div>
 
   <!-- Application Logic -->
-  <script src="app.js?v=1.6.8"></script>
+  <script src="app.js?v=1.6.9"></script>
 </body>
 </html>

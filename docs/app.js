@@ -2185,6 +2185,21 @@ function initDocumentsSystem() {
     });
   }
 
+  // Edit Doc Modal controls
+  const btnCancelEditDoc = document.getElementById('btnCancelEditDoc');
+  const btnCloseEditDocModal = document.getElementById('btnCloseEditDocModal');
+  const btnSaveEditDoc = document.getElementById('btnSaveEditDoc');
+  const editDocModal = document.getElementById('editDocModal');
+
+  if (btnCancelEditDoc) btnCancelEditDoc.addEventListener('click', closeEditDocModal);
+  if (btnCloseEditDocModal) btnCloseEditDocModal.addEventListener('click', closeEditDocModal);
+  if (btnSaveEditDoc) btnSaveEditDoc.addEventListener('click', saveEditedDocument);
+  if (editDocModal) {
+    editDocModal.addEventListener('click', (e) => {
+      if (e.target === editDocModal) closeEditDocModal();
+    });
+  }
+
   // Search input events
   if (docSearchInput) {
     docSearchInput.addEventListener('input', (e) => {
@@ -2739,6 +2754,10 @@ function renderDocumentsList() {
           <span>ดาวน์โหลด</span>
         </button>
         ${isDocsAdminUnlocked ? `
+          <button type="button" class="btn-doc-edit" data-doc-id="${doc.id}" title="แก้ไขชื่อและหมวดหมู่">
+            <i class="fa-solid fa-pen-to-square"></i>
+            <span>แก้ไข</span>
+          </button>
           <button type="button" class="btn-doc-delete" data-doc-id="${doc.id}" title="ลบเอกสารนี้ออกจากระบบ">
             <i class="fa-solid fa-trash-can"></i>
           </button>
@@ -2750,6 +2769,12 @@ function renderDocumentsList() {
     const dlBtn = card.querySelector('.btn-doc-download');
     if (dlBtn) {
       dlBtn.addEventListener('click', () => downloadDocument(doc));
+    }
+
+    // Edit Handler (Admin Mode)
+    const editBtn = card.querySelector('.btn-doc-edit');
+    if (editBtn) {
+      editBtn.addEventListener('click', () => openEditDocModal(doc));
     }
 
     // Delete Handler (Admin Mode)
@@ -2947,6 +2972,100 @@ async function confirmDeleteDocument(doc) {
     showToast(`🗑️ ลบเอกสาร [${doc.title || doc.filename}] เรียบร้อยแล้ว`, 'info');
   } catch (err) {
     showToast('❌ ไม่สามารถลบเอกสารได้ กรุณาลองใหม่อีกครั้ง', 'error');
+  }
+}
+
+let currentlyEditingDoc = null;
+
+function openEditDocModal(doc) {
+  currentlyEditingDoc = doc;
+  const modal = document.getElementById('editDocModal');
+  const txtFilename = document.getElementById('editDocFilename');
+  const txtTitle = document.getElementById('editDocTitle');
+  const selCat = document.getElementById('editDocCategory');
+  if (!modal || !doc) return;
+
+  if (txtFilename) txtFilename.value = doc.filename || '';
+  if (txtTitle) txtTitle.value = doc.title || doc.filename || '';
+  if (selCat) {
+    const opts = Array.from(selCat.options).map(o => o.value);
+    if (opts.includes(doc.category)) {
+      selCat.value = doc.category;
+    } else {
+      selCat.selectedIndex = 0;
+    }
+  }
+
+  modal.classList.add('open');
+  modal.setAttribute('aria-hidden', 'false');
+  if (txtTitle) {
+    setTimeout(() => {
+      txtTitle.focus();
+      txtTitle.select();
+    }, 150);
+  }
+}
+
+function closeEditDocModal() {
+  const modal = document.getElementById('editDocModal');
+  if (modal) {
+    modal.classList.remove('open');
+    modal.setAttribute('aria-hidden', 'true');
+  }
+  currentlyEditingDoc = null;
+}
+
+async function saveEditedDocument() {
+  if (!currentlyEditingDoc) return;
+  const txtTitle = document.getElementById('editDocTitle');
+  const selCat = document.getElementById('editDocCategory');
+  const newTitle = (txtTitle ? txtTitle.value : '').trim();
+  const newCat = selCat ? selCat.value : currentlyEditingDoc.category;
+
+  if (!newTitle) {
+    showToast('กรุณาระบุชื่อเอกสาร', 'warning');
+    if (txtTitle) txtTitle.focus();
+    return;
+  }
+
+  const btnSave = document.getElementById('btnSaveEditDoc');
+  if (btnSave) {
+    btnSave.disabled = true;
+    btnSave.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังบันทึก...';
+  }
+
+  const oldTitle = currentlyEditingDoc.title;
+  currentlyEditingDoc.title = newTitle;
+  currentlyEditingDoc.category = newCat;
+  currentlyEditingDoc.updated_at = new Date().toISOString();
+
+  const jsonString = JSON.stringify(currentDocsCatalog);
+
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/bed_notes?bed_number=eq.100`, {
+      method: 'PATCH',
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        content: jsonString,
+        updated_at: currentlyEditingDoc.updated_at,
+        updated_by: 'Admin'
+      })
+    });
+    try { localStorage.setItem('ward_docs_catalog', jsonString); } catch {}
+    closeEditDocModal();
+    renderDocumentsList();
+    showToast(`✏️ บันทึกการแก้ไข [${newTitle}] เรียบร้อยแล้ว`, 'success');
+  } catch (err) {
+    showToast('❌ บันทึกการแก้ไขล้มเหลว กรุณาลองใหม่อีกครั้ง', 'error');
+  } finally {
+    if (btnSave) {
+      btnSave.disabled = false;
+      btnSave.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> บันทึกการแก้ไข';
+    }
   }
 }
 
