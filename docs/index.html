@@ -15,7 +15,7 @@
   <!-- FontAwesome Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   
-  <link rel="stylesheet" href="style.css?v=1.6.3">
+  <link rel="stylesheet" href="style.css?v=1.6.5">
 </head>
 <body>
   <!-- Top Navigation Bar -->
@@ -37,6 +37,10 @@
           <span class="status-label" id="cloudStatusText">กำลังเชื่อมต่อ...</span>
         </div>
         
+        <button class="nav-templates-btn nav-io-btn" id="openIoModalBtn" title="เปิดหน้าต่างดาวน์โหลดและจัดการแบบฟอร์ม I/O (Excel)">
+          <i class="fa-solid fa-file-excel"></i>
+          <span class="nav-btn-text">แบบฟอร์ม I/O</span>
+        </button>
         <button class="nav-templates-btn" id="openTemplateLibraryBtn" title="เปิดคลังข้อวินิจฉัยและกิจกรรมพยาบาล (Templates)">
           <i class="fa-solid fa-book-medical"></i>
           <span class="nav-btn-text">คลังเทมเพลต (DAR)</span>
@@ -149,7 +153,7 @@
         <!-- Quick Templates Bar -->
         <div class="quick-templates-bar">
           <button type="button" class="btn-picker-trigger" id="btnOpenTemplatePicker" title="เปิดคลังเลือกข้อวินิจฉัยและกิจกรรมการพยาบาล">
-            <i class="fa-solid fa-book-medical"></i> เลือกข้อวินิจฉัย/DAR (62 เทมเพลต)
+            <i class="fa-solid fa-book-medical"></i> เลือกข้อวินิจฉัย/DAR (110 เทมเพลต)
           </button>
           <span class="quick-divider">|</span>
           <span class="quick-label"><i class="fa-solid fa-bolt"></i> แทรกด่วน:</span>
@@ -376,6 +380,17 @@
                 </div>
               </div>
 
+              <!-- Shift Filter Bar (Morning, Afternoon, Night, All) -->
+              <div class="preview-shift-bar" id="previewShiftBar" style="display: none;">
+                <span class="shift-bar-label"><i class="fa-solid fa-clock"></i> กิจกรรมตามเวร:</span>
+                <div class="shift-tabs">
+                  <button type="button" class="shift-tab-btn" data-shift="morning" id="tabShiftMorning" title="เวรเช้า (08:00-16:00)">☀️ เวรเช้า</button>
+                  <button type="button" class="shift-tab-btn" data-shift="afternoon" id="tabShiftAfternoon" title="เวรบ่าย (16:00-24:00)">⛅ เวรบ่าย</button>
+                  <button type="button" class="shift-tab-btn" data-shift="night" id="tabShiftNight" title="เวรดึก (24:00-08:00)">🌙 เวรดึก</button>
+                  <button type="button" class="shift-tab-btn active" data-shift="all" id="tabShiftAll" title="แสดงรวมทุกเวร">📋 รวมทุกเวร</button>
+                </div>
+              </div>
+
               <div class="preview-header-actions">
                 <div class="bed-target-select-wrapper" id="bedTargetSelectWrapper" style="display: none;">
                   <span class="target-bed-label">ใส่เตียง:</span>
@@ -415,11 +430,124 @@
     </div>
   </div>
 
+  <!-- Ward I/O Template Modal (Download & Admin Upload) -->
+  <div class="modal-overlay" id="ioModal" aria-hidden="true">
+    <div class="modal-card io-modal-card">
+      <div class="modal-header io-modal-header">
+        <div class="modal-header-left">
+          <span class="modal-badge-io"><i class="fa-solid fa-file-excel"></i> Excel Template</span>
+          <h2 class="modal-title">แบบฟอร์มบันทึก Intake / Output (I/O)</h2>
+        </div>
+        <button class="modal-close-btn" id="ioModalCloseBtn" aria-label="ปิดหน้าต่าง"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <div class="modal-body io-modal-body">
+        <!-- Active Template Card -->
+        <div class="io-template-card">
+          <div class="io-file-icon">
+            <i class="fa-solid fa-file-excel"></i>
+          </div>
+          <div class="io-file-details">
+            <div class="io-file-title" id="ioTemplateFileName">แบบฟอร์ม IO.xlsx</div>
+            <div class="io-file-meta">
+              <span class="io-meta-tag" id="ioTemplateSize"><i class="fa-solid fa-hard-drive"></i> 76.9 KB</span>
+              <span class="io-meta-tag" id="ioTemplateTime"><i class="fa-regular fa-clock"></i> ซิงค์ล่าสุด: กำลังโหลด...</span>
+              <span class="io-meta-tag" id="ioTemplateUploader"><i class="fa-solid fa-user-check"></i> โดย Admin</span>
+            </div>
+            <p class="io-file-desc">แบบฟอร์ม Excel บันทึกและคำนวณปริมาณสารน้ำเข้า-ออกร่างกาย (Intake / Output Record) สำหรับใช้งานประจำหอผู้ป่วย</p>
+          </div>
+        </div>
+
+        <!-- Download Action Box -->
+        <div class="io-action-box">
+          <button type="button" class="btn-io-download" id="btnDownloadIoTemplate">
+            <i class="fa-solid fa-cloud-arrow-down"></i>
+            <span>ดาวน์โหลดแบบฟอร์ม I/O (.xlsx) ไปใช้งาน</span>
+          </button>
+          <div class="io-download-hint">
+            <i class="fa-solid fa-circle-check"></i> ใช้งานได้บน Microsoft Excel, Numbers, WPS Office และ Google Sheets ทั้งบน PC, iPad และสมาร์ทโฟน
+          </div>
+        </div>
+
+        <!-- Admin Management Accordion -->
+        <div class="io-admin-wrapper">
+          <div class="io-admin-toggle" id="ioAdminToggle" role="button" tabindex="0">
+            <div class="io-admin-toggle-left">
+              <i class="fa-solid fa-shield-halved"></i>
+              <span>จัดการและอัปโหลดเทมเพลตเวอร์ชันใหม่ (สำหรับ Admin / หัวหน้าเวร)</span>
+            </div>
+            <i class="fa-solid fa-chevron-down" id="ioAdminChevron"></i>
+          </div>
+
+          <div class="io-admin-panel" id="ioAdminPanel" style="display: none;">
+            <!-- Password Gate -->
+            <div class="io-admin-gate" id="ioAdminGate">
+              <p class="io-gate-desc">กรุณาใส่รหัสผ่านผู้ดูแลระบบ (Admin Password) เพื่อเลือกไฟล์ Excel และอัปเดตเวอร์ชันใหม่:</p>
+              <div class="io-pass-row">
+                <div class="io-input-wrap">
+                  <i class="fa-solid fa-key"></i>
+                  <input type="password" id="ioAdminPassword" placeholder="รหัสผ่าน Admin..." autocomplete="off">
+                </div>
+                <button type="button" class="btn-unlock-admin" id="btnUnlockIoAdmin">
+                  <i class="fa-solid fa-unlock-keyhole"></i> ปลดล็อก
+                </button>
+              </div>
+            </div>
+
+            <!-- Upload Form (Unlocked) -->
+            <div class="io-upload-section" id="ioUploadSection" style="display: none;">
+              <div class="io-admin-badge-success">
+                <i class="fa-solid fa-lock-open"></i> ได้รับสิทธิ์ผู้ดูแลระบบเรียบร้อย (Admin Mode)
+              </div>
+
+              <div class="io-drop-zone" id="ioDropZone">
+                <i class="fa-solid fa-cloud-arrow-up drop-zone-icon"></i>
+                <p class="drop-zone-text">ลากไฟล์ Excel (.xlsx, .xls) มาวางที่นี่ หรือ <strong>คลิกเพื่อเลือกไฟล์</strong></p>
+                <span class="drop-zone-sub">ไฟล์จะถูกบันทึกลง Cloud อัตโนมัติ ทุกเครื่องและมือถือในวอร์ดจะได้รับเวอร์ชันใหม่ทันที</span>
+                <input type="file" id="ioFileInput" accept=".xlsx, .xls" style="display: none;">
+              </div>
+
+              <div class="io-selected-file" id="ioSelectedFile" style="display: none;">
+                <div class="selected-file-info">
+                  <i class="fa-solid fa-file-excel file-icon-selected"></i>
+                  <div>
+                    <strong id="ioSelectedFileName">filename.xlsx</strong>
+                    <span id="ioSelectedFileSize">(0 KB)</span>
+                  </div>
+                </div>
+                <button type="button" class="btn-remove-selected" id="btnRemoveSelectedFile" title="ยกเลิกไฟล์นี้"><i class="fa-solid fa-xmark"></i></button>
+              </div>
+
+              <div class="io-upload-meta-row">
+                <div class="io-input-wrap flex-1">
+                  <i class="fa-solid fa-user-pen"></i>
+                  <input type="text" id="ioUploaderName" class="io-uploader-input" placeholder="ชื่อผู้แก้ไข / หัวหน้าเวร (เช่น พี่วิ Nurse In-charge)" maxlength="50">
+                </div>
+                <button type="button" class="btn-submit-upload" id="btnUploadIoTemplate" disabled>
+                  <i class="fa-solid fa-cloud-arrow-up"></i> บันทึกและอัปเดตเวอร์ชันใหม่
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="modal-footer io-modal-footer">
+        <div class="template-tip">
+          <i class="fa-solid fa-circle-info"></i>
+          <span>สามารถเปิดใช้งานหรือบันทึกลงเครื่องได้ทันที หากมีการอัปเดตใหม่ ปุ่มดาวน์โหลดจะดึงไฟล์เวอร์ชันล่าสุดให้อัตโนมัติ</span>
+        </div>
+        <button type="button" class="btn btn-secondary btn-sm" id="btnCloseIoModal">ปิดหน้าต่าง</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Toast Notification Container -->
 
   <div class="toast-container" id="toastContainer"></div>
 
   <!-- Application Logic -->
-  <script src="app.js?v=1.6.3"></script>
+  <script src="app.js?v=1.6.5"></script>
 </body>
 </html>

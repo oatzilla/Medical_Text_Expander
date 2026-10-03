@@ -196,7 +196,7 @@ namespace MedicalTextExpander {
     }
 
     public static class AppUpdater {
-        public const string CurrentVersion = "1.6.3";
+        public const string CurrentVersion = "1.6.4";
         public const string DefaultGitHubRepo = "oatzilla/Medical_Text_Expander";
 
         public static void CheckForUpdatesAsync(string repo, bool isManual, Form parent = null, string token = null) {
@@ -500,7 +500,7 @@ namespace MedicalTextExpander {
             var result = new Dictionary<int, string>();
             if (!IsEnabled) return result;
             try {
-                HttpWebRequest req = CreateRequest("bed_notes?select=bed_number,content&order=bed_number.asc", "GET");
+                HttpWebRequest req = CreateRequest("bed_notes?bed_number=gte.1&bed_number=lte.30&select=bed_number,content&order=bed_number.asc", "GET");
                 using (HttpWebResponse resp = (HttpWebResponse)req.GetResponse())
                 using (StreamReader reader = new StreamReader(resp.GetResponseStream(), Encoding.UTF8)) {
                     string json = reader.ReadToEnd();
@@ -516,7 +516,7 @@ namespace MedicalTextExpander {
         }
 
         public bool SaveBed(int bedNum, string content) {
-            if (!IsEnabled || bedNum < 1 || bedNum > 30) return false;
+            if (!IsEnabled || bedNum < 1 || (bedNum > 30 && bedNum != 100)) return false;
             try {
                 string body = string.Format("{{\"content\":\"{0}\",\"updated_at\":\"{1}\",\"updated_by\":\"{2}\"}}",
                     EscapeJson(content), DateTime.UtcNow.ToString("o"), EscapeJson(Environment.MachineName));
@@ -536,7 +536,7 @@ namespace MedicalTextExpander {
         }
 
         public bool SaveHistory(int bedNum, string reason, string content) {
-            if (!IsEnabled || bedNum < 1 || bedNum > 30) return false;
+            if (!IsEnabled || bedNum < 1 || (bedNum > 30 && bedNum != 100)) return false;
             try {
                 string body = string.Format("{{\"bed_number\":{0},\"reason\":\"{1}\",\"content\":\"{2}\",\"char_count\":{3},\"created_at\":\"{4}\"}}",
                     bedNum, EscapeJson(reason), EscapeJson(content), (content ?? "").Length, DateTime.UtcNow.ToString("o"));
@@ -1168,6 +1168,7 @@ namespace MedicalTextExpander {
         private StringBuilder typedBuffer = new StringBuilder();
         private List<TemplateItem> templates = new List<TemplateItem>();
         private string appBaseDir;
+        public string AppBaseDir { get { return string.IsNullOrEmpty(appBaseDir) ? AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\') : appBaseDir; } }
         private string localConfigPath;
         private string settingsIniPath;
         private string sharedConfigPath = "";
@@ -2199,6 +2200,470 @@ namespace MedicalTextExpander {
         }
     }
 
+    public class IoTemplateManagerDialog : Form {
+        private ExpanderContext context;
+        private Label lblFileName;
+        private Label lblFileSize;
+        private Label lblFileTime;
+        private Label lblCloudSyncInfo;
+
+        private Button btnOpenExcel;
+        private Button btnSaveAs;
+        private Button btnSyncFromCloud;
+
+        // Admin controls
+        private GroupBox grpAdmin;
+        private Panel pnlAdminGate;
+        private TextBox txtAdminPass;
+        private Button btnUnlockAdmin;
+        private Panel pnlAdminUnlocked;
+        private Label lblSelectedFile;
+        private TextBox txtUploaderName;
+        private Button btnChooseFile;
+        private Button btnUploadNewVersion;
+
+        private string chosenFilePath = null;
+
+        public IoTemplateManagerDialog(ExpanderContext ctx) {
+            context = ctx;
+            InitializeUI();
+            RefreshTemplateStatus();
+        }
+
+        private string GetLocalTemplatePath() {
+            string baseDir = context.AppBaseDir;
+            string templatesDir = Path.Combine(baseDir, "templates");
+            if (!Directory.Exists(templatesDir)) {
+                try { Directory.CreateDirectory(templatesDir); } catch {}
+            }
+            string path1 = Path.Combine(templatesDir, "แบบฟอร์ม_IO.xlsx");
+            string path2 = Path.Combine(templatesDir, "IO_Template.xlsx");
+            string path3 = Path.Combine(baseDir, "แบบฟอร์ม IO.xlsx");
+            if (File.Exists(path1)) return path1;
+            if (File.Exists(path2)) return path2;
+            if (File.Exists(path3)) return path3;
+            return path1;
+        }
+
+        private void InitializeUI() {
+            this.Text = "📊 แบบฟอร์มบันทึก Intake / Output (I/O) - Medical Text Expander";
+            this.Size = new Size(640, 560);
+            this.StartPosition = FormStartPosition.CenterParent;
+            this.FormBorderStyle = FormBorderStyle.FixedDialog;
+            this.MaximizeBox = false;
+            this.MinimizeBox = false;
+            this.BackColor = Color.FromArgb(248, 250, 252);
+            this.Font = new Font("Segoe UI", 9.5f);
+
+            // Header Banner
+            Panel pnlHeader = new Panel();
+            pnlHeader.Dock = DockStyle.Top;
+            pnlHeader.Height = 65;
+            pnlHeader.BackColor = Color.FromArgb(16, 185, 129); // Emerald Green
+
+            Label lblHeaderTitle = new Label();
+            lblHeaderTitle.Text = "📊 แบบฟอร์มบันทึก Intake / Output (I/O) ประจำวอร์ด";
+            lblHeaderTitle.Font = new Font("Segoe UI", 12f, FontStyle.Bold);
+            lblHeaderTitle.ForeColor = Color.White;
+            lblHeaderTitle.Location = new Point(16, 10);
+            lblHeaderTitle.AutoSize = true;
+            pnlHeader.Controls.Add(lblHeaderTitle);
+
+            Label lblHeaderSub = new Label();
+            lblHeaderSub.Text = "เปิดใช้งานใน Excel บันทึกสำเนาลงเครื่อง หรืออัปเดตเวอร์ชันใหม่สู่ Cloud ให้ทุกคนในวอร์ด";
+            lblHeaderSub.Font = new Font("Segoe UI", 9f);
+            lblHeaderSub.ForeColor = Color.FromArgb(209, 250, 229);
+            lblHeaderSub.Location = new Point(18, 36);
+            lblHeaderSub.AutoSize = true;
+            pnlHeader.Controls.Add(lblHeaderSub);
+
+            this.Controls.Add(pnlHeader);
+
+            // Card 1: Active Template Info
+            GroupBox grpCurrent = new GroupBox();
+            grpCurrent.Text = " 📁 ข้อมูลแบบฟอร์ม I/O ปัจจุบันในเครื่อง & Cloud ";
+            grpCurrent.Location = new Point(18, 78);
+            grpCurrent.Size = new Size(590, 155);
+            grpCurrent.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
+            grpCurrent.ForeColor = Color.FromArgb(15, 23, 42);
+
+            lblFileName = new Label();
+            lblFileName.Text = "ชื่อไฟล์: แบบฟอร์ม IO.xlsx";
+            lblFileName.Location = new Point(16, 26);
+            lblFileName.Size = new Size(550, 22);
+            lblFileName.Font = new Font("Segoe UI", 10f, FontStyle.Bold);
+            lblFileName.ForeColor = Color.FromArgb(5, 150, 105);
+            grpCurrent.Controls.Add(lblFileName);
+
+            lblFileSize = new Label();
+            lblFileSize.Text = "ขนาด: -- KB";
+            lblFileSize.Location = new Point(16, 52);
+            lblFileSize.Size = new Size(260, 20);
+            lblFileSize.Font = new Font("Segoe UI", 9f);
+            lblFileSize.ForeColor = Color.FromArgb(71, 85, 105);
+            grpCurrent.Controls.Add(lblFileSize);
+
+            lblFileTime = new Label();
+            lblFileTime.Text = "อัปเดตล่าสุด: --";
+            lblFileTime.Location = new Point(280, 52);
+            lblFileTime.Size = new Size(290, 20);
+            lblFileTime.Font = new Font("Segoe UI", 9f);
+            lblFileTime.ForeColor = Color.FromArgb(71, 85, 105);
+            grpCurrent.Controls.Add(lblFileTime);
+
+            lblCloudSyncInfo = new Label();
+            lblCloudSyncInfo.Text = "สถานะ Cloud: ตรวจสอบการเชื่อมต่อ...";
+            lblCloudSyncInfo.Location = new Point(16, 76);
+            lblCloudSyncInfo.Size = new Size(550, 20);
+            lblCloudSyncInfo.Font = new Font("Segoe UI", 9f);
+            lblCloudSyncInfo.ForeColor = Color.FromArgb(100, 116, 139);
+            grpCurrent.Controls.Add(lblCloudSyncInfo);
+
+            btnOpenExcel = new Button();
+            btnOpenExcel.Text = "📊 เปิดใช้งานใน Excel ทันที";
+            btnOpenExcel.Location = new Point(16, 105);
+            btnOpenExcel.Size = new Size(190, 36);
+            btnOpenExcel.BackColor = Color.FromArgb(16, 185, 129);
+            btnOpenExcel.ForeColor = Color.White;
+            btnOpenExcel.FlatStyle = FlatStyle.Flat;
+            btnOpenExcel.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
+            btnOpenExcel.Cursor = Cursors.Hand;
+            btnOpenExcel.Click += (s, e) => OpenExcelTemplate();
+            grpCurrent.Controls.Add(btnOpenExcel);
+
+            btnSaveAs = new Button();
+            btnSaveAs.Text = "💾 บันทึกสำเนา (Save As)";
+            btnSaveAs.Location = new Point(216, 105);
+            btnSaveAs.Size = new Size(190, 36);
+            btnSaveAs.BackColor = Color.FromArgb(241, 245, 249);
+            btnSaveAs.ForeColor = Color.FromArgb(30, 41, 59);
+            btnSaveAs.FlatStyle = FlatStyle.Flat;
+            btnSaveAs.Font = new Font("Segoe UI", 9f, FontStyle.Bold);
+            btnSaveAs.Cursor = Cursors.Hand;
+            btnSaveAs.Click += (s, e) => SaveCopyAs();
+            grpCurrent.Controls.Add(btnSaveAs);
+
+            btnSyncFromCloud = new Button();
+            btnSyncFromCloud.Text = "☁️ ซิงค์จาก Cloud";
+            btnSyncFromCloud.Location = new Point(416, 105);
+            btnSyncFromCloud.Size = new Size(158, 36);
+            btnSyncFromCloud.BackColor = Color.FromArgb(238, 242, 255);
+            btnSyncFromCloud.ForeColor = Color.FromArgb(79, 70, 229);
+            btnSyncFromCloud.FlatStyle = FlatStyle.Flat;
+            btnSyncFromCloud.Font = new Font("Segoe UI", 9f, FontStyle.Bold);
+            btnSyncFromCloud.Cursor = Cursors.Hand;
+            btnSyncFromCloud.Click += (s, e) => SyncTemplateFromCloudManual();
+            grpCurrent.Controls.Add(btnSyncFromCloud);
+
+            this.Controls.Add(grpCurrent);
+
+            // Card 2: Admin Upload Section
+            grpAdmin = new GroupBox();
+            grpAdmin.Text = " 🔒 สำหรับ Admin / หัวหน้าเวร: อัปโหลดและเปลี่ยนเทมเพลตเวอร์ชันใหม่ ";
+            grpAdmin.Location = new Point(18, 244);
+            grpAdmin.Size = new Size(590, 220);
+            grpAdmin.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
+            grpAdmin.ForeColor = Color.FromArgb(79, 70, 229);
+
+            // Gate Panel
+            pnlAdminGate = new Panel();
+            pnlAdminGate.Location = new Point(16, 26);
+            pnlAdminGate.Size = new Size(560, 180);
+
+            Label lblGateDesc = new Label();
+            lblGateDesc.Text = "กรุณาใส่รหัสผ่านผู้ดูแลระบบ (Admin Password: 9844) เพื่อเลือกไฟล์ Excel ใหม่:";
+            lblGateDesc.Location = new Point(4, 16);
+            lblGateDesc.Size = new Size(540, 24);
+            lblGateDesc.Font = new Font("Segoe UI", 9.5f);
+            lblGateDesc.ForeColor = Color.FromArgb(51, 65, 85);
+            pnlAdminGate.Controls.Add(lblGateDesc);
+
+            txtAdminPass = new TextBox();
+            txtAdminPass.Location = new Point(8, 48);
+            txtAdminPass.Size = new Size(200, 27);
+            txtAdminPass.PasswordChar = '*';
+            txtAdminPass.Font = new Font("Segoe UI", 10f);
+            txtAdminPass.KeyDown += (s, e) => { if (e.KeyCode == Keys.Enter) UnlockAdmin(); };
+            pnlAdminGate.Controls.Add(txtAdminPass);
+
+            btnUnlockAdmin = new Button();
+            btnUnlockAdmin.Text = "🔓 ปลดล็อกสิทธิ์ Admin";
+            btnUnlockAdmin.Location = new Point(220, 46);
+            btnUnlockAdmin.Size = new Size(160, 31);
+            btnUnlockAdmin.BackColor = Color.FromArgb(79, 70, 229);
+            btnUnlockAdmin.ForeColor = Color.White;
+            btnUnlockAdmin.FlatStyle = FlatStyle.Flat;
+            btnUnlockAdmin.Font = new Font("Segoe UI", 9f, FontStyle.Bold);
+            btnUnlockAdmin.Cursor = Cursors.Hand;
+            btnUnlockAdmin.Click += (s, e) => UnlockAdmin();
+            pnlAdminGate.Controls.Add(btnUnlockAdmin);
+
+            grpAdmin.Controls.Add(pnlAdminGate);
+
+            // Unlocked Panel
+            pnlAdminUnlocked = new Panel();
+            pnlAdminUnlocked.Location = new Point(16, 26);
+            pnlAdminUnlocked.Size = new Size(560, 180);
+            pnlAdminUnlocked.Visible = false;
+
+            btnChooseFile = new Button();
+            btnChooseFile.Text = "📂 เลือกไฟล์ Excel (.xlsx, .xls) ใหม่จากเครื่อง...";
+            btnChooseFile.Location = new Point(8, 10);
+            btnChooseFile.Size = new Size(300, 36);
+            btnChooseFile.BackColor = Color.FromArgb(240, 253, 244);
+            btnChooseFile.ForeColor = Color.FromArgb(22, 101, 52);
+            btnChooseFile.FlatStyle = FlatStyle.Flat;
+            btnChooseFile.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
+            btnChooseFile.Cursor = Cursors.Hand;
+            btnChooseFile.Click += (s, e) => ChooseNewFile();
+            pnlAdminUnlocked.Controls.Add(btnChooseFile);
+
+            lblSelectedFile = new Label();
+            lblSelectedFile.Text = "(ยังไม่ได้เลือกไฟล์ใหม่)";
+            lblSelectedFile.Location = new Point(320, 18);
+            lblSelectedFile.Size = new Size(230, 24);
+            lblSelectedFile.Font = new Font("Segoe UI", 9f);
+            lblSelectedFile.ForeColor = Color.FromArgb(100, 116, 139);
+            pnlAdminUnlocked.Controls.Add(lblSelectedFile);
+
+            Label lblUploader = new Label();
+            lblUploader.Text = "ชื่อผู้แก้ไข/หัวหน้าเวร:";
+            lblUploader.Location = new Point(8, 62);
+            lblUploader.Size = new Size(140, 24);
+            lblUploader.Font = new Font("Segoe UI", 9f);
+            lblUploader.ForeColor = Color.FromArgb(51, 65, 85);
+            pnlAdminUnlocked.Controls.Add(lblUploader);
+
+            txtUploaderName = new TextBox();
+            txtUploaderName.Location = new Point(150, 59);
+            txtUploaderName.Size = new Size(240, 27);
+            txtUploaderName.Text = Environment.MachineName;
+            pnlAdminUnlocked.Controls.Add(txtUploaderName);
+
+            btnUploadNewVersion = new Button();
+            btnUploadNewVersion.Text = "☁️ บันทึกและอัปเดตเวอร์ชันใหม่สู่ Cloud";
+            btnUploadNewVersion.Location = new Point(8, 105);
+            btnUploadNewVersion.Size = new Size(382, 38);
+            btnUploadNewVersion.BackColor = Color.FromArgb(13, 148, 136);
+            btnUploadNewVersion.ForeColor = Color.White;
+            btnUploadNewVersion.FlatStyle = FlatStyle.Flat;
+            btnUploadNewVersion.Font = new Font("Segoe UI", 10f, FontStyle.Bold);
+            btnUploadNewVersion.Cursor = Cursors.Hand;
+            btnUploadNewVersion.Enabled = false;
+            btnUploadNewVersion.Click += (s, e) => UploadNewVersion();
+            pnlAdminUnlocked.Controls.Add(btnUploadNewVersion);
+
+            grpAdmin.Controls.Add(pnlAdminUnlocked);
+            this.Controls.Add(grpAdmin);
+
+            // Bottom Close Button
+            Button btnClose = new Button();
+            btnClose.Text = "ปิดหน้าต่าง";
+            btnClose.Location = new Point(255, 475);
+            btnClose.Size = new Size(120, 36);
+            btnClose.FlatStyle = FlatStyle.Flat;
+            btnClose.Cursor = Cursors.Hand;
+            btnClose.Click += (s, e) => this.Close();
+            this.Controls.Add(btnClose);
+        }
+
+        private void UnlockAdmin() {
+            string pass = (txtAdminPass.Text ?? "").Trim();
+            if (pass == context.AdminPassword || pass == "9844") {
+                pnlAdminGate.Visible = false;
+                pnlAdminUnlocked.Visible = true;
+                txtAdminPass.Text = "";
+            } else {
+                MessageBox.Show("รหัสผ่านผู้ดูแลระบบไม่ถูกต้อง (กรุณาใช้รหัส 9844)", "รหัสผ่านผิด", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                txtAdminPass.Focus();
+                txtAdminPass.SelectAll();
+            }
+        }
+
+        private void ChooseNewFile() {
+            using (OpenFileDialog ofd = new OpenFileDialog()) {
+                ofd.Filter = "Excel Files (*.xlsx;*.xls)|*.xlsx;*.xls|All Files (*.*)|*.*";
+                ofd.Title = "เลือกไฟล์เทมเพลต Excel สำหรับบันทึก I/O";
+                if (ofd.ShowDialog(this) == DialogResult.OK) {
+                    chosenFilePath = ofd.FileName;
+                    FileInfo fi = new FileInfo(chosenFilePath);
+                    lblSelectedFile.Text = fi.Name + string.Format(" ({0:N1} KB)", fi.Length / 1024.0);
+                    lblSelectedFile.ForeColor = Color.DarkGreen;
+                    btnUploadNewVersion.Enabled = true;
+                }
+            }
+        }
+
+        private void UploadNewVersion() {
+            if (string.IsNullOrEmpty(chosenFilePath) || !File.Exists(chosenFilePath)) {
+                MessageBox.Show("กรุณาเลือกไฟล์ Excel ก่อนครับ", "แจ้งเตือน", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            btnUploadNewVersion.Enabled = false;
+            btnUploadNewVersion.Text = "กำลังอัปโหลด...";
+
+            try {
+                byte[] fileBytes = File.ReadAllBytes(chosenFilePath);
+                string uploader = txtUploaderName.Text.Trim();
+                if (string.IsNullOrEmpty(uploader)) uploader = Environment.MachineName;
+
+                // 1. Copy to local app directories
+                string baseDir = context.AppBaseDir;
+                string templatesDir = Path.Combine(baseDir, "templates");
+                if (!Directory.Exists(templatesDir)) Directory.CreateDirectory(templatesDir);
+
+                string dest1 = Path.Combine(templatesDir, "แบบฟอร์ม_IO.xlsx");
+                string dest2 = Path.Combine(templatesDir, "IO_Template.xlsx");
+                File.WriteAllBytes(dest1, fileBytes);
+                File.WriteAllBytes(dest2, fileBytes);
+
+                // Copy to Setup directory on desktop if exists
+                string setupTemplates = @"C:\Users\GORW01\Desktop\Medical_Text_Expander_Setup\templates";
+                if (Directory.Exists(setupTemplates)) {
+                    try {
+                        File.WriteAllBytes(Path.Combine(setupTemplates, "แบบฟอร์ม_IO.xlsx"), fileBytes);
+                        File.WriteAllBytes(Path.Combine(setupTemplates, "IO_Template.xlsx"), fileBytes);
+                    } catch {}
+                }
+
+                // 2. Upload to Supabase row 100 if enabled
+                bool supabaseOk = false;
+                if (context.GetSupabaseEnabled()) {
+                    try {
+                        string b64 = Convert.ToBase64String(fileBytes);
+                        string metaJson = string.Format("{{\"filename\":\"{0}\",\"download_name\":\"แบบฟอร์ม_บันทึก_IO.xlsx\",\"size\":{1},\"updated_at\":\"{2}\",\"updated_by\":\"{3}\",\"base64\":\"{4}\"}}",
+                            Path.GetFileName(chosenFilePath), fileBytes.Length, DateTime.UtcNow.ToString("o"), uploader, b64);
+
+                        var client = new SupabaseSyncClient(context.GetSupabaseUrl(), context.GetSupabaseKey());
+                        supabaseOk = client.SaveBed(100, metaJson);
+                        if (supabaseOk) {
+                            client.SaveHistory(100, "อัปเดตแบบฟอร์ม I/O โดย " + uploader, "ไฟล์: " + Path.GetFileName(chosenFilePath));
+                        }
+                    } catch {}
+                }
+
+                RefreshTemplateStatus();
+                btnUploadNewVersion.Text = "☁️ บันทึกและอัปเดตเวอร์ชันใหม่สู่ Cloud";
+                btnUploadNewVersion.Enabled = false;
+                lblSelectedFile.Text = "(อัปเดตเรียบร้อยแล้ว)";
+                chosenFilePath = null;
+
+                string msg = "✅ อัปเดตแบบฟอร์ม I/O เวอร์ชันใหม่เรียบร้อยแล้ว!\n" +
+                             "- บันทึกลงเครื่องและเทมเพลตประจำโปรแกรมแล้ว\n" +
+                             (supabaseOk ? "- ซิงค์ขึ้น Supabase Cloud สำเร็จ (เว็บ/มือถือจะได้รับเวอร์ชันนี้ทันที)" : "- (Supabase ไม่ได้เปิดใช้งาน)");
+                MessageBox.Show(msg, "สำเร็จ", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+            } catch (Exception ex) {
+                btnUploadNewVersion.Enabled = true;
+                btnUploadNewVersion.Text = "☁️ บันทึกและอัปเดตเวอร์ชันใหม่สู่ Cloud";
+                MessageBox.Show("เกิดข้อผิดพลาดในการอัปเดต: " + ex.Message, "ผิดพลาด", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void OpenExcelTemplate() {
+            string path = GetLocalTemplatePath();
+            if (!File.Exists(path)) {
+                // If local file doesn't exist, try to pull from Cloud
+                if (!SyncTemplateFromCloudManual()) {
+                    MessageBox.Show("ยังไม่พบไฟล์แบบฟอร์มในเครื่อง กรุณากดปุ่ม 'ซิงค์จาก Cloud' หรือให้อัปโหลดไฟล์ใหม่ครับ", "ไม่พบไฟล์", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+            }
+            try {
+                Process.Start(path);
+            } catch (Exception ex) {
+                MessageBox.Show("ไม่สามารถเปิดโปรแกรม Excel ได้: " + ex.Message, "ผิดพลาด", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void SaveCopyAs() {
+            string srcPath = GetLocalTemplatePath();
+            if (!File.Exists(srcPath)) {
+                if (!SyncTemplateFromCloudManual()) {
+                    MessageBox.Show("ไม่พบไฟล์ต้นฉบับที่จะบันทึกสำเนา", "ไม่พบไฟล์", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+            }
+
+            using (SaveFileDialog sfd = new SaveFileDialog()) {
+                sfd.Filter = "Excel Files (*.xlsx)|*.xlsx|All Files (*.*)|*.*";
+                sfd.FileName = "แบบฟอร์ม_บันทึก_IO.xlsx";
+                sfd.Title = "บันทึกสำเนาแบบฟอร์ม I/O ไปยังเครื่องของคุณ";
+                if (sfd.ShowDialog(this) == DialogResult.OK) {
+                    try {
+                        File.Copy(srcPath, sfd.FileName, true);
+                        MessageBox.Show("บันทึกสำเนาสำเร็จที่:\n" + sfd.FileName, "สำเร็จ", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    } catch (Exception ex) {
+                        MessageBox.Show("บันทึกล้มเหลว: " + ex.Message, "ผิดพลาด", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                }
+            }
+        }
+
+        private bool SyncTemplateFromCloudManual() {
+            if (!context.GetSupabaseEnabled()) {
+                MessageBox.Show("ระบบ Supabase Cloud ยังไม่ได้เปิดใช้งานในโปรแกรมนี้", "แจ้งเตือน", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return false;
+            }
+
+            try {
+                var client = new SupabaseSyncClient(context.GetSupabaseUrl(), context.GetSupabaseKey());
+                string jsonMeta = null;
+                // Query bed 100
+                ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls12;
+                string fullUrl = context.GetSupabaseUrl().TrimEnd('/') + "/rest/v1/bed_notes?bed_number=eq.100&select=content,updated_at,updated_by";
+                HttpWebRequest req = (HttpWebRequest)WebRequest.Create(fullUrl);
+                req.Headers["apikey"] = context.GetSupabaseKey();
+                req.Headers["Authorization"] = "Bearer " + context.GetSupabaseKey();
+                req.Timeout = 8000;
+
+                using (var resp = (HttpWebResponse)req.GetResponse())
+                using (var reader = new StreamReader(resp.GetResponseStream(), Encoding.UTF8)) {
+                    jsonMeta = reader.ReadToEnd();
+                }
+
+                if (!string.IsNullOrEmpty(jsonMeta) && jsonMeta.Contains("\"base64\"")) {
+                    var m = Regex.Match(jsonMeta, @"""base64"":\s*""([^""]+)""");
+                    if (m.Success) {
+                        string b64 = m.Groups[1].Value;
+                        byte[] fileBytes = Convert.FromBase64String(b64);
+
+                        string templatesDir = Path.Combine(context.AppBaseDir, "templates");
+                        if (!Directory.Exists(templatesDir)) Directory.CreateDirectory(templatesDir);
+                        File.WriteAllBytes(Path.Combine(templatesDir, "แบบฟอร์ม_IO.xlsx"), fileBytes);
+                        File.WriteAllBytes(Path.Combine(templatesDir, "IO_Template.xlsx"), fileBytes);
+
+                        RefreshTemplateStatus();
+                        MessageBox.Show("✅ ซิงค์แบบฟอร์ม I/O ล่าสุดจาก Cloud เรียบร้อยแล้ว!", "สำเร็จ", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        return true;
+                    }
+                }
+            } catch (Exception ex) {
+                MessageBox.Show("ไม่สามารถเชื่อมต่อ Cloud ได้: " + ex.Message, "ผิดพลาด", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            return false;
+        }
+
+        private void RefreshTemplateStatus() {
+            string path = GetLocalTemplatePath();
+            if (File.Exists(path)) {
+                FileInfo fi = new FileInfo(path);
+                lblFileName.Text = "ชื่อไฟล์: " + fi.Name;
+                lblFileSize.Text = string.Format("ขนาด: {0:N1} KB", fi.Length / 1024.0);
+                lblFileTime.Text = "อัปเดตล่าสุด: " + fi.LastWriteTime.ToString("d/M/yyyy HH:mm น.");
+                lblCloudSyncInfo.Text = context.GetSupabaseEnabled() ? "สถานะ Cloud: เชื่อมต่อ Supabase Cloud (พร้อมซิงค์)" : "สถานะ: ใช้งานออฟไลน์ในเครื่อง";
+                lblCloudSyncInfo.ForeColor = context.GetSupabaseEnabled() ? Color.FromArgb(16, 185, 129) : Color.FromArgb(100, 116, 139);
+            } else {
+                lblFileName.Text = "ชื่อไฟล์: (ยังไม่พบไฟล์ในเครื่อง)";
+                lblFileSize.Text = "ขนาด: --";
+                lblFileTime.Text = "อัปเดตล่าสุด: --";
+                lblCloudSyncInfo.Text = "สามารถกดปุ่ม '☁️ ซิงค์จาก Cloud' เพื่อดึงแบบฟอร์มลงมาได้";
+                lblCloudSyncInfo.ForeColor = Color.FromArgb(217, 119, 6);
+            }
+        }
+    }
+
     [Serializable]
     public class BedDragDropData {
         public int SourceBed { get; set; }
@@ -2246,6 +2711,7 @@ namespace MedicalTextExpander {
         private Label lblAppTitle;
         private Button btnCalc;
         private Button btnMobilePortal;
+        private Button btnIoTemplate;
         private Button btnGoToPalette;
         private Button btnZoomOut;
         private Button btnZoomIn;
@@ -2354,6 +2820,21 @@ namespace MedicalTextExpander {
                 dlg.ShowDialog(this);
             };
             pnlTop.Controls.Add(btnMobilePortal);
+
+            btnIoTemplate = new Button();
+            btnIoTemplate.Text = "📊 แบบฟอร์ม I/O";
+            btnIoTemplate.Size = new Size(130, 34);
+            btnIoTemplate.BackColor = Color.FromArgb(16, 185, 129);
+            btnIoTemplate.ForeColor = Color.White;
+            btnIoTemplate.FlatStyle = FlatStyle.Flat;
+            btnIoTemplate.FlatAppearance.BorderSize = 0;
+            btnIoTemplate.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
+            btnIoTemplate.Cursor = Cursors.Hand;
+            btnIoTemplate.Click += (s, e) => {
+                var dlg = new IoTemplateManagerDialog(context);
+                dlg.ShowDialog(this);
+            };
+            pnlTop.Controls.Add(btnIoTemplate);
 
             btnCalc = new Button();
             btnCalc.Text = "🧮 คำนวณ SOS/ยา (Alt+C)";
@@ -2928,6 +3409,10 @@ namespace MedicalTextExpander {
                 btnMobilePortal.Text = "📱 มือถือ (QR)";
                 btnMobilePortal.Size = new Size(100, 34);
             }
+            if (btnIoTemplate != null) {
+                btnIoTemplate.Text = "📊 แบบฟอร์ม I/O";
+                btnIoTemplate.Size = new Size(125, 34);
+            }
             if (btnCheckUpdate != null) {
                 btnCheckUpdate.Text = "🔄 อัปเดต";
                 btnCheckUpdate.Size = new Size(82, 34);
@@ -2945,6 +3430,10 @@ namespace MedicalTextExpander {
             if (btnCheckUpdate != null) {
                 btnCheckUpdate.Location = new Point(rx - btnCheckUpdate.Width, 11);
                 rx -= (btnCheckUpdate.Width + 6);
+            }
+            if (btnIoTemplate != null) {
+                btnIoTemplate.Location = new Point(rx - btnIoTemplate.Width, 11);
+                rx -= (btnIoTemplate.Width + 6);
             }
             if (btnMobilePortal != null) {
                 btnMobilePortal.Location = new Point(rx - btnMobilePortal.Width, 11);
@@ -3343,7 +3832,7 @@ public void RefreshAllBedButtons() {
             btn.Margin = new Padding(2, 1, 2, 1);
             btn.Cursor = Cursors.Hand;
             ToolTip tt = new ToolTip();
-            tt.SetToolTip(btn, string.Format("คลิกเพื่อแทรกข้อวินิจฉัย/DAR {0} ({1}) ลงในบันทึกเตียงนี้", title, shortcut));
+            tt.SetToolTip(btn, string.Format("คลิกเพื่อดูตัวอย่าง/เลือกคัดลอกข้อวินิจฉัย {0} ({1})", title, shortcut));
             btn.Click += (s, e) => {
                 List<TemplateItem> tpls = context.GetTemplates();
                 TemplateItem match = null;
@@ -3351,12 +3840,19 @@ public void RefreshAllBedButtons() {
                     match = tpls.Find(t => t.Shortcut.Equals(shortcut, StringComparison.OrdinalIgnoreCase) || 
                                            (shortcut == ".ortho" && t.Shortcut.Equals(".cms", StringComparison.OrdinalIgnoreCase)));
                 }
-                string contentToInsert = (match != null && !string.IsNullOrEmpty(match.Content)) ? match.Content : fallbackSnippet;
-                if (!string.IsNullOrEmpty(contentToInsert)) {
-                    InsertSnippetAtCursor(contentToInsert);
-                }
+                string content = (match != null && !string.IsNullOrEmpty(match.Content)) ? match.Content : fallbackSnippet;
+                string itemTitle = (match != null && !string.IsNullOrEmpty(match.Title)) ? match.Title : title;
+                ShowQuickSnippetSelector(title, shortcut, itemTitle, content);
             };
             pnl.Controls.Add(btn);
+        }
+
+        private void ShowQuickSnippetSelector(string buttonTitle, string shortcut, string templateTitle, string rawContent) {
+            using (QuickSnippetSelectorDialog dlg = new QuickSnippetSelectorDialog(buttonTitle, shortcut, templateTitle, rawContent, currentBed)) {
+                if (dlg.ShowDialog(this) == DialogResult.OK && !string.IsNullOrEmpty(dlg.ResultTextToInsert)) {
+                    InsertSnippetAtCursor(dlg.ResultTextToInsert);
+                }
+            }
         }
 
         private void ShowTemplatesDropdown(Button anchor) {
@@ -3907,6 +4403,463 @@ public void RefreshAllBedButtons() {
         }
     }
 
+    // =========================================================================
+    // ระบบกรองและช่วยจัดการเวรพยาบาล (Shift Nursing Action Helper)
+    // =========================================================================
+    public static class ShiftHelper {
+        public static bool HasShiftTags(string content) {
+            if (string.IsNullOrEmpty(content)) return false;
+            return content.Contains("เวรเช้า") || content.Contains("เวรบ่าย") || content.Contains("เวรดึก");
+        }
+
+        public static string GetCurrentShift() {
+            int hour = DateTime.Now.Hour;
+            if (hour >= 8 && hour < 16) return "morning";
+            if (hour >= 16 && hour <= 23) return "afternoon";
+            return "night";
+        }
+
+        public static string FilterContentByShift(string content, string shift) {
+            if (string.IsNullOrEmpty(content) || shift == "all" || !HasShiftTags(content)) {
+                return content;
+            }
+
+            string[] lines = content.Split(new string[] { "\r\n", "\n" }, StringSplitOptions.None);
+            List<string> result = new List<string>();
+            bool inAction = false;
+            string curActionShift = "";
+            List<string> filteredActions = new List<string>();
+            List<string> nonShiftActions = new List<string>();
+
+            string shiftTag = "";
+            if (shift == "morning") shiftTag = " (☀️ เวรเช้า 08:00-16:00)";
+            else if (shift == "afternoon") shiftTag = " (⛅ เวรบ่าย 16:00-24:00)";
+            else if (shift == "night") shiftTag = " (🌙 เวรดึก 24:00-08:00)";
+
+            for (int i = 0; i < lines.Length; i++) {
+                string line = lines[i];
+                string trimmed = line.Trim();
+
+                if (trimmed.StartsWith("Focus:") || trimmed.StartsWith("Goal:") || trimmed.StartsWith("Data:") || trimmed.StartsWith("Response:")) {
+                    if (inAction) {
+                        result.Add("Action:" + shiftTag);
+                        if (filteredActions.Count > 0) {
+                            result.AddRange(filteredActions);
+                        } else if (nonShiftActions.Count > 0) {
+                            result.AddRange(nonShiftActions);
+                        }
+                        inAction = false;
+                        curActionShift = "";
+                    }
+                    result.Add(line);
+                    continue;
+                }
+
+                if (trimmed.StartsWith("Action:")) {
+                    inAction = true;
+                    curActionShift = "";
+                    filteredActions.Clear();
+                    nonShiftActions.Clear();
+                    continue;
+                }
+
+                if (inAction) {
+                    if (trimmed.Contains("เวรเช้า")) {
+                        curActionShift = "morning";
+                        continue;
+                    } else if (trimmed.Contains("เวรบ่าย")) {
+                        curActionShift = "afternoon";
+                        continue;
+                    } else if (trimmed.Contains("เวรดึก")) {
+                        curActionShift = "night";
+                        continue;
+                    }
+
+                    if (!string.IsNullOrEmpty(curActionShift)) {
+                        if (curActionShift == shift) {
+                            filteredActions.Add(line);
+                        }
+                    } else {
+                        nonShiftActions.Add(line);
+                    }
+                    continue;
+                }
+
+                result.Add(line);
+            }
+
+            if (inAction) {
+                result.Add("Action:" + shiftTag);
+                if (filteredActions.Count > 0) {
+                    result.AddRange(filteredActions);
+                } else if (nonShiftActions.Count > 0) {
+                    result.AddRange(nonShiftActions);
+                }
+            }
+
+            return BedNotesManager.NormalizeNewlines(string.Join("\r\n", result.ToArray()));
+        }
+    }
+
+    // =========================================================================
+    // หน้าต่างพรีวิวและเลือกคัดลอกด่วน (Quick Snippet & Shift Action Selector)
+    // =========================================================================
+    public class QuickSnippetSelectorDialog : Form {
+        public string ResultTextToInsert { get; private set; }
+
+        private string buttonTitle;
+        private string shortcut;
+        private string templateTitle;
+        private string rawContent;
+        private int bedNumber;
+        private string currentShift = "morning";
+
+        private Panel pnlHeader;
+        private Label lblBadge;
+        private Label lblTitle;
+        private Label lblBedBadge;
+
+        private FlowLayoutPanel pnlShifts;
+        private Label lblShiftPrompt;
+        private Button btnShiftMorning;
+        private Button btnShiftAfternoon;
+        private Button btnShiftNight;
+        private Button btnShiftAll;
+
+        private TextBox txtPreview;
+
+        private Panel pnlBottom;
+        private FlowLayoutPanel pnlActions;
+        private Button btnCopySelected;
+        private Button btnCopyAll;
+        private Button btnInsertSelected;
+        private Button btnInsertAll;
+        private Button btnClose;
+        private Label lblStatus;
+
+        public QuickSnippetSelectorDialog(string btnTitle, string sc, string tplTitle, string content, int bed) {
+            buttonTitle = btnTitle ?? "";
+            shortcut = sc ?? "";
+            templateTitle = tplTitle ?? "";
+            rawContent = BedNotesManager.NormalizeNewlines(content ?? "");
+            bedNumber = bed;
+
+            if (ShiftHelper.HasShiftTags(rawContent)) {
+                currentShift = ShiftHelper.GetCurrentShift();
+            } else {
+                currentShift = "all";
+            }
+
+            InitializeUI();
+            UpdateShiftSelection();
+        }
+
+        private void InitializeUI() {
+            this.Text = string.Format("คีย์ด่วน: {0} ({1}) - เตียง {2:D2}", buttonTitle, shortcut, bedNumber);
+            this.Size = new Size(820, 600);
+            this.MinimumSize = new Size(640, 440);
+            this.StartPosition = FormStartPosition.CenterParent;
+            this.FormBorderStyle = FormBorderStyle.Sizable;
+            this.Font = new Font("Segoe UI", 9.5f, FontStyle.Regular);
+            this.BackColor = Color.FromArgb(248, 250, 252);
+            this.KeyPreview = true;
+            this.KeyDown += (s, e) => {
+                if (e.KeyCode == Keys.Escape) {
+                    this.Close();
+                }
+            };
+
+            // 1. Header Panel
+            pnlHeader = new Panel();
+            pnlHeader.Dock = DockStyle.Top;
+            pnlHeader.Height = 52;
+            pnlHeader.BackColor = Color.FromArgb(13, 148, 136); // Teal 600
+
+            lblBadge = new Label();
+            lblBadge.Text = shortcut;
+            lblBadge.BackColor = Color.FromArgb(15, 118, 110);
+            lblBadge.ForeColor = Color.FromArgb(204, 251, 241);
+            lblBadge.Font = new Font("Consolas", 10.5f, FontStyle.Bold);
+            lblBadge.Padding = new Padding(6, 4, 6, 4);
+            lblBadge.Location = new Point(12, 11);
+            lblBadge.AutoSize = true;
+            pnlHeader.Controls.Add(lblBadge);
+
+            lblTitle = new Label();
+            lblTitle.Text = string.Format("{0} - {1}", buttonTitle, templateTitle);
+            lblTitle.ForeColor = Color.White;
+            lblTitle.Font = new Font("Segoe UI", 11.5f, FontStyle.Bold);
+            lblTitle.Location = new Point(lblBadge.Right + 12, 13);
+            lblTitle.AutoSize = true;
+            lblTitle.Anchor = AnchorStyles.Top | AnchorStyles.Left;
+            pnlHeader.Controls.Add(lblTitle);
+
+            if (bedNumber > 0) {
+                lblBedBadge = new Label();
+                lblBedBadge.Text = string.Format("เตียง {0:D2}", bedNumber);
+                lblBedBadge.ForeColor = Color.FromArgb(254, 240, 138);
+                lblBedBadge.BackColor = Color.FromArgb(15, 118, 110);
+                lblBedBadge.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
+                lblBedBadge.Padding = new Padding(6, 3, 6, 3);
+                lblBedBadge.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+                lblBedBadge.Location = new Point(pnlHeader.Width - 95, 12);
+                lblBedBadge.AutoSize = true;
+                pnlHeader.Controls.Add(lblBedBadge);
+            }
+
+            this.Controls.Add(pnlHeader);
+
+            // 2. Shifts Filter Panel (Top)
+            pnlShifts = new FlowLayoutPanel();
+            pnlShifts.Dock = DockStyle.Top;
+            pnlShifts.Height = 44;
+            pnlShifts.BackColor = Color.FromArgb(241, 245, 249);
+            pnlShifts.Padding = new Padding(12, 6, 12, 6);
+            pnlShifts.WrapContents = false;
+
+            lblShiftPrompt = new Label();
+            lblShiftPrompt.Text = "🕒 กิจกรรมการพยาบาลตามเวร:";
+            lblShiftPrompt.Font = new Font("Segoe UI", 9f, FontStyle.Bold);
+            lblShiftPrompt.ForeColor = Color.FromArgb(51, 65, 85);
+            lblShiftPrompt.Margin = new Padding(0, 5, 8, 0);
+            lblShiftPrompt.AutoSize = true;
+            pnlShifts.Controls.Add(lblShiftPrompt);
+
+            btnShiftMorning = CreateShiftButton("☀️ เวรเช้า (08:00-16:00)", "morning");
+            btnShiftAfternoon = CreateShiftButton("⛅ เวรบ่าย (16:00-24:00)", "afternoon");
+            btnShiftNight = CreateShiftButton("🌙 เวรดึก (24:00-08:00)", "night");
+            btnShiftAll = CreateShiftButton("📋 รวมทุกเวร (All)", "all");
+
+            pnlShifts.Controls.Add(btnShiftMorning);
+            pnlShifts.Controls.Add(btnShiftAfternoon);
+            pnlShifts.Controls.Add(btnShiftNight);
+            pnlShifts.Controls.Add(btnShiftAll);
+
+            this.Controls.Add(pnlShifts);
+
+            // 3. Bottom Actions Panel
+            pnlBottom = new Panel();
+            pnlBottom.Dock = DockStyle.Bottom;
+            pnlBottom.Height = 56;
+            pnlBottom.BackColor = Color.FromArgb(244, 246, 250);
+            pnlBottom.BorderStyle = BorderStyle.FixedSingle;
+
+            pnlActions = new FlowLayoutPanel();
+            pnlActions.Dock = DockStyle.Fill;
+            pnlActions.Padding = new Padding(10, 10, 10, 10);
+            pnlActions.WrapContents = false;
+
+            btnCopySelected = new Button();
+            btnCopySelected.Text = "📋 คัดลอกส่วนที่เลือก (Ctrl+C)";
+            btnCopySelected.Font = new Font("Segoe UI", 9f, FontStyle.Bold);
+            btnCopySelected.BackColor = Color.FromArgb(2, 132, 199); // Sky blue
+            btnCopySelected.ForeColor = Color.White;
+            btnCopySelected.FlatStyle = FlatStyle.Flat;
+            btnCopySelected.FlatAppearance.BorderSize = 0;
+            btnCopySelected.AutoSize = true;
+            btnCopySelected.Height = 34;
+            btnCopySelected.Cursor = Cursors.Hand;
+            btnCopySelected.Click += (s, e) => CopySelectedText();
+            pnlActions.Controls.Add(btnCopySelected);
+
+            btnCopyAll = new Button();
+            btnCopyAll.Text = "📑 คัดลอกทั้งหมด";
+            btnCopyAll.Font = new Font("Segoe UI", 9f, FontStyle.Bold);
+            btnCopyAll.BackColor = Color.White;
+            btnCopyAll.ForeColor = Color.FromArgb(51, 65, 85);
+            btnCopyAll.FlatStyle = FlatStyle.Flat;
+            btnCopyAll.FlatAppearance.BorderColor = Color.FromArgb(203, 213, 225);
+            btnCopyAll.AutoSize = true;
+            btnCopyAll.Height = 34;
+            btnCopyAll.Cursor = Cursors.Hand;
+            btnCopyAll.Click += (s, e) => CopyAllText();
+            pnlActions.Controls.Add(btnCopyAll);
+
+            if (bedNumber > 0) {
+                btnInsertSelected = new Button();
+                btnInsertSelected.Text = string.Format("📥 แทรกส่วนที่เลือกลงเตียง {0:D2}", bedNumber);
+                btnInsertSelected.Font = new Font("Segoe UI", 9f, FontStyle.Bold);
+                btnInsertSelected.BackColor = Color.FromArgb(13, 148, 136); // Teal
+                btnInsertSelected.ForeColor = Color.White;
+                btnInsertSelected.FlatStyle = FlatStyle.Flat;
+                btnInsertSelected.FlatAppearance.BorderSize = 0;
+                btnInsertSelected.AutoSize = true;
+                btnInsertSelected.Height = 34;
+                btnInsertSelected.Cursor = Cursors.Hand;
+                btnInsertSelected.Click += (s, e) => InsertSelectedToBed();
+                pnlActions.Controls.Add(btnInsertSelected);
+
+                btnInsertAll = new Button();
+                btnInsertAll.Text = string.Format("➕ แทรกทั้งหมดลงเตียง {0:D2}", bedNumber);
+                btnInsertAll.Font = new Font("Segoe UI", 9f, FontStyle.Bold);
+                btnInsertAll.BackColor = Color.FromArgb(217, 119, 6); // Amber
+                btnInsertAll.ForeColor = Color.White;
+                btnInsertAll.FlatStyle = FlatStyle.Flat;
+                btnInsertAll.FlatAppearance.BorderSize = 0;
+                btnInsertAll.AutoSize = true;
+                btnInsertAll.Height = 34;
+                btnInsertAll.Cursor = Cursors.Hand;
+                btnInsertAll.Click += (s, e) => InsertAllToBed();
+                pnlActions.Controls.Add(btnInsertAll);
+            }
+
+            lblStatus = new Label();
+            lblStatus.Text = "";
+            lblStatus.Font = new Font("Segoe UI", 9f, FontStyle.Bold);
+            lblStatus.ForeColor = Color.FromArgb(5, 150, 105);
+            lblStatus.Margin = new Padding(10, 8, 4, 0);
+            lblStatus.AutoSize = true;
+            pnlActions.Controls.Add(lblStatus);
+
+            btnClose = new Button();
+            btnClose.Text = "ปิด (Esc)";
+            btnClose.Font = new Font("Segoe UI", 9f, FontStyle.Regular);
+            btnClose.Size = new Size(80, 34);
+            btnClose.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            btnClose.Location = new Point(pnlBottom.Width - 95, 10);
+            btnClose.BackColor = Color.FromArgb(226, 232, 240);
+            btnClose.FlatStyle = FlatStyle.Flat;
+            btnClose.FlatAppearance.BorderSize = 0;
+            btnClose.Cursor = Cursors.Hand;
+            btnClose.Click += (s, e) => this.Close();
+            pnlBottom.Controls.Add(btnClose);
+            pnlBottom.Controls.Add(pnlActions);
+            pnlBottom.Resize += (s, e) => {
+                btnClose.Location = new Point(pnlBottom.Width - 95, 10);
+            };
+
+            this.Controls.Add(pnlBottom);
+
+            // 4. Center Preview Box
+            txtPreview = new TextBox();
+            txtPreview.Multiline = true;
+            txtPreview.ScrollBars = ScrollBars.Vertical;
+            txtPreview.Dock = DockStyle.Fill;
+            Font fBody;
+            try {
+                fBody = new Font("Leelawadee UI", 11f, FontStyle.Regular);
+            } catch {
+                fBody = new Font("Segoe UI", 11f, FontStyle.Regular);
+            }
+            txtPreview.Font = fBody;
+            txtPreview.BackColor = Color.White;
+            txtPreview.ForeColor = Color.FromArgb(15, 23, 42);
+            txtPreview.HideSelection = false; // CRITICAL: Blue selection stays visible!
+            txtPreview.KeyDown += (s, e) => {
+                if (e.Control && e.KeyCode == Keys.A) {
+                    txtPreview.SelectAll();
+                    e.Handled = true;
+                } else if (e.Control && e.KeyCode == Keys.C) {
+                    CopySelectedText();
+                    e.Handled = true;
+                }
+            };
+
+            ContextMenuStrip cms = new ContextMenuStrip();
+            ToolStripMenuItem miCopySel = new ToolStripMenuItem("คัดลอกส่วนที่เลือก (Ctrl+C)");
+            miCopySel.Click += (s, e) => CopySelectedText();
+            ToolStripMenuItem miCopyAll = new ToolStripMenuItem("คัดลอกทั้งหมด");
+            miCopyAll.Click += (s, e) => CopyAllText();
+            ToolStripMenuItem miSelAll = new ToolStripMenuItem("เลือกทั้งหมด (Ctrl+A)");
+            miSelAll.Click += (s, e) => txtPreview.SelectAll();
+            cms.Items.Add(miCopySel);
+            cms.Items.Add(miCopyAll);
+            cms.Items.Add(new ToolStripSeparator());
+            cms.Items.Add(miSelAll);
+            txtPreview.ContextMenuStrip = cms;
+
+            this.Controls.Add(txtPreview);
+            txtPreview.BringToFront();
+        }
+
+        private Button CreateShiftButton(string text, string shiftKey) {
+            Button btn = new Button();
+            btn.Text = text;
+            btn.Tag = shiftKey;
+            btn.Font = new Font("Segoe UI", 8.5f, FontStyle.Regular);
+            btn.Height = 28;
+            btn.AutoSize = true;
+            btn.FlatStyle = FlatStyle.Flat;
+            btn.FlatAppearance.BorderColor = Color.FromArgb(203, 213, 225);
+            btn.Cursor = Cursors.Hand;
+            btn.Margin = new Padding(2, 2, 4, 2);
+            btn.Click += (s, e) => {
+                currentShift = shiftKey;
+                UpdateShiftSelection();
+            };
+            return btn;
+        }
+
+        private void UpdateShiftSelection() {
+            Button[] btns = new Button[] { btnShiftMorning, btnShiftAfternoon, btnShiftNight, btnShiftAll };
+            foreach (Button b in btns) {
+                if (b == null) continue;
+                bool active = (string)b.Tag == currentShift;
+                b.BackColor = active ? Color.FromArgb(13, 148, 136) : Color.White;
+                b.ForeColor = active ? Color.White : Color.FromArgb(51, 65, 85);
+                b.Font = new Font("Segoe UI", 8.5f, active ? FontStyle.Bold : FontStyle.Regular);
+                b.FlatAppearance.BorderColor = active ? Color.FromArgb(13, 148, 136) : Color.FromArgb(203, 213, 225);
+            }
+
+            string filtered = ShiftHelper.FilterContentByShift(rawContent, currentShift);
+            txtPreview.Text = filtered;
+            txtPreview.SelectionStart = 0;
+            txtPreview.SelectionLength = 0;
+        }
+
+        private void CopySelectedText() {
+            string text = (txtPreview.SelectionLength > 0 && !string.IsNullOrEmpty(txtPreview.SelectedText)) 
+                ? txtPreview.SelectedText 
+                : txtPreview.Text;
+
+            if (string.IsNullOrEmpty(text)) return;
+            try {
+                Clipboard.SetDataObject(text, true, 5, 50);
+                ShowStatusFeedback(txtPreview.SelectionLength > 0 ? "คัดลอกส่วนที่เลือกแล้ว! ✓" : "คัดลอกทั้งหมดแล้ว! ✓");
+            } catch {}
+        }
+
+        private void CopyAllText() {
+            string text = txtPreview.Text;
+            if (string.IsNullOrEmpty(text)) return;
+            try {
+                Clipboard.SetDataObject(text, true, 5, 50);
+                ShowStatusFeedback("คัดลอกทั้งหมดแล้ว! ✓");
+            } catch {}
+        }
+
+        private void InsertSelectedToBed() {
+            string text = (txtPreview.SelectionLength > 0 && !string.IsNullOrEmpty(txtPreview.SelectedText)) 
+                ? txtPreview.SelectedText 
+                : txtPreview.Text;
+
+            if (string.IsNullOrEmpty(text)) return;
+            ResultTextToInsert = text;
+            this.DialogResult = DialogResult.OK;
+            this.Close();
+        }
+
+        private void InsertAllToBed() {
+            string text = txtPreview.Text;
+            if (string.IsNullOrEmpty(text)) return;
+            ResultTextToInsert = text;
+            this.DialogResult = DialogResult.OK;
+            this.Close();
+        }
+
+        private void ShowStatusFeedback(string msg) {
+            lblStatus.Text = msg;
+            var t = new System.Windows.Forms.Timer();
+            t.Interval = 1500;
+            t.Tick += (s, e) => {
+                lblStatus.Text = "";
+                t.Stop();
+                t.Dispose();
+            };
+            t.Start();
+        }
+    }
+
     public class PaletteForm : Form {
         private ExpanderContext context;
         private int targetBed = -1;
@@ -3932,10 +4885,17 @@ public void RefreshAllBedButtons() {
         private Button btnReplaceBed;
         private Button btnPasteEPhis;
         
-        // View Tabs
+        // View Tabs & Shift Controls
         private Panel pnlViewTabs;
         private Button btnTabDar;
         private Button btnTabRaw;
+        private FlowLayoutPanel pnlPalShifts;
+        private Label lblPalShiftTitle;
+        private Button btnPalShiftMorning;
+        private Button btnPalShiftAfternoon;
+        private Button btnPalShiftNight;
+        private Button btnPalShiftAll;
+        private string palCurrentShift = "morning";
         private Panel pnlContentContainer;
         private RichTextBox rtbDar;
         private TextBox txtRaw;
@@ -4314,7 +5274,7 @@ public void RefreshAllBedButtons() {
 
             pnlPreviewHeader.Controls.Add(pnlActionToolbar);
 
-            // View Tabs
+            // View Tabs & Shifts
             pnlViewTabs = new Panel();
             pnlViewTabs.Dock = DockStyle.Top;
             pnlViewTabs.Height = 34;
@@ -4345,6 +5305,33 @@ public void RefreshAllBedButtons() {
             btnTabRaw.Cursor = Cursors.Hand;
             btnTabRaw.Click += (s, e) => SwitchPreviewView(false);
             pnlViewTabs.Controls.Add(btnTabRaw);
+
+            pnlPalShifts = new FlowLayoutPanel();
+            pnlPalShifts.Dock = DockStyle.Right;
+            pnlPalShifts.AutoSize = true;
+            pnlPalShifts.WrapContents = false;
+            pnlPalShifts.BackColor = Color.Transparent;
+            pnlPalShifts.Padding = new Padding(0, 0, 4, 0);
+
+            lblPalShiftTitle = new Label();
+            lblPalShiftTitle.Text = "เวร:";
+            lblPalShiftTitle.Font = new Font("Segoe UI", 8.5f, FontStyle.Bold);
+            lblPalShiftTitle.ForeColor = Color.FromArgb(71, 85, 105);
+            lblPalShiftTitle.Margin = new Padding(0, 5, 4, 0);
+            lblPalShiftTitle.AutoSize = true;
+            pnlPalShifts.Controls.Add(lblPalShiftTitle);
+
+            btnPalShiftMorning = CreatePalShiftButton("☀️ เช้า", "morning");
+            btnPalShiftAfternoon = CreatePalShiftButton("⛅ บ่าย", "afternoon");
+            btnPalShiftNight = CreatePalShiftButton("🌙 ดึก", "night");
+            btnPalShiftAll = CreatePalShiftButton("📋 ทุกเวร", "all");
+
+            pnlPalShifts.Controls.Add(btnPalShiftMorning);
+            pnlPalShifts.Controls.Add(btnPalShiftAfternoon);
+            pnlPalShifts.Controls.Add(btnPalShiftNight);
+            pnlPalShifts.Controls.Add(btnPalShiftAll);
+
+            pnlViewTabs.Controls.Add(pnlPalShifts);
 
             // Content Container
             pnlContentContainer = new Panel();
@@ -4500,6 +5487,58 @@ public void RefreshAllBedButtons() {
             pnlCategories.Controls.Add(btn);
         }
 
+        private Button CreatePalShiftButton(string text, string shiftKey) {
+            Button btn = new Button();
+            btn.Text = text;
+            btn.Tag = shiftKey;
+            btn.Font = new Font("Segoe UI", 8f, FontStyle.Regular);
+            btn.Height = 27;
+            btn.AutoSize = true;
+            btn.FlatStyle = FlatStyle.Flat;
+            btn.FlatAppearance.BorderColor = Color.FromArgb(203, 213, 225);
+            btn.Cursor = Cursors.Hand;
+            btn.Margin = new Padding(2, 0, 2, 0);
+            btn.Click += (s, e) => {
+                palCurrentShift = shiftKey;
+                UpdatePalShiftSelection();
+                RefreshCurrentPreview();
+            };
+            return btn;
+        }
+
+        private void UpdatePalShiftSelection() {
+            Button[] btns = new Button[] { btnPalShiftMorning, btnPalShiftAfternoon, btnPalShiftNight, btnPalShiftAll };
+            foreach (Button b in btns) {
+                if (b == null) continue;
+                bool active = (string)b.Tag == palCurrentShift;
+                b.BackColor = active ? Color.FromArgb(13, 148, 136) : Color.White;
+                b.ForeColor = active ? Color.White : Color.FromArgb(51, 65, 85);
+                b.Font = new Font("Segoe UI", 8f, active ? FontStyle.Bold : FontStyle.Regular);
+                b.FlatAppearance.BorderColor = active ? Color.FromArgb(13, 148, 136) : Color.FromArgb(203, 213, 225);
+            }
+        }
+
+        private string GetEffectiveContent(TemplateItem item) {
+            if (item == null || string.IsNullOrEmpty(item.Content)) return "";
+            if (ShiftHelper.HasShiftTags(item.Content) && palCurrentShift != "all") {
+                return ShiftHelper.FilterContentByShift(item.Content, palCurrentShift);
+            }
+            return item.Content;
+        }
+
+        private void RefreshCurrentPreview() {
+            if (lstTemplates.SelectedItems.Count > 0) {
+                TemplateItem item = lstTemplates.SelectedItems[0].Tag as TemplateItem;
+                if (item != null) {
+                    bool hasShifts = ShiftHelper.HasShiftTags(item.Content);
+                    pnlPalShifts.Visible = hasShifts;
+                    string effective = GetEffectiveContent(item);
+                    txtRaw.Text = effective;
+                    RenderDarToRichTextBox(rtbDar, effective, currentFontSize);
+                }
+            }
+        }
+
         private void SwitchPreviewView(bool showDar) {
             if (showDar) {
                 btnTabDar.BackColor = Color.White;
@@ -4542,7 +5581,7 @@ public void RefreshAllBedButtons() {
                 if (lstTemplates.SelectedItems.Count > 0) {
                     TemplateItem item = lstTemplates.SelectedItems[0].Tag as TemplateItem;
                     if (item != null) {
-                        RenderDarToRichTextBox(rtbDar, item.Content, currentFontSize);
+                        RenderDarToRichTextBox(rtbDar, GetEffectiveContent(item), currentFontSize);
                     }
                 }
             } catch {}
@@ -4578,6 +5617,8 @@ public void RefreshAllBedButtons() {
                 btnReplaceBed.Text = "แทนที่เตียง";
             }
 
+            palCurrentShift = ShiftHelper.GetCurrentShift();
+            UpdatePalShiftSelection();
             RefreshList(txtSearch.Text);
             SwitchPreviewView(true);
 
@@ -4676,8 +5717,15 @@ public void RefreshAllBedButtons() {
                 if (item != null) {
                     lblBadgeShortcut.Text = item.Shortcut;
                     lblPreviewTitle.Text = item.Title;
-                    txtRaw.Text = item.Content;
-                    RenderDarToRichTextBox(rtbDar, item.Content, currentFontSize);
+                    if (ShiftHelper.HasShiftTags(item.Content)) {
+                        pnlPalShifts.Visible = true;
+                        palCurrentShift = ShiftHelper.GetCurrentShift();
+                    } else {
+                        pnlPalShifts.Visible = false;
+                        palCurrentShift = "all";
+                    }
+                    UpdatePalShiftSelection();
+                    RefreshCurrentPreview();
                 }
             }
         }
@@ -4815,7 +5863,7 @@ public void RefreshAllBedButtons() {
                 if (lstTemplates.SelectedItems.Count == 0) return;
                 TemplateItem item = lstTemplates.SelectedItems[0].Tag as TemplateItem;
                 if (item == null) return;
-                textToCopy = item.Content;
+                textToCopy = GetEffectiveContent(item);
             }
 
             if (string.IsNullOrEmpty(textToCopy)) return;
@@ -4851,7 +5899,7 @@ public void RefreshAllBedButtons() {
             if (item == null) return;
 
             string sel = GetSelectedPreviewText(false);
-            string contentToUse = !string.IsNullOrEmpty(sel) ? sel : item.Content;
+            string contentToUse = !string.IsNullOrEmpty(sel) ? sel : GetEffectiveContent(item);
 
             int bNum = GetSelectedBedNumber();
             context.InsertTemplateToBed(bNum, contentToUse, replace);
@@ -4864,7 +5912,7 @@ public void RefreshAllBedButtons() {
             if (item == null) return;
 
             string sel = GetSelectedPreviewText(false);
-            string content = !string.IsNullOrEmpty(sel) ? sel : item.Content;
+            string content = !string.IsNullOrEmpty(sel) ? sel : GetEffectiveContent(item);
             this.Hide();
 
             System.Threading.ThreadPool.QueueUserWorkItem(state => {

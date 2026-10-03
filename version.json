@@ -1,8 +1,9 @@
 {
-  "version": "1.6.3",
+  "version": "1.6.5",
   "downloadUrl": "https://raw.githubusercontent.com/oatzilla/Medical_Text_Expander/main/Medical_Text_Expander.exe",
   "download_url": "https://raw.githubusercontent.com/oatzilla/Medical_Text_Expander/main/Medical_Text_Expander.exe",
-  "releaseDate": "2026-10-01",
-  "release_date": "2026-10-01",
-  "changelog": "- เพิ่มระบุ [GOAL] เป้าหมายทางการพยาบาลและผลลัพธ์ที่คาดหวัง ในทุกข้อวินิจฉัย/DAR ครบทั้ง 110 เทมเพลต ทั้งบน Desktop (F8) และ Web & Mobile Portal\r\n- ปรับปรุงปุ่มคีย์ด่วนสีขาวในหน้าต่างเตียงผู้ป่วย (BedNotesForm) ให้เป็นข้อวินิจฉัย Orthopedic ที่พบบ่อย 12 ปุ่ม: Pre-op, Post-op, Pain, Wound, Drain, CMS Check, Rehab, TKA, THA, Spine, Cast, Fall Risk แทรกข้อวินิจฉัยพร้อม Goal, Data, Action และ Response ลงเตียงได้ทันทีเพียงคลิกเดียว"
+  "releaseDate": "2026-10-03",
+  "release_date": "2026-10-03",
+  "changelog": "- เพิ่มระบบคลังแบบฟอร์มประจำวอร์ด (Ward Forms & Templates): รองรับการดาวน์โหลดไฟล์ Excel (.xlsx) แบบฟอร์มบันทึก Intake/Output (I/O) ทั้งบน Desktop Program และ Web/Mobile Cloud Portal\r\n- หน้าต่างจัดการแบบฟอร์ม I/O สำหรับผู้ดูแลระบบ (Admin Template Manager): ล็อกความปลอดภัยด้วยรหัสผ่าน Admin (9844) สามารถเลือกไฟล์ Excel ใหม่จากเครื่องแล้วกดอัปโหลดขึ้น Supabase Cloud ได้ทันที ทุกเครื่องในวอร์ดและมือถือจะได้รับเวอร์ชันใหม่ล่าสุดโดยไม่ต้องแก้ไขโค้ด\r\n- ปุ่มเปิดใช้งานแบบฟอร์ม I/O บน Desktop: เปิดไฟล์ใน Microsoft Excel ได้ทันที, บันทึกสำเนาลงเครื่อง (Save As), หรือซิงค์ดึงไฟล์ล่าสุดจาก Cloud ลงมาที่เครื่อง"
 }
+
