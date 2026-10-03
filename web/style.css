@@ -835,9 +835,9 @@ body {
   -webkit-backdrop-filter: blur(6px);
   z-index: 100;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
-  padding: 16px;
+  padding: 12px;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   opacity: 0;
@@ -2960,7 +2960,7 @@ body.modal-open {
 .io-modal-card {
   max-width: 820px;
   width: 96%;
-  max-height: calc(100vh - 36px);
+  max-height: calc(100vh - 20px);
   height: auto;
   background: var(--bg-surface);
   border-radius: var(--radius-lg);
@@ -2970,13 +2970,14 @@ body.modal-open {
   overflow: hidden;
   border: 1px solid var(--border-subtle);
   margin: auto;
+  touch-action: pan-y !important;
 }
 
 .docs-modal-header,
 .io-modal-header {
   background: linear-gradient(135deg, #0d9488 0%, #10b981 100%);
   color: #ffffff;
-  padding: 16px 20px;
+  padding: 12px 18px;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -3009,15 +3010,49 @@ body.modal-open {
 
 .docs-modal-body,
 .io-modal-body {
-  padding: 18px 20px;
+  padding: 14px 18px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
   flex: 1 1 auto;
   min-height: 0 !important;
   max-height: none;
-  overflow-y: auto !important;
+  overflow-y: scroll !important;
+  overflow-x: hidden !important;
   -webkit-overflow-scrolling: touch;
+  touch-action: pan-y !important;
+  scrollbar-width: thin !important;
+  scrollbar-color: #10b981 #f1f5f9 !important;
+}
+
+/* CRITICAL: Guarantee all direct children retain 100% natural height so body naturally scrolls on short screens */
+.docs-modal-body > *,
+.io-modal-body > * {
+  flex-shrink: 0 !important;
+}
+
+.docs-modal-body::-webkit-scrollbar,
+.io-modal-body::-webkit-scrollbar {
+  width: 10px !important;
+  display: block !important;
+}
+
+.docs-modal-body::-webkit-scrollbar-track,
+.io-modal-body::-webkit-scrollbar-track {
+  background: #f1f5f9 !important;
+  border-radius: 6px !important;
+}
+
+.docs-modal-body::-webkit-scrollbar-thumb,
+.io-modal-body::-webkit-scrollbar-thumb {
+  background: #10b981 !important;
+  border-radius: 6px !important;
+  border: 2px solid #f1f5f9 !important;
+}
+
+.docs-modal-body::-webkit-scrollbar-thumb:hover,
+.io-modal-body::-webkit-scrollbar-thumb:hover {
+  background: #0d9488 !important;
 }
 
 /* Filter & Search Bar */
@@ -3237,13 +3272,13 @@ body.modal-open {
 
 .docs-empty-state {
   text-align: center;
-  padding: 30px 10px;
+  padding: 12px 10px;
   color: var(--text-dim);
 }
 
 .docs-empty-state i {
-  font-size: 36px;
-  margin-bottom: 8px;
+  font-size: 24px;
+  margin-bottom: 4px;
   color: var(--text-muted);
 }
 
@@ -3399,6 +3434,9 @@ body.modal-open {
   border-radius: var(--radius-md);
   overflow: hidden;
   background: var(--bg-main);
+  flex-shrink: 0 !important;
+  height: auto !important;
+  min-height: fit-content;
 }
 
 .io-admin-toggle {
@@ -3498,20 +3536,21 @@ body.modal-open {
   font-weight: 600;
   color: #10b981;
   background: rgba(16, 185, 129, 0.1);
-  padding: 6px 12px;
+  padding: 5px 10px;
   border-radius: var(--radius-sm);
-  margin-bottom: 12px;
+  margin-bottom: 8px;
   border: 1px solid rgba(16, 185, 129, 0.25);
 }
 
 .io-drop-zone {
   border: 2px dashed #10b981;
   border-radius: var(--radius-md);
-  padding: 24px 16px;
+  padding: 12px 14px;
   text-align: center;
   background: rgba(16, 185, 129, 0.04);
   cursor: pointer;
   transition: all var(--transition-fast);
+  touch-action: pan-y !important;
 }
 
 .io-drop-zone:hover,
@@ -3521,20 +3560,20 @@ body.modal-open {
 }
 
 .drop-zone-icon {
-  font-size: 32px;
+  font-size: 24px;
   color: #10b981;
-  margin-bottom: 8px;
-}
-
-.drop-zone-text {
-  font-size: 0.92rem;
-  font-weight: 600;
-  color: var(--text-main);
   margin-bottom: 4px;
 }
 
+.drop-zone-text {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-main);
+  margin-bottom: 2px;
+}
+
 .drop-zone-sub {
-  font-size: 0.76rem;
+  font-size: 0.74rem;
   color: var(--text-dim);
   display: block;
 }
@@ -3781,6 +3820,17 @@ body.modal-open {
 }
 
 @media (max-width: 640px) {
+  .docs-queue-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .docs-queue-header-left {
+    justify-content: space-between;
+  }
+  .docs-queue-header-right {
+    justify-content: flex-end;
+  }
   .doc-queue-item {
     flex-direction: column;
     align-items: stretch;

@@ -2227,8 +2227,17 @@ function initDocumentsSystem() {
       if (docsAdminChevron) {
         docsAdminChevron.className = isHidden ? 'fa-solid fa-chevron-up' : 'fa-solid fa-chevron-down';
       }
-      if (isHidden && !isDocsAdminUnlocked && docsAdminPassword) {
-        setTimeout(() => docsAdminPassword.focus(), 100);
+      if (isHidden) {
+        if (!isDocsAdminUnlocked && docsAdminPassword) {
+          setTimeout(() => docsAdminPassword.focus(), 100);
+        }
+        setTimeout(() => {
+          const body = document.querySelector('.docs-modal-body');
+          const wrapper = document.querySelector('.docs-admin-wrapper');
+          if (wrapper && body) {
+            body.scrollTo({ top: wrapper.offsetTop - 10, behavior: 'smooth' });
+          }
+        }, 120);
       }
     });
   }
@@ -2248,6 +2257,14 @@ function initDocumentsSystem() {
       showToast('🔓 ปลดล็อกสิทธิ์ Admin สำเร็จ สามารถจัดการและอัปโหลดเอกสารได้เลย', 'success');
       docsAdminPassword.value = '';
       renderDocumentsList();
+
+      setTimeout(() => {
+        const body = document.querySelector('.docs-modal-body');
+        const uploadSec = document.getElementById('docsUploadSection');
+        if (uploadSec && body) {
+          body.scrollTo({ top: uploadSec.offsetTop - 15, behavior: 'smooth' });
+        }
+      }, 150);
     } else {
       showToast('❌ รหัสผ่านผู้ดูแลระบบไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง', 'error');
       docsAdminPassword.focus();
@@ -2395,6 +2412,13 @@ function initDocumentsSystem() {
     }
 
     renderDocUploadQueue();
+    setTimeout(() => {
+      const body = document.querySelector('.docs-modal-body');
+      const btn = document.getElementById('btnUploadDoc');
+      if (btn && body) {
+        btn.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }, 120);
   }
 
   // File Selection & Drag-and-Drop
@@ -2570,6 +2594,46 @@ function openDocsModal() {
     modal.classList.add('open');
     modal.setAttribute('aria-hidden', 'false');
     renderDocumentsList();
+
+    // Universal Wheel Event Forwarding: Allows scrolling even when cursor is on backdrop, header, or footer
+    if (!modal._hasWheelForwarder) {
+      modal._hasWheelForwarder = true;
+      modal.addEventListener('wheel', (e) => {
+        const body = modal.querySelector('.docs-modal-body');
+        if (!body) return;
+        const target = e.target;
+        if (target && target.closest('.docs-queue-list')) {
+          const ql = target.closest('.docs-queue-list');
+          if (ql && ql.scrollHeight > ql.clientHeight) return;
+        }
+        if (!target.closest('.docs-modal-body')) {
+          if (e.deltaY !== 0) {
+            body.scrollTop += e.deltaY;
+            e.preventDefault();
+          }
+        }
+      }, { passive: false });
+    }
+
+    // Keyboard Arrow / Page Navigation for instant accessibility
+    if (!modal._hasKeyNav) {
+      modal._hasKeyNav = true;
+      window.addEventListener('keydown', (e) => {
+        if (!modal.classList.contains('open')) return;
+        const tag = (document.activeElement ? document.activeElement.tagName : '').toLowerCase();
+        if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+        const body = modal.querySelector('.docs-modal-body');
+        if (!body) return;
+
+        if (e.key === 'ArrowDown' || e.key === 'PageDown') {
+          e.preventDefault();
+          body.scrollBy({ top: e.key === 'PageDown' ? 250 : 80, behavior: 'smooth' });
+        } else if (e.key === 'ArrowUp' || e.key === 'PageUp') {
+          e.preventDefault();
+          body.scrollBy({ top: e.key === 'PageUp' ? -250 : -80, behavior: 'smooth' });
+        }
+      });
+    }
   }
 }
 
