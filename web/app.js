@@ -2142,17 +2142,22 @@ function initIoTemplateSystem() {
     });
   }
 
-  // Unlock Admin (Default password: 9844)
-  function tryUnlockAdmin() {
+  // Unlock Admin (Secure SHA-256 hash verification)
+  async function tryUnlockAdmin() {
     const pass = (ioAdminPassword.value || '').trim();
-    if (pass === '9844') {
+    if (!pass) return;
+
+    const hash = await sha256Hex(pass);
+    const targetHash = '9416a40b88fff19d0365e4c29fb2cd67fcd5022216708f1fa258b1513c56a41d';
+
+    if (hash === targetHash) {
       isIoAdminUnlocked = true;
       ioAdminGate.style.display = 'none';
       ioUploadSection.style.display = 'block';
       showToast('🔓 ปลดล็อกสิทธิ์ Admin สำเร็จ สามารถเลือกไฟล์ Excel เพื่ออัปโหลดได้เลย', 'success');
       ioAdminPassword.value = '';
     } else {
-      showToast('❌ รหัสผ่านผู้ดูแลระบบไม่ถูกต้อง (กรุณาใช้รหัส Admin: 9844)', 'error');
+      showToast('❌ รหัสผ่านผู้ดูแลระบบไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง', 'error');
       ioAdminPassword.focus();
       ioAdminPassword.select();
     }
@@ -2433,3 +2438,12 @@ function readFileAsBase64(file) {
   });
 }
 
+async function sha256Hex(str) {
+  try {
+    const buf = new TextEncoder().encode(str);
+    const hash = await crypto.subtle.digest('SHA-256', buf);
+    return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('');
+  } catch (e) {
+    return '';
+  }
+}

@@ -2371,7 +2371,7 @@ namespace MedicalTextExpander {
             pnlAdminGate.Size = new Size(560, 180);
 
             Label lblGateDesc = new Label();
-            lblGateDesc.Text = "กรุณาใส่รหัสผ่านผู้ดูแลระบบ (Admin Password: 9844) เพื่อเลือกไฟล์ Excel ใหม่:";
+            lblGateDesc.Text = "กรุณาใส่รหัสผ่านผู้ดูแลระบบ (Admin Password) เพื่อเลือกและอัปเดตไฟล์ Excel ใหม่:";
             lblGateDesc.Location = new Point(4, 16);
             lblGateDesc.Size = new Size(540, 24);
             lblGateDesc.Font = new Font("Segoe UI", 9.5f);
@@ -2474,7 +2474,7 @@ namespace MedicalTextExpander {
                 pnlAdminUnlocked.Visible = true;
                 txtAdminPass.Text = "";
             } else {
-                MessageBox.Show("รหัสผ่านผู้ดูแลระบบไม่ถูกต้อง (กรุณาใช้รหัส 9844)", "รหัสผ่านผิด", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("รหัสผ่านผู้ดูแลระบบไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง", "รหัสผ่านไม่ถูกต้อง", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 txtAdminPass.Focus();
                 txtAdminPass.SelectAll();
             }
