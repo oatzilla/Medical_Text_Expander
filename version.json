@@ -1,8 +1,8 @@
 {
-  "version": "1.6.9",
+  "version": "1.7.0",
   "downloadUrl": "https://raw.githubusercontent.com/oatzilla/Medical_Text_Expander/main/Medical_Text_Expander.exe",
   "download_url": "https://raw.githubusercontent.com/oatzilla/Medical_Text_Expander/main/Medical_Text_Expander.exe",
   "releaseDate": "2026-10-03",
   "release_date": "2026-10-03",
-  "changelog": "- ระบบจัดการเอกสารสำหรับ Admin ครบวงจร ทั้งบน Desktop Program และ Web Portal\r\n- เพิ่มปุ่ม [✏️ แก้ไขชื่อ & หมวดหมู่] เปลี่ยนชื่อเรื่องที่แสดงในระบบและเลือกหมวดหมู่เอกสารใหม่ได้ทันที\r\n- เพิ่มปุ่ม [🗑️ ลบเอกสารออกจากระบบ] พร้อมระบบยืนยันความปลอดภัย ซิงค์ลบไฟล์ทั้งในเครื่องและ Cloud อัตโนมัติ\r\n- เพิ่มปุ่ม [🔄 เปลี่ยน/แทนที่ไฟล์เดิม] สำหรับ Desktop Program อัปเดตไฟล์เวอร์ชันใหม่เข้าแทนที่เอกสารเดิมได้ทันที\r\n- ปรับปรุงหน้าต่าง Document Center เป็นตาราง ListView แยกคอลัมน์ชัดเจน พร้อมช่องค้นหาเอกสารแบบ Real-Time และตัวกรองหมวดหมู่"
+  "changelog": "- นำคำอธิบายชื่อสีตามเลขเตียง (เช่น ฟ้าคราม, เขียวมรกต) ออกจากหัวเรื่องหน้าต่างบันทึกเตียง (Header Title) และ Tooltip เพื่อความกระชับ สะอาดตา และเป็นมืออาชีพ\r\n- แสดงเฉพาะหมายเลขเตียง เช่น '🛏️ ข้อมูลผู้ป่วย เตียง 01' โดยคงโทนสีประจำเตียงที่สวยงามและสบายตาไว้ตามเดิม"
 }

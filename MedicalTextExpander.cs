@@ -196,7 +196,7 @@ namespace MedicalTextExpander {
     }
 
     public static class AppUpdater {
-        public const string CurrentVersion = "1.6.9";
+        public const string CurrentVersion = "1.7.0";
         public const string DefaultGitHubRepo = "oatzilla/Medical_Text_Expander";
 
         public static void CheckForUpdatesAsync(string repo, bool isManual, Form parent = null, string token = null) {
@@ -2001,7 +2001,7 @@ namespace MedicalTextExpander {
                 SoftBg = Color.FromArgb(240, 249, 255),
                 Border = Color.FromArgb(186, 230, 253),
                 TextDark = Color.FromArgb(3, 105, 161),
-                ZoneName = "ฟ้าคราม"
+                ZoneName = ""
             },
             // Bed 2, 12, 22 - Emerald Green
             new BedTheme {
@@ -2009,7 +2009,7 @@ namespace MedicalTextExpander {
                 SoftBg = Color.FromArgb(236, 253, 245),
                 Border = Color.FromArgb(167, 243, 208),
                 TextDark = Color.FromArgb(4, 120, 87),
-                ZoneName = "เขียวมรกต"
+                ZoneName = ""
             },
             // Bed 3, 13, 23 - Royal Indigo
             new BedTheme {
@@ -2017,7 +2017,7 @@ namespace MedicalTextExpander {
                 SoftBg = Color.FromArgb(238, 242, 255),
                 Border = Color.FromArgb(199, 210, 254),
                 TextDark = Color.FromArgb(67, 56, 202),
-                ZoneName = "ม่วงคราม"
+                ZoneName = ""
             },
             // Bed 4, 14, 24 - Amber Gold
             new BedTheme {
@@ -2025,7 +2025,7 @@ namespace MedicalTextExpander {
                 SoftBg = Color.FromArgb(254, 243, 199),
                 Border = Color.FromArgb(253, 230, 138),
                 TextDark = Color.FromArgb(180, 83, 9),
-                ZoneName = "ส้มทอง"
+                ZoneName = ""
             },
             // Bed 5, 15, 25 - Rose Crimson
             new BedTheme {
@@ -2033,7 +2033,7 @@ namespace MedicalTextExpander {
                 SoftBg = Color.FromArgb(255, 241, 242),
                 Border = Color.FromArgb(254, 205, 211),
                 TextDark = Color.FromArgb(190, 18, 60),
-                ZoneName = "ชมพูกุหลาบ"
+                ZoneName = ""
             },
             // Bed 6, 16, 26 - Violet Purple
             new BedTheme {
@@ -2041,7 +2041,7 @@ namespace MedicalTextExpander {
                 SoftBg = Color.FromArgb(250, 245, 255),
                 Border = Color.FromArgb(233, 213, 255),
                 TextDark = Color.FromArgb(126, 34, 206),
-                ZoneName = "ม่วงสดใส"
+                ZoneName = ""
             },
             // Bed 7, 17, 27 - Cyan Turquoise
             new BedTheme {
@@ -2049,7 +2049,7 @@ namespace MedicalTextExpander {
                 SoftBg = Color.FromArgb(240, 253, 250),
                 Border = Color.FromArgb(153, 246, 228),
                 TextDark = Color.FromArgb(15, 118, 110),
-                ZoneName = "ฟ้าเทอร์ควอยซ์"
+                ZoneName = ""
             },
             // Bed 8, 18, 28 - Coral Tangerine
             new BedTheme {
@@ -2057,7 +2057,7 @@ namespace MedicalTextExpander {
                 SoftBg = Color.FromArgb(255, 247, 237),
                 Border = Color.FromArgb(254, 215, 170),
                 TextDark = Color.FromArgb(194, 65, 12),
-                ZoneName = "ส้มคอรัล"
+                ZoneName = ""
             },
             // Bed 9, 19, 29 - Forest Teal
             new BedTheme {
@@ -2065,7 +2065,7 @@ namespace MedicalTextExpander {
                 SoftBg = Color.FromArgb(240, 253, 250),
                 Border = Color.FromArgb(153, 246, 228),
                 TextDark = Color.FromArgb(17, 94, 89),
-                ZoneName = "เขียวหัวเป็ด"
+                ZoneName = ""
             },
             // Bed 10, 20, 30 - Warm Fuchsia
             new BedTheme {
@@ -2073,7 +2073,7 @@ namespace MedicalTextExpander {
                 SoftBg = Color.FromArgb(253, 244, 255),
                 Border = Color.FromArgb(245, 208, 254),
                 TextDark = Color.FromArgb(134, 25, 143),
-                ZoneName = "ชมพูฟูเชีย"
+                ZoneName = ""
             }
         };
 
@@ -2085,7 +2085,7 @@ namespace MedicalTextExpander {
                     SoftBg = Color.FromArgb(241, 245, 249),
                     Border = Color.FromArgb(203, 213, 225),
                     TextDark = Color.FromArgb(30, 41, 59),
-                    ZoneName = "ทั่วไป"
+                    ZoneName = ""
                 };
             }
             int index = (bedNum - 1) % Themes.Length;
@@ -3924,7 +3924,7 @@ namespace MedicalTextExpander {
             pnlNoteHeader.Padding = new Padding(8, 4, 8, 4);
 
             lblBedTitle = new Label();
-            lblBedTitle.Text = "🛏️ ข้อมูลผู้ป่วย เตียง 1";
+            lblBedTitle.Text = "🛏️ ข้อมูลผู้ป่วย เตียง 01";
             lblBedTitle.Font = new Font("Segoe UI", 11.5f, FontStyle.Bold);
             lblBedTitle.ForeColor = Color.FromArgb(15, 23, 42);
             lblBedTitle.Location = new Point(8, 10);
@@ -4396,7 +4396,7 @@ namespace MedicalTextExpander {
 
             currentBed = bedNum;
             BedColorHelper.BedTheme curTheme = BedColorHelper.GetTheme(currentBed);
-            lblBedTitle.Text = string.Format("🛏️ ข้อมูลผู้ป่วย เตียง {0:D2} ({1})", currentBed, curTheme.ZoneName);
+            lblBedTitle.Text = string.Format("🛏️ ข้อมูลผู้ป่วย เตียง {0:D2}", currentBed);
             lblBedTitle.ForeColor = curTheme.Primary;
 
             isSuppressingEvents = true;
@@ -4514,8 +4514,8 @@ public void RefreshAllBedButtons() {
                     string remInfo = (urgent != null) 
                         ? string.Format("\n⏱ ตัวเตือนหัตถการ: {0} ({1})", urgent.Title, urgent.RemainingText) 
                         : "";
-                    string tipText = string.Format("เตียง {0:D2} ({1}): {2}{3}\n(คีย์ลัดใน e-PHIS: พิมพ์ .b{0})", 
-                        i, theme.ZoneName, manager.GetPreview(i), remInfo);
+                    string tipText = string.Format("เตียง {0:D2}: {1}{2}\n(คีย์ลัดใน e-PHIS: พิมพ์ .b{0})", 
+                        i, manager.GetPreview(i), remInfo);
                     if (bedToolTip.GetToolTip(btn) != tipText) {
                         bedToolTip.SetToolTip(btn, tipText);
                     }
