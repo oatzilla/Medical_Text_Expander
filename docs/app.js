@@ -324,6 +324,8 @@ function setupEventListeners() {
     if (e.key === 'Escape') {
       if (templateModal && templateModal.classList.contains('open')) {
         closeTemplateModal();
+      } else if (document.getElementById('docsModal') && document.getElementById('docsModal').classList.contains('open')) {
+        closeDocsModal();
       } else if (document.getElementById('ioModal') && document.getElementById('ioModal').classList.contains('open')) {
         closeIoModal();
       } else if (editModal && editModal.classList.contains('open')) {
@@ -2057,115 +2059,203 @@ function applyTemplateToNote(replace = false) {
 }
 
 // ==========================================
-// Ward I/O Template & Admin Upload System
-// ==========================================
-let currentIoTemplate = null;
-let selectedIoFile = null;
-let isIoAdminUnlocked = false;
+// ============================================================
+// Ward Documents & Forms Center System (Multi-Document Catalog)
+// ============================================================
+const DEFAULT_IO_DOC = {
+  id: 'doc_io_template',
+  title: 'แบบฟอร์มบันทึก Intake / Output (I/O)',
+  category: 'แบบฟอร์มบันทึกทางการพยาบาล',
+  filename: 'แบบฟอร์ม IO.xlsx',
+  download_name: 'แบบฟอร์ม_บันทึก_IO.xlsx',
+  file_type: 'xlsx',
+  size: 78780,
+  updated_at: '2026-10-03T01:58:06Z',
+  updated_by: 'Admin',
+  static_url: 'templates/IO_Template.xlsx'
+};
 
-function initIoTemplateSystem() {
-  const openIoModalBtn = document.getElementById('openIoModalBtn');
-  const ioModal = document.getElementById('ioModal');
-  const ioModalCloseBtn = document.getElementById('ioModalCloseBtn');
-  const btnCloseIoModal = document.getElementById('btnCloseIoModal');
-  const btnDownloadIoTemplate = document.getElementById('btnDownloadIoTemplate');
+let currentDocsCatalog = {
+  version: 2,
+  documents: [ DEFAULT_IO_DOC ]
+};
 
-  const ioAdminToggle = document.getElementById('ioAdminToggle');
-  const ioAdminPanel = document.getElementById('ioAdminPanel');
-  const ioAdminChevron = document.getElementById('ioAdminChevron');
-  const ioAdminPassword = document.getElementById('ioAdminPassword');
-  const btnUnlockIoAdmin = document.getElementById('btnUnlockIoAdmin');
-  const ioAdminGate = document.getElementById('ioAdminGate');
-  const ioUploadSection = document.getElementById('ioUploadSection');
+let selectedDocFile = null;
+let isDocsAdminUnlocked = false;
+let activeDocCategory = 'all';
+let docSearchQuery = '';
 
-  const ioDropZone = document.getElementById('ioDropZone');
-  const ioFileInput = document.getElementById('ioFileInput');
-  const ioSelectedFile = document.getElementById('ioSelectedFile');
-  const ioSelectedFileName = document.getElementById('ioSelectedFileName');
-  const ioSelectedFileSize = document.getElementById('ioSelectedFileSize');
-  const btnRemoveSelectedFile = document.getElementById('btnRemoveSelectedFile');
-  const ioUploaderName = document.getElementById('ioUploaderName');
-  const btnUploadIoTemplate = document.getElementById('btnUploadIoTemplate');
+// Backward compatibility references
+let currentIoTemplate = DEFAULT_IO_DOC;
 
-  // Load cached template metadata if available
+function normalizeDocsCatalog(raw) {
+  if (!raw) return { version: 2, documents: [ DEFAULT_IO_DOC ] };
+  if (Array.isArray(raw.documents)) {
+    if (raw.documents.length === 0) {
+      return { version: 2, documents: [ DEFAULT_IO_DOC ] };
+    }
+    return { version: raw.version || 2, documents: raw.documents };
+  }
+  // Version 1 single object fallback
+  if (raw.filename || raw.base64) {
+    return {
+      version: 2,
+      documents: [
+        {
+          id: 'doc_io_template',
+          title: 'แบบฟอร์มบันทึก Intake / Output (I/O)',
+          category: 'แบบฟอร์มบันทึกทางการพยาบาล',
+          filename: raw.filename || 'แบบฟอร์ม IO.xlsx',
+          download_name: raw.download_name || 'แบบฟอร์ม_บันทึก_IO.xlsx',
+          file_type: 'xlsx',
+          size: raw.size || 78780,
+          updated_at: raw.updated_at || new Date().toISOString(),
+          updated_by: raw.updated_by || 'Admin',
+          base64: raw.base64
+        }
+      ]
+    };
+  }
+  return { version: 2, documents: [ DEFAULT_IO_DOC ] };
+}
+
+function initDocumentsSystem() {
+  const openDocsModalBtn = document.getElementById('openDocsModalBtn') || document.getElementById('openIoModalBtn');
+  const docsModal = document.getElementById('docsModal') || document.getElementById('ioModal');
+  const docsModalCloseBtn = document.getElementById('docsModalCloseBtn') || document.getElementById('ioModalCloseBtn');
+  const btnCloseDocsModal = document.getElementById('btnCloseDocsModal') || document.getElementById('btnCloseIoModal');
+
+  const docSearchInput = document.getElementById('docSearchInput');
+  const btnClearDocSearch = document.getElementById('btnClearDocSearch');
+  const docCategoryChips = document.getElementById('docCategoryChips');
+
+  const docsAdminToggle = document.getElementById('docsAdminToggle');
+  const docsAdminPanel = document.getElementById('docsAdminPanel');
+  const docsAdminChevron = document.getElementById('docsAdminChevron');
+  const docsAdminPassword = document.getElementById('docsAdminPassword');
+  const btnUnlockDocsAdmin = document.getElementById('btnUnlockDocsAdmin');
+  const docsAdminGate = document.getElementById('docsAdminGate');
+  const docsUploadSection = document.getElementById('docsUploadSection');
+
+  const docsDropZone = document.getElementById('docsDropZone');
+  const docsFileInput = document.getElementById('docsFileInput');
+  const docsSelectedFile = document.getElementById('docsSelectedFile');
+  const docsSelectedFileName = document.getElementById('docsSelectedFileName');
+  const docsSelectedFileSize = document.getElementById('docsSelectedFileSize');
+  const docsSelectedFileIcon = document.getElementById('docsSelectedFileIcon');
+  const btnRemoveSelectedDoc = document.getElementById('btnRemoveSelectedDoc');
+
+  const newDocTitle = document.getElementById('newDocTitle');
+  const newDocCategory = document.getElementById('newDocCategory');
+  const docsUploaderName = document.getElementById('docsUploaderName');
+  const btnUploadDoc = document.getElementById('btnUploadDoc');
+
+  // Load cached catalog metadata if available
   try {
-    const cached = localStorage.getItem('ward_io_template');
+    const cached = localStorage.getItem('ward_docs_catalog') || localStorage.getItem('ward_io_template');
     if (cached) {
-      currentIoTemplate = JSON.parse(cached);
-      updateIoTemplateUI(currentIoTemplate);
+      currentDocsCatalog = normalizeDocsCatalog(JSON.parse(cached));
     }
   } catch (e) {
-    console.warn('Error reading cached I/O template:', e);
+    console.warn('Error reading cached documents catalog:', e);
   }
 
   // Preload saved uploader name
-  if (ioUploaderName) {
+  if (docsUploaderName) {
     const savedName = localStorage.getItem('ward_author_name') || '';
-    if (savedName) ioUploaderName.value = savedName;
+    if (savedName) docsUploaderName.value = savedName;
   }
 
   // Open Modal
-  if (openIoModalBtn) {
-    openIoModalBtn.addEventListener('click', () => {
-      openIoModal();
-      fetchIoTemplateFromCloud();
+  if (openDocsModalBtn) {
+    openDocsModalBtn.addEventListener('click', () => {
+      openDocsModal();
+      fetchDocsCatalogFromCloud();
     });
   }
 
   // Close Modal
-  if (ioModalCloseBtn) ioModalCloseBtn.addEventListener('click', closeIoModal);
-  if (btnCloseIoModal) btnCloseIoModal.addEventListener('click', closeIoModal);
-  if (ioModal) {
-    ioModal.addEventListener('click', (e) => {
-      if (e.target === ioModal) closeIoModal();
+  if (docsModalCloseBtn) docsModalCloseBtn.addEventListener('click', closeDocsModal);
+  if (btnCloseDocsModal) btnCloseDocsModal.addEventListener('click', closeDocsModal);
+  if (docsModal) {
+    docsModal.addEventListener('click', (e) => {
+      if (e.target === docsModal) closeDocsModal();
     });
   }
 
-  // Download Action
-  if (btnDownloadIoTemplate) {
-    btnDownloadIoTemplate.addEventListener('click', () => {
-      downloadIoTemplateFile();
+  // Search input events
+  if (docSearchInput) {
+    docSearchInput.addEventListener('input', (e) => {
+      docSearchQuery = e.target.value;
+      if (btnClearDocSearch) {
+        btnClearDocSearch.style.display = docSearchQuery ? 'block' : 'none';
+      }
+      renderDocumentsList();
+    });
+  }
+
+  if (btnClearDocSearch && docSearchInput) {
+    btnClearDocSearch.addEventListener('click', () => {
+      docSearchInput.value = '';
+      docSearchQuery = '';
+      btnClearDocSearch.style.display = 'none';
+      renderDocumentsList();
+      docSearchInput.focus();
+    });
+  }
+
+  // Category filter chips
+  if (docCategoryChips) {
+    const chips = docCategoryChips.querySelectorAll('.doc-chip');
+    chips.forEach(chip => {
+      chip.addEventListener('click', () => {
+        chips.forEach(c => c.classList.remove('active'));
+        chip.classList.add('active');
+        activeDocCategory = chip.getAttribute('data-category') || 'all';
+        renderDocumentsList();
+      });
     });
   }
 
   // Admin Accordion Toggle
-  if (ioAdminToggle) {
-    ioAdminToggle.addEventListener('click', () => {
-      const isHidden = ioAdminPanel.style.display === 'none';
-      ioAdminPanel.style.display = isHidden ? 'block' : 'none';
-      if (ioAdminChevron) {
-        ioAdminChevron.className = isHidden ? 'fa-solid fa-chevron-up' : 'fa-solid fa-chevron-down';
+  if (docsAdminToggle) {
+    docsAdminToggle.addEventListener('click', () => {
+      const isHidden = docsAdminPanel.style.display === 'none';
+      docsAdminPanel.style.display = isHidden ? 'block' : 'none';
+      if (docsAdminChevron) {
+        docsAdminChevron.className = isHidden ? 'fa-solid fa-chevron-up' : 'fa-solid fa-chevron-down';
       }
-      if (isHidden && !isIoAdminUnlocked && ioAdminPassword) {
-        setTimeout(() => ioAdminPassword.focus(), 100);
+      if (isHidden && !isDocsAdminUnlocked && docsAdminPassword) {
+        setTimeout(() => docsAdminPassword.focus(), 100);
       }
     });
   }
 
-  // Unlock Admin (Secure SHA-256 hash verification)
+  // Unlock Admin (Secure SHA-256 hash comparison)
   async function tryUnlockAdmin() {
-    const pass = (ioAdminPassword.value || '').trim();
+    const pass = (docsAdminPassword.value || '').trim();
     if (!pass) return;
 
     const hash = await sha256Hex(pass);
     const targetHash = '9416a40b88fff19d0365e4c29fb2cd67fcd5022216708f1fa258b1513c56a41d';
 
     if (hash === targetHash) {
-      isIoAdminUnlocked = true;
-      ioAdminGate.style.display = 'none';
-      ioUploadSection.style.display = 'block';
-      showToast('🔓 ปลดล็อกสิทธิ์ Admin สำเร็จ สามารถเลือกไฟล์ Excel เพื่ออัปโหลดได้เลย', 'success');
-      ioAdminPassword.value = '';
+      isDocsAdminUnlocked = true;
+      docsAdminGate.style.display = 'none';
+      docsUploadSection.style.display = 'block';
+      showToast('🔓 ปลดล็อกสิทธิ์ Admin สำเร็จ สามารถจัดการและอัปโหลดเอกสารได้เลย', 'success');
+      docsAdminPassword.value = '';
+      renderDocumentsList();
     } else {
       showToast('❌ รหัสผ่านผู้ดูแลระบบไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง', 'error');
-      ioAdminPassword.focus();
-      ioAdminPassword.select();
+      docsAdminPassword.focus();
+      docsAdminPassword.select();
     }
   }
 
-  if (btnUnlockIoAdmin) btnUnlockIoAdmin.addEventListener('click', tryUnlockAdmin);
-  if (ioAdminPassword) {
-    ioAdminPassword.addEventListener('keydown', (e) => {
+  if (btnUnlockDocsAdmin) btnUnlockDocsAdmin.addEventListener('click', tryUnlockAdmin);
+  if (docsAdminPassword) {
+    docsAdminPassword.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
         e.preventDefault();
         tryUnlockAdmin();
@@ -2174,189 +2264,250 @@ function initIoTemplateSystem() {
   }
 
   // File Selection & Drag-and-Drop
-  if (ioDropZone && ioFileInput) {
-    ioDropZone.addEventListener('click', () => ioFileInput.click());
+  if (docsDropZone && docsFileInput) {
+    docsDropZone.addEventListener('click', () => docsFileInput.click());
 
-    ioDropZone.addEventListener('dragover', (e) => {
+    docsDropZone.addEventListener('dragover', (e) => {
       e.preventDefault();
-      ioDropZone.classList.add('drag-active');
+      docsDropZone.classList.add('drag-active');
     });
 
-    ioDropZone.addEventListener('dragleave', (e) => {
-      if (!ioDropZone.contains(e.relatedTarget)) {
-        ioDropZone.classList.remove('drag-active');
+    docsDropZone.addEventListener('dragleave', (e) => {
+      if (!docsDropZone.contains(e.relatedTarget)) {
+        docsDropZone.classList.remove('drag-active');
       }
     });
 
-    ioDropZone.addEventListener('drop', (e) => {
+    docsDropZone.addEventListener('drop', (e) => {
       e.preventDefault();
-      ioDropZone.classList.remove('drag-active');
+      docsDropZone.classList.remove('drag-active');
       if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
         handleFileSelected(e.dataTransfer.files[0]);
       }
     });
 
-    ioFileInput.addEventListener('change', () => {
-      if (ioFileInput.files && ioFileInput.files.length > 0) {
-        handleFileSelected(ioFileInput.files[0]);
+    docsFileInput.addEventListener('change', () => {
+      if (docsFileInput.files && docsFileInput.files.length > 0) {
+        handleFileSelected(docsFileInput.files[0]);
       }
     });
   }
 
   function handleFileSelected(file) {
-    const ext = file.name.split('.').pop().toLowerCase();
-    if (ext !== 'xlsx' && ext !== 'xls') {
-      showToast('⚠️ กรุณาเลือกไฟล์ Excel (.xlsx หรือ .xls) เท่านั้น', 'warning');
-      return;
-    }
     if (file.size > 15 * 1024 * 1024) {
       showToast('⚠️ ขนาดไฟล์ใหญ่เกิน 15MB', 'warning');
       return;
     }
 
-    selectedIoFile = file;
-    ioSelectedFileName.textContent = file.name;
-    ioSelectedFileSize.textContent = `(${(file.size / 1024).toFixed(1)} KB)`;
-    ioSelectedFile.style.display = 'flex';
-    ioDropZone.style.display = 'none';
-    btnUploadIoTemplate.disabled = false;
+    selectedDocFile = file;
+    if (docsSelectedFileName) docsSelectedFileName.textContent = file.name;
+    if (docsSelectedFileSize) docsSelectedFileSize.textContent = `(${(file.size / 1024).toFixed(1)} KB)`;
+
+    // Auto-fill title if empty
+    if (newDocTitle && !newDocTitle.value.trim()) {
+      newDocTitle.value = file.name.replace(/\.[^/.]+$/, '');
+    }
+
+    // Set preview icon
+    const ext = file.name.split('.').pop().toLowerCase();
+    if (docsSelectedFileIcon) {
+      if (ext === 'xlsx' || ext === 'xls') docsSelectedFileIcon.className = 'fa-solid fa-file-excel file-icon-selected';
+      else if (ext === 'docx' || ext === 'doc') docsSelectedFileIcon.className = 'fa-solid fa-file-word file-icon-selected';
+      else if (ext === 'pdf') docsSelectedFileIcon.className = 'fa-solid fa-file-pdf file-icon-selected';
+      else docsSelectedFileIcon.className = 'fa-solid fa-file-lines file-icon-selected';
+    }
+
+    if (docsSelectedFile) docsSelectedFile.style.display = 'flex';
+    if (docsDropZone) docsDropZone.style.display = 'none';
+    if (btnUploadDoc) btnUploadDoc.disabled = false;
   }
 
-  if (btnRemoveSelectedFile) {
-    btnRemoveSelectedFile.addEventListener('click', (e) => {
+  if (btnRemoveSelectedDoc) {
+    btnRemoveSelectedDoc.addEventListener('click', (e) => {
       e.stopPropagation();
-      resetSelectedFile();
+      resetSelectedDocFile();
     });
   }
 
-  function resetSelectedFile() {
-    selectedIoFile = null;
-    if (ioFileInput) ioFileInput.value = '';
-    if (ioSelectedFile) ioSelectedFile.style.display = 'none';
-    if (ioDropZone) ioDropZone.style.display = 'block';
-    if (btnUploadIoTemplate) btnUploadIoTemplate.disabled = true;
+  function resetSelectedDocFile() {
+    selectedDocFile = null;
+    if (docsFileInput) docsFileInput.value = '';
+    if (docsSelectedFile) docsSelectedFile.style.display = 'none';
+    if (docsDropZone) docsDropZone.style.display = 'block';
+    if (btnUploadDoc) btnUploadDoc.disabled = true;
   }
 
   // Upload to Supabase Bed 100
-  if (btnUploadIoTemplate) {
-    btnUploadIoTemplate.addEventListener('click', async () => {
-      if (!selectedIoFile) return;
+  if (btnUploadDoc) {
+    btnUploadDoc.addEventListener('click', async () => {
+      if (!selectedDocFile) return;
 
-      btnUploadIoTemplate.disabled = true;
-      btnUploadIoTemplate.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังอัปโหลด...';
+      btnUploadDoc.disabled = true;
+      btnUploadDoc.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังอัปโหลด...';
 
       try {
-        const base64Data = await readFileAsBase64(selectedIoFile);
-        const uploader = (ioUploaderName.value || '').trim() || 'Admin (เว็บ/มือถือ)';
-        const nowUtc = new Date().toISOString();
+        const title = (newDocTitle ? newDocTitle.value.trim() : '') || selectedDocFile.name.replace(/\.[^/.]+$/, '');
+        const category = (newDocCategory ? newDocCategory.value : '') || 'แบบฟอร์มบันทึกทางการพยาบาล';
+        const uploader = (docsUploaderName ? docsUploaderName.value.trim() : '') || 'Admin (เว็บ/มือถือ)';
 
-        const templatePayload = {
-          filename: selectedIoFile.name,
-          download_name: 'แบบฟอร์ม_บันทึก_IO.xlsx',
-          size: selectedIoFile.size,
-          updated_at: nowUtc,
-          updated_by: uploader,
-          base64: base64Data
-        };
+        await uploadNewDocument(selectedDocFile, title, category, uploader);
 
-        const jsonString = JSON.stringify(templatePayload);
+        resetSelectedDocFile();
+        if (newDocTitle) newDocTitle.value = '';
 
-        // 1. PATCH bed_notes row 100
-        const patchRes = await fetch(`${SUPABASE_URL}/rest/v1/bed_notes?bed_number=eq.100`, {
-          method: 'PATCH',
-          headers: {
-            'apikey': SUPABASE_KEY,
-            'Authorization': `Bearer ${SUPABASE_KEY}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            content: jsonString,
-            updated_at: nowUtc,
-            updated_by: uploader
-          })
-        });
-
-        if (!patchRes.ok) throw new Error(`Supabase PATCH failed: ${patchRes.status}`);
-
-        // 2. Insert into bed_history for audit trail
-        fetch(`${SUPABASE_URL}/rest/v1/bed_history`, {
-          method: 'POST',
-          headers: {
-            'apikey': SUPABASE_KEY,
-            'Authorization': `Bearer ${SUPABASE_KEY}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            bed_number: 100,
-            reason: `อัปเดตแบบฟอร์ม I/O โดย ${uploader}`,
-            content: `ไฟล์: ${selectedIoFile.name} (${(selectedIoFile.size / 1024).toFixed(1)} KB)`,
-            char_count: selectedIoFile.size,
-            created_at: nowUtc
-          })
-        }).catch(err => console.warn('History snapshot error:', err));
-
-        // Update local state and cache
-        currentIoTemplate = templatePayload;
-        try {
-          localStorage.setItem('ward_io_template', jsonString);
-        } catch {}
-
-        updateIoTemplateUI(currentIoTemplate);
-        resetSelectedFile();
-
-        showToast(`✅ อัปโหลดแบบฟอร์ม I/O สำเร็จ! ทุกเครื่องในวอร์ดจะได้รับไฟล์เวอร์ชันนี้ทันที`, 'success');
+        showToast(`✅ อัปโหลดเอกสาร [${title}] ขึ้น Cloud สำเร็จ! ทุกเครื่องในวอร์ดจะเห็นเอกสารนี้ทันที`, 'success');
 
       } catch (err) {
-        console.error('Upload template error:', err);
+        console.error('Upload document error:', err);
         showToast('❌ อัปโหลดล้มเหลว กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ต', 'error');
       } finally {
-        btnUploadIoTemplate.disabled = false;
-        btnUploadIoTemplate.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> บันทึกและอัปเดตเวอร์ชันใหม่';
+        btnUploadDoc.disabled = false;
+        btnUploadDoc.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> บันทึกและอัปโหลดเอกสารขึ้น Cloud';
       }
     });
   }
 
-  // Pre-fetch on startup (silent)
-  fetchIoTemplateFromCloud(true);
+  // Initial render from cache and silent cloud fetch
+  renderDocumentsList();
+  fetchDocsCatalogFromCloud(true);
 }
 
-function openIoModal() {
-  const ioModal = document.getElementById('ioModal');
-  if (ioModal) {
+function openDocsModal() {
+  const modal = document.getElementById('docsModal') || document.getElementById('ioModal');
+  if (modal) {
     document.body.classList.add('modal-open');
-    ioModal.classList.add('open');
-    ioModal.setAttribute('aria-hidden', 'false');
+    modal.classList.add('open');
+    modal.setAttribute('aria-hidden', 'false');
+    renderDocumentsList();
   }
 }
 
-function closeIoModal() {
-  const ioModal = document.getElementById('ioModal');
-  if (ioModal) {
+function closeDocsModal() {
+  const modal = document.getElementById('docsModal') || document.getElementById('ioModal');
+  if (modal) {
     document.body.classList.remove('modal-open');
-    ioModal.classList.remove('open');
-    ioModal.setAttribute('aria-hidden', 'true');
+    modal.classList.remove('open');
+    modal.setAttribute('aria-hidden', 'true');
   }
 }
 
-function updateIoTemplateUI(template) {
-  if (!template) return;
-  const fileNameEl = document.getElementById('ioTemplateFileName');
-  const sizeEl = document.getElementById('ioTemplateSize');
-  const timeEl = document.getElementById('ioTemplateTime');
-  const uploaderEl = document.getElementById('ioTemplateUploader');
-
-  if (fileNameEl) fileNameEl.textContent = template.filename || 'แบบฟอร์ม IO.xlsx';
-  if (sizeEl) sizeEl.innerHTML = `<i class="fa-solid fa-hard-drive"></i> ${(template.size ? (template.size / 1024).toFixed(1) : '76.9')} KB`;
-  if (timeEl) {
-    const timeStr = template.updated_at ? formatDateTimeThai(template.updated_at) : 'ล่าสุด';
-    timeEl.innerHTML = `<i class="fa-regular fa-clock"></i> ซิงค์ล่าสุด: ${timeStr}`;
-  }
-  if (uploaderEl) {
-    uploaderEl.innerHTML = `<i class="fa-solid fa-user-check"></i> โดย ${escapeHtml(template.updated_by || 'Admin')}`;
-  }
+// Backward compatibility aliases
+function initIoTemplateSystem() { initDocumentsSystem(); }
+function openIoModal() { openDocsModal(); }
+function closeIoModal() { closeDocsModal(); }
+function fetchIoTemplateFromCloud(silent) { fetchDocsCatalogFromCloud(silent); }
+function downloadIoTemplateFile() {
+  const ioDoc = currentDocsCatalog.documents.find(d => d.id === 'doc_io_template') || currentDocsCatalog.documents[0] || DEFAULT_IO_DOC;
+  downloadDocument(ioDoc);
 }
 
-async function fetchIoTemplateFromCloud(silent = false) {
+function renderDocumentsList() {
+  const container = document.getElementById('docsListGrid');
+  if (!container) return;
+
+  const q = (docSearchQuery || '').trim().toLowerCase();
+  const cat = activeDocCategory;
+
+  const filtered = currentDocsCatalog.documents.filter(doc => {
+    // Category check
+    if (cat !== 'all') {
+      const docCat = (doc.category || '').toLowerCase();
+      if (!docCat.includes(cat.toLowerCase())) return false;
+    }
+    // Search query check
+    if (q) {
+      const matchTitle = (doc.title || '').toLowerCase().includes(q);
+      const matchFile = (doc.filename || '').toLowerCase().includes(q);
+      const matchCat = (doc.category || '').toLowerCase().includes(q);
+      if (!matchTitle && !matchFile && !matchCat) return false;
+    }
+    return true;
+  });
+
+  if (filtered.length === 0) {
+    container.innerHTML = `
+      <div class="docs-empty-state">
+        <i class="fa-solid fa-folder-open"></i>
+        <p style="margin: 8px 0 4px; font-weight: 600; color: var(--text-main);">ไม่พบเอกสารที่ค้นหา</p>
+        <span style="font-size: 0.8rem; color: var(--text-dim);">ลองเปลี่ยนคำค้นหา หรือเลือกหมวดหมู่อื่นดูครับ</span>
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = '';
+  filtered.forEach(doc => {
+    const card = document.createElement('div');
+    card.className = 'doc-item-card';
+
+    // File type detection
+    const ext = (doc.file_type || (doc.filename ? doc.filename.split('.').pop() : '')).toLowerCase();
+    let iconClass = 'generic';
+    let iconFa = 'fa-file-lines';
+    if (ext === 'xlsx' || ext === 'xls') {
+      iconClass = 'excel';
+      iconFa = 'fa-file-excel';
+    } else if (ext === 'docx' || ext === 'doc') {
+      iconClass = 'word';
+      iconFa = 'fa-file-word';
+    } else if (ext === 'pdf') {
+      iconClass = 'pdf';
+      iconFa = 'fa-file-pdf';
+    }
+
+    const sizeStr = doc.size ? `${(doc.size / 1024).toFixed(1)} KB` : '-- KB';
+    const timeStr = doc.updated_at ? formatDateTimeThai(doc.updated_at) : 'ล่าสุด';
+    const uploaderStr = escapeHtml(doc.updated_by || 'Admin');
+    const titleStr = escapeHtml(doc.title || doc.filename || 'เอกสารประจำวอร์ด');
+    const filenameStr = escapeHtml(doc.filename || '');
+    const categoryStr = escapeHtml(doc.category || 'เอกสารทั่วไป');
+
+    card.innerHTML = `
+      <div class="doc-card-icon ${iconClass}">
+        <i class="fa-solid ${iconFa}"></i>
+      </div>
+      <div class="doc-card-details">
+        <div class="doc-card-title-row">
+          <span class="doc-card-title">${titleStr}</span>
+          <span class="doc-card-badge">${categoryStr}</span>
+        </div>
+        <div class="doc-card-meta">
+          <span class="io-meta-tag"><i class="fa-solid fa-paperclip"></i> ${filenameStr}</span>
+          <span class="io-meta-tag"><i class="fa-solid fa-hard-drive"></i> ${sizeStr}</span>
+          <span class="io-meta-tag"><i class="fa-regular fa-clock"></i> ${timeStr}</span>
+          <span class="io-meta-tag"><i class="fa-solid fa-user-check"></i> ${uploaderStr}</span>
+        </div>
+      </div>
+      <div class="doc-card-actions">
+        <button type="button" class="btn-doc-download" data-doc-id="${doc.id}">
+          <i class="fa-solid fa-cloud-arrow-down"></i>
+          <span>ดาวน์โหลด</span>
+        </button>
+        ${isDocsAdminUnlocked ? `
+          <button type="button" class="btn-doc-delete" data-doc-id="${doc.id}" title="ลบเอกสารนี้ออกจากระบบ">
+            <i class="fa-solid fa-trash-can"></i>
+          </button>
+        ` : ''}
+      </div>
+    `;
+
+    // Download Handler
+    const dlBtn = card.querySelector('.btn-doc-download');
+    if (dlBtn) {
+      dlBtn.addEventListener('click', () => downloadDocument(doc));
+    }
+
+    // Delete Handler (Admin Mode)
+    const delBtn = card.querySelector('.btn-doc-delete');
+    if (delBtn) {
+      delBtn.addEventListener('click', () => confirmDeleteDocument(doc));
+    }
+
+    container.appendChild(card);
+  });
+}
+
+async function fetchDocsCatalogFromCloud(silent = false) {
   try {
     const res = await fetch(`${SUPABASE_URL}/rest/v1/bed_notes?bed_number=eq.100&select=content,updated_at,updated_by`, {
       method: 'GET',
@@ -2371,36 +2522,43 @@ async function fetchIoTemplateFromCloud(silent = false) {
     const rows = await res.json();
     if (rows && rows.length > 0 && rows[0].content) {
       const parsed = JSON.parse(rows[0].content);
-      if (parsed && parsed.base64) {
-        currentIoTemplate = parsed;
-        try {
-          localStorage.setItem('ward_io_template', JSON.stringify(parsed));
-        } catch {}
-        updateIoTemplateUI(currentIoTemplate);
-      }
+      currentDocsCatalog = normalizeDocsCatalog(parsed);
+      try {
+        localStorage.setItem('ward_docs_catalog', JSON.stringify(currentDocsCatalog));
+      } catch {}
+      renderDocumentsList();
     }
   } catch (err) {
-    if (!silent) console.warn('Could not fetch latest I/O template:', err);
+    if (!silent) console.warn('Could not fetch latest documents catalog:', err);
   }
 }
 
-function downloadIoTemplateFile() {
-  if (currentIoTemplate && currentIoTemplate.base64) {
+function downloadDocument(doc) {
+  if (!doc) return;
+  const downloadName = doc.download_name || doc.filename || 'ward_document';
+
+  if (doc.base64) {
     try {
-      const byteChars = atob(currentIoTemplate.base64);
+      const byteChars = atob(doc.base64);
       const byteNumbers = new Array(byteChars.length);
       for (let i = 0; i < byteChars.length; i++) {
         byteNumbers[i] = byteChars.charCodeAt(i);
       }
       const byteArray = new Uint8Array(byteNumbers);
-      const blob = new Blob([byteArray], {
-        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-      });
 
+      const ext = (doc.file_type || (doc.filename ? doc.filename.split('.').pop() : '')).toLowerCase();
+      let mime = 'application/octet-stream';
+      if (ext === 'xlsx') mime = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+      else if (ext === 'xls') mime = 'application/vnd.ms-excel';
+      else if (ext === 'docx') mime = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+      else if (ext === 'doc') mime = 'application/msword';
+      else if (ext === 'pdf') mime = 'application/pdf';
+
+      const blob = new Blob([byteArray], { type: mime });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = currentIoTemplate.download_name || currentIoTemplate.filename || 'แบบฟอร์ม_บันทึก_IO.xlsx';
+      a.download = downloadName;
       document.body.appendChild(a);
       a.click();
       setTimeout(() => {
@@ -2408,21 +2566,133 @@ function downloadIoTemplateFile() {
         URL.revokeObjectURL(url);
       }, 200);
 
-      showToast(`📥 ดาวน์โหลดแบบฟอร์ม [${a.download}] เรียบร้อยแล้ว`, 'success');
+      showToast(`📥 ดาวน์โหลดเอกสาร [${downloadName}] เรียบร้อยแล้ว`, 'success');
       return;
     } catch (e) {
       console.warn('Base64 decode failed, fallback to static URL:', e);
     }
   }
 
-  // Fallback to static URL
-  const staticLink = document.createElement('a');
-  staticLink.href = 'templates/IO_Template.xlsx';
-  staticLink.download = 'แบบฟอร์ม_บันทึก_IO.xlsx';
-  document.body.appendChild(staticLink);
-  staticLink.click();
-  setTimeout(() => document.body.removeChild(staticLink), 200);
-  showToast('📥 ดาวน์โหลดแบบฟอร์ม I/O เรียบร้อยแล้ว', 'success');
+  // Fallback static URL
+  const staticUrl = doc.static_url || (doc.filename === 'แบบฟอร์ม IO.xlsx' ? 'templates/IO_Template.xlsx' : null);
+  if (staticUrl) {
+    const a = document.createElement('a');
+    a.href = staticUrl;
+    a.download = downloadName;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => document.body.removeChild(a), 200);
+    showToast(`📥 ดาวน์โหลดเอกสาร [${downloadName}] เรียบร้อยแล้ว`, 'success');
+  } else {
+    showToast('⚠️ ไม่พบข้อมูลไฟล์สำหรับดาวน์โหลด', 'warning');
+  }
+}
+
+async function uploadNewDocument(file, title, category, uploader) {
+  const base64Data = await readFileAsBase64(file);
+  const nowUtc = new Date().toISOString();
+  const ext = file.name.split('.').pop().toLowerCase();
+  const docId = 'doc_' + Date.now();
+
+  const newDoc = {
+    id: docId,
+    title: title || file.name.replace(/\.[^/.]+$/, ''),
+    category: category || 'แบบฟอร์มบันทึกทางการพยาบาล',
+    filename: file.name,
+    download_name: file.name,
+    file_type: ext,
+    size: file.size,
+    updated_at: nowUtc,
+    updated_by: uploader || 'Admin',
+    base64: base64Data
+  };
+
+  // If a doc with same filename exists, replace it; otherwise add to beginning
+  const existingIdx = currentDocsCatalog.documents.findIndex(d => d.filename.toLowerCase() === file.name.toLowerCase());
+  if (existingIdx >= 0) {
+    currentDocsCatalog.documents[existingIdx] = newDoc;
+  } else {
+    currentDocsCatalog.documents.unshift(newDoc);
+  }
+
+  const jsonString = JSON.stringify(currentDocsCatalog);
+
+  // 1. Save to Supabase row 100
+  const patchRes = await fetch(`${SUPABASE_URL}/rest/v1/bed_notes?bed_number=eq.100`, {
+    method: 'PATCH',
+    headers: {
+      'apikey': SUPABASE_KEY,
+      'Authorization': `Bearer ${SUPABASE_KEY}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      content: jsonString,
+      updated_at: nowUtc,
+      updated_by: uploader
+    })
+  });
+
+  if (!patchRes.ok) throw new Error(`Supabase PATCH failed: ${patchRes.status}`);
+
+  // 2. Audit trail in bed_history
+  fetch(`${SUPABASE_URL}/rest/v1/bed_history`, {
+    method: 'POST',
+    headers: {
+      'apikey': SUPABASE_KEY,
+      'Authorization': `Bearer ${SUPABASE_KEY}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      bed_number: 100,
+      reason: `อัปโหลดเอกสารวอร์ด [${newDoc.title}] โดย ${uploader}`,
+      content: `ไฟล์: ${file.name} (${(file.size / 1024).toFixed(1)} KB) หมวด: ${newDoc.category}`,
+      char_count: file.size,
+      created_at: nowUtc
+    })
+  }).catch(err => console.warn('History snapshot error:', err));
+
+  // 3. Cache locally
+  try {
+    localStorage.setItem('ward_docs_catalog', jsonString);
+  } catch {}
+
+  renderDocumentsList();
+}
+
+async function confirmDeleteDocument(doc) {
+  if (!confirm(`คุณต้องการลบเอกสาร "${doc.title || doc.filename}" ออกจากคลังใช่หรือไม่?`)) return;
+
+  const idx = currentDocsCatalog.documents.findIndex(d => d.id === doc.id);
+  if (idx < 0) return;
+
+  currentDocsCatalog.documents.splice(idx, 1);
+  if (currentDocsCatalog.documents.length === 0) {
+    currentDocsCatalog.documents.push(DEFAULT_IO_DOC);
+  }
+
+  const nowUtc = new Date().toISOString();
+  const jsonString = JSON.stringify(currentDocsCatalog);
+
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/bed_notes?bed_number=eq.100`, {
+      method: 'PATCH',
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        content: jsonString,
+        updated_at: nowUtc,
+        updated_by: 'Admin'
+      })
+    });
+    try { localStorage.setItem('ward_docs_catalog', jsonString); } catch {}
+    renderDocumentsList();
+    showToast(`🗑️ ลบเอกสาร [${doc.title || doc.filename}] เรียบร้อยแล้ว`, 'info');
+  } catch (err) {
+    showToast('❌ ไม่สามารถลบเอกสารได้ กรุณาลองใหม่อีกครั้ง', 'error');
+  }
 }
 
 function readFileAsBase64(file) {

@@ -1,9 +1,8 @@
 {
-  "version": "1.6.5",
+  "version": "1.6.6",
   "downloadUrl": "https://raw.githubusercontent.com/oatzilla/Medical_Text_Expander/main/Medical_Text_Expander.exe",
   "download_url": "https://raw.githubusercontent.com/oatzilla/Medical_Text_Expander/main/Medical_Text_Expander.exe",
   "releaseDate": "2026-10-03",
   "release_date": "2026-10-03",
-  "changelog": "- เพิ่มระบบคลังแบบฟอร์มประจำวอร์ด (Ward Forms & Templates): รองรับการดาวน์โหลดไฟล์ Excel (.xlsx) แบบฟอร์มบันทึก Intake/Output (I/O) ทั้งบน Desktop Program และ Web/Mobile Cloud Portal\r\n- หน้าต่างจัดการแบบฟอร์ม I/O สำหรับผู้ดูแลระบบ (Admin Template Manager): ล็อกความปลอดภัยด้วยรหัสผ่าน Admin (9844) สามารถเลือกไฟล์ Excel ใหม่จากเครื่องแล้วกดอัปโหลดขึ้น Supabase Cloud ได้ทันที ทุกเครื่องในวอร์ดและมือถือจะได้รับเวอร์ชันใหม่ล่าสุดโดยไม่ต้องแก้ไขโค้ด\r\n- ปุ่มเปิดใช้งานแบบฟอร์ม I/O บน Desktop: เปิดไฟล์ใน Microsoft Excel ได้ทันที, บันทึกสำเนาลงเครื่อง (Save As), หรือซิงค์ดึงไฟล์ล่าสุดจาก Cloud ลงมาที่เครื่อง"
+  "changelog": "- ปรับเปลี่ยนปุ่มบน Navbar ทั้งบน Web Portal และ Desktop Program เป็น [ 📁 เอกสาร & แบบฟอร์มวอร์ด ] (Ward Documents & Forms)\r\n- ยกระดับเป็นศูนย์รวมเอกสารประจำวอร์ด (Ward Document Center): รองรับการดาวน์โหลดและจัดเก็บเอกสารหลากหลายประเภท ทั้งแบบฟอร์มบันทึก I/O (Excel), แบบประเมินทางการพยาบาล, แนวทาง CPG และเอกสารทั่วไป (.xlsx, .docx, .pdf)\r\n- ระบบค้นหาและแยกหมวดหมู่เอกสารบน Web Portal พร้อมระบบจัดการและอัปโหลดเอกสารใหม่สำหรับ Admin ปลอดภัยด้วยรหัสผ่านผู้ดูแลระบบ"
 }
-
