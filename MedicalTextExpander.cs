@@ -2226,6 +2226,7 @@ namespace MedicalTextExpander {
         private Button btnUploadNewVersion;
 
         private string chosenFilePath = null;
+        private List<string> chosenFilePaths = new List<string>();
 
         public WardDocumentCenterDialog(ExpanderContext ctx) {
             context = ctx;
@@ -2530,67 +2531,54 @@ namespace MedicalTextExpander {
         private void ChooseNewFile() {
             using (OpenFileDialog ofd = new OpenFileDialog()) {
                 ofd.Filter = "Ward Documents (*.xlsx;*.xls;*.docx;*.doc;*.pdf)|*.xlsx;*.xls;*.docx;*.doc;*.pdf|All Files (*.*)|*.*";
-                ofd.Title = "เลือกไฟล์เอกสารหรือแบบฟอร์มประจำวอร์ด";
+                ofd.Title = "เลือกไฟล์เอกสารหรือแบบฟอร์มประจำวอร์ด (เลือกได้หลายไฟล์)";
+                ofd.Multiselect = true;
                 if (ofd.ShowDialog(this) == DialogResult.OK) {
+                    chosenFilePaths.Clear();
+                    chosenFilePaths.AddRange(ofd.FileNames);
                     chosenFilePath = ofd.FileName;
-                    FileInfo fi = new FileInfo(chosenFilePath);
-                    lblSelectedFile.Text = fi.Name + string.Format(" ({0:N1} KB)", fi.Length / 1024.0);
-                    lblSelectedFile.ForeColor = Color.DarkGreen;
-                    if (string.IsNullOrEmpty(txtDocTitle.Text.Trim())) {
-                        txtDocTitle.Text = Path.GetFileNameWithoutExtension(fi.Name);
+                    if (chosenFilePaths.Count == 1) {
+                        FileInfo fi = new FileInfo(chosenFilePath);
+                        lblSelectedFile.Text = fi.Name + string.Format(" ({0:N1} KB)", fi.Length / 1024.0);
+                        if (string.IsNullOrEmpty(txtDocTitle.Text.Trim())) {
+                            txtDocTitle.Text = Path.GetFileNameWithoutExtension(fi.Name);
+                        }
+                    } else {
+                        lblSelectedFile.Text = string.Format("เลือก {0} ไฟล์พร้อมกัน", chosenFilePaths.Count);
+                        if (string.IsNullOrEmpty(txtDocTitle.Text.Trim())) {
+                            txtDocTitle.Text = string.Format("ชุดเอกสาร {0} ไฟล์", chosenFilePaths.Count);
+                        }
                     }
+                    lblSelectedFile.ForeColor = Color.DarkGreen;
                     btnUploadNewVersion.Enabled = true;
                 }
             }
         }
 
         private void UploadNewDocument() {
-            if (string.IsNullOrEmpty(chosenFilePath) || !File.Exists(chosenFilePath)) {
-                MessageBox.Show("กรุณาเลือกไฟล์เอกสารก่อนครับ", "แจ้งเตือน", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
+            if (chosenFilePaths == null || chosenFilePaths.Count == 0) {
+                if (!string.IsNullOrEmpty(chosenFilePath) && File.Exists(chosenFilePath)) {
+                    chosenFilePaths = new List<string> { chosenFilePath };
+                } else {
+                    MessageBox.Show("กรุณาเลือกไฟล์เอกสารก่อนครับ", "แจ้งเตือน", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
             }
 
             btnUploadNewVersion.Enabled = false;
             btnUploadNewVersion.Text = "กำลังอัปโหลด...";
 
             try {
-                byte[] fileBytes = File.ReadAllBytes(chosenFilePath);
-                FileInfo fi = new FileInfo(chosenFilePath);
-                string title = txtDocTitle.Text.Trim();
-                if (string.IsNullOrEmpty(title)) title = Path.GetFileNameWithoutExtension(fi.Name);
+                string templatesDir = GetTemplatesDirectory();
+                string setupTemplates = @"C:\Users\GORW01\Desktop\Medical_Text_Expander_Setup\templates";
                 string category = cboDocCategory.SelectedItem != null ? cboDocCategory.SelectedItem.ToString() : "แบบฟอร์มบันทึกทางการพยาบาล";
                 string uploader = txtUploaderName.Text.Trim();
                 if (string.IsNullOrEmpty(uploader)) uploader = Environment.MachineName;
 
-                // 1. Copy to local templates directory
-                string templatesDir = GetTemplatesDirectory();
-                string destFile = Path.Combine(templatesDir, fi.Name);
-                File.WriteAllBytes(destFile, fileBytes);
-
-                if (fi.Name.IndexOf("IO", StringComparison.OrdinalIgnoreCase) >= 0) {
-                    try {
-                        File.WriteAllBytes(Path.Combine(templatesDir, "แบบฟอร์ม_IO.xlsx"), fileBytes);
-                        File.WriteAllBytes(Path.Combine(templatesDir, "IO_Template.xlsx"), fileBytes);
-                    } catch {}
-                }
-
-                // Copy to Setup directory on desktop if exists
-                string setupTemplates = @"C:\Users\GORW01\Desktop\Medical_Text_Expander_Setup\templates";
-                if (Directory.Exists(setupTemplates)) {
-                    try {
-                        File.WriteAllBytes(Path.Combine(setupTemplates, fi.Name), fileBytes);
-                    } catch {}
-                }
-
-                // 2. Upload to Supabase row 100
-                bool supabaseOk = false;
+                // Fetch existing catalog if Supabase enabled
+                string existingJson = null;
                 if (context.GetSupabaseEnabled()) {
                     try {
-                        string b64 = Convert.ToBase64String(fileBytes);
-                        string ext = fi.Extension.TrimStart('.').ToLower();
-                        string nowIso = DateTime.UtcNow.ToString("o");
-
-                        // Fetch existing row 100 to preserve other documents if catalog exists
                         string fullUrl = context.GetSupabaseUrl().TrimEnd('/') + "/rest/v1/bed_notes?bed_number=eq.100&select=content";
                         ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls12;
                         HttpWebRequest req = (HttpWebRequest)WebRequest.Create(fullUrl);
@@ -2598,40 +2586,89 @@ namespace MedicalTextExpander {
                         req.Headers["Authorization"] = "Bearer " + context.GetSupabaseKey();
                         req.Timeout = 8000;
 
-                        string existingJson = null;
                         using (var resp = (HttpWebResponse)req.GetResponse())
                         using (var reader = new StreamReader(resp.GetResponseStream(), Encoding.UTF8)) {
                             existingJson = reader.ReadToEnd();
                         }
+                    } catch (Exception ex) {
+                        Debug.WriteLine("Fetch existing row 100 error: " + ex.Message);
+                    }
+                }
 
-                        // Build updated document entry
-                        string newDocJson = string.Format(
-                            "{{\"id\":\"doc_{0}\",\"title\":\"{1}\",\"category\":\"{2}\",\"filename\":\"{3}\",\"download_name\":\"{3}\",\"file_type\":\"{4}\",\"size\":{5},\"updated_at\":\"{6}\",\"updated_by\":\"{7}\",\"base64\":\"{8}\"}}",
-                            DateTime.UtcNow.Ticks, EscapeJsonString(title), EscapeJsonString(category), EscapeJsonString(fi.Name), ext, fileBytes.Length, nowIso, EscapeJsonString(uploader), b64
-                        );
+                List<string> newDocJsonList = new List<string>();
+                List<string> processedTitles = new List<string>();
 
+                for (int i = 0; i < chosenFilePaths.Count; i++) {
+                    string filePath = chosenFilePaths[i];
+                    if (!File.Exists(filePath)) continue;
+
+                    byte[] fileBytes = File.ReadAllBytes(filePath);
+                    FileInfo fi = new FileInfo(filePath);
+                    string itemTitle = (chosenFilePaths.Count == 1) 
+                        ? (string.IsNullOrEmpty(txtDocTitle.Text.Trim()) ? Path.GetFileNameWithoutExtension(fi.Name) : txtDocTitle.Text.Trim())
+                        : Path.GetFileNameWithoutExtension(fi.Name);
+
+                    // 1. Copy to local templates directory
+                    string destFile = Path.Combine(templatesDir, fi.Name);
+                    File.WriteAllBytes(destFile, fileBytes);
+
+                    if (fi.Name.IndexOf("IO", StringComparison.OrdinalIgnoreCase) >= 0) {
+                        try {
+                            File.WriteAllBytes(Path.Combine(templatesDir, "แบบฟอร์ม_IO.xlsx"), fileBytes);
+                            File.WriteAllBytes(Path.Combine(templatesDir, "IO_Template.xlsx"), fileBytes);
+                        } catch {}
+                    }
+
+                    if (Directory.Exists(setupTemplates)) {
+                        try {
+                            File.WriteAllBytes(Path.Combine(setupTemplates, fi.Name), fileBytes);
+                        } catch {}
+                    }
+
+                    // Build doc json
+                    string b64 = Convert.ToBase64String(fileBytes);
+                    string ext = fi.Extension.TrimStart('.').ToLower();
+                    string nowIso = DateTime.UtcNow.ToString("o");
+
+                    string itemJson = string.Format(
+                        "{{\"id\":\"doc_{0}_{1}\",\"title\":\"{2}\",\"category\":\"{3}\",\"filename\":\"{4}\",\"download_name\":\"{4}\",\"file_type\":\"{5}\",\"size\":{6},\"updated_at\":\"{7}\",\"updated_by\":\"{8}\",\"base64\":\"{9}\"}}",
+                        DateTime.UtcNow.Ticks, i, EscapeJsonString(itemTitle), EscapeJsonString(category), EscapeJsonString(fi.Name), ext, fileBytes.Length, nowIso, EscapeJsonString(uploader), b64
+                    );
+
+                    newDocJsonList.Add(itemJson);
+                    processedTitles.Add(itemTitle);
+                }
+
+                // 2. Upload catalog to Supabase row 100
+                bool supabaseOk = false;
+                if (context.GetSupabaseEnabled() && newDocJsonList.Count > 0) {
+                    try {
+                        string combinedNew = string.Join(",", newDocJsonList);
                         string catalogPayload;
+
                         if (!string.IsNullOrEmpty(existingJson) && existingJson.Contains("\"documents\":")) {
-                            // Extract existing documents array contents and replace or append
                             var m = Regex.Match(existingJson, @"""documents"":\s*\[(.*)\]", RegexOptions.Singleline);
                             if (m.Success) {
                                 string inner = m.Groups[1].Value.Trim();
-                                // remove existing entry for same filename if any
-                                string cleanInner = Regex.Replace(inner, @"\{[^{}]*""filename"":\s*""" + Regex.Escape(fi.Name) + @"""[^{}]*\},?", "");
-                                cleanInner = cleanInner.Trim().TrimEnd(',');
-                                string combined = string.IsNullOrEmpty(cleanInner) ? newDocJson : (newDocJson + "," + cleanInner);
+                                foreach (var fp in chosenFilePaths) {
+                                    string fn = Path.GetFileName(fp);
+                                    inner = Regex.Replace(inner, @"\{[^{}]*""filename"":\s*""" + Regex.Escape(fn) + @"""[^{}]*\},?", "");
+                                }
+                                inner = inner.Trim().TrimEnd(',');
+                                string combined = string.IsNullOrEmpty(inner) ? combinedNew : (combinedNew + "," + inner);
                                 catalogPayload = string.Format("{{\"version\":2,\"documents\":[{0}]}}", combined);
                             } else {
-                                catalogPayload = string.Format("{{\"version\":2,\"documents\":[{0}]}}", newDocJson);
+                                catalogPayload = string.Format("{{\"version\":2,\"documents\":[{0}]}}", combinedNew);
                             }
                         } else {
-                            catalogPayload = string.Format("{{\"version\":2,\"documents\":[{0}]}}", newDocJson);
+                            catalogPayload = string.Format("{{\"version\":2,\"documents\":[{0}]}}", combinedNew);
                         }
 
                         var client = new SupabaseSyncClient(context.GetSupabaseUrl(), context.GetSupabaseKey());
                         supabaseOk = client.SaveBed(100, catalogPayload);
                         if (supabaseOk) {
-                            client.SaveHistory(100, "อัปโหลดเอกสารวอร์ด [" + title + "] โดย " + uploader, "ไฟล์: " + fi.Name + string.Format(" ({0:N1} KB)", fileBytes.Length / 1024.0));
+                            string sumTitle = string.Join(", ", processedTitles);
+                            client.SaveHistory(100, "อัปโหลดเอกสารวอร์ด (" + processedTitles.Count + " ไฟล์) โดย " + uploader, "รายการ: " + sumTitle);
                         }
                     } catch (Exception ex) {
                         Debug.WriteLine("Cloud upload error: " + ex.Message);
@@ -2643,10 +2680,11 @@ namespace MedicalTextExpander {
                 btnUploadNewVersion.Enabled = false;
                 lblSelectedFile.Text = "(อัปโหลดเรียบร้อยแล้ว)";
                 chosenFilePath = null;
+                chosenFilePaths.Clear();
 
-                string msg = string.Format("✅ บันทึกเอกสาร [{0}] เรียบร้อยแล้ว!\n" +
+                string msg = string.Format("✅ บันทึกเอกสาร {0} รายการเรียบร้อยแล้ว!\n" +
                              "- บันทึกลงเครื่องและเทมเพลตประจำโปรแกรมแล้ว\n" +
-                             (supabaseOk ? "- ซิงค์ขึ้น Supabase Cloud สำเร็จ (เว็บ/มือถือจะได้รับเอกสารนี้ทันที)" : "- (Supabase ไม่ได้เปิดใช้งาน)"), title);
+                             (supabaseOk ? "- ซิงค์ขึ้น Supabase Cloud สำเร็จ (เว็บ/มือถือจะได้รับเอกสารนี้ทันที)" : "- (Supabase ไม่ได้เปิดใช้งาน)"), processedTitles.Count);
                 MessageBox.Show(msg, "สำเร็จ", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
             } catch (Exception ex) {

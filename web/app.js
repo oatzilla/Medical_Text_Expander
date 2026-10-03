@@ -2139,16 +2139,18 @@ function initDocumentsSystem() {
 
   const docsDropZone = document.getElementById('docsDropZone');
   const docsFileInput = document.getElementById('docsFileInput');
-  const docsSelectedFile = document.getElementById('docsSelectedFile');
-  const docsSelectedFileName = document.getElementById('docsSelectedFileName');
-  const docsSelectedFileSize = document.getElementById('docsSelectedFileSize');
-  const docsSelectedFileIcon = document.getElementById('docsSelectedFileIcon');
-  const btnRemoveSelectedDoc = document.getElementById('btnRemoveSelectedDoc');
+  const docsQueueContainer = document.getElementById('docsQueueContainer');
+  const docsQueueCount = document.getElementById('docsQueueCount');
+  const docsQueueTotalSize = document.getElementById('docsQueueTotalSize');
+  const btnAddMoreDocs = document.getElementById('btnAddMoreDocs');
+  const btnClearDocsQueue = document.getElementById('btnClearDocsQueue');
+  const docsQueueList = document.getElementById('docsQueueList');
 
-  const newDocTitle = document.getElementById('newDocTitle');
   const newDocCategory = document.getElementById('newDocCategory');
   const docsUploaderName = document.getElementById('docsUploaderName');
   const btnUploadDoc = document.getElementById('btnUploadDoc');
+  const btnUploadDocText = document.getElementById('btnUploadDocText');
+  let selectedDocFiles = [];
 
   // Load cached catalog metadata if available
   try {
@@ -2263,9 +2265,144 @@ function initDocumentsSystem() {
     });
   }
 
+  // Multi-File Helpers
+  function formatDocSize(bytes) {
+    if (!bytes || bytes <= 0) return '0 B';
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+  }
+
+  function getFileIconMeta(filename) {
+    const ext = (filename ? filename.split('.').pop() : '').toLowerCase();
+    if (ext === 'xlsx' || ext === 'xls') return { cls: 'excel', icon: 'fa-file-excel' };
+    if (ext === 'docx' || ext === 'doc') return { cls: 'word', icon: 'fa-file-word' };
+    if (ext === 'pdf') return { cls: 'pdf', icon: 'fa-file-pdf' };
+    return { cls: 'generic', icon: 'fa-file-lines' };
+  }
+
+  function renderDocUploadQueue() {
+    if (!docsQueueContainer || !docsQueueList) return;
+
+    if (selectedDocFiles.length === 0) {
+      docsQueueContainer.style.display = 'none';
+      if (btnUploadDoc) {
+        btnUploadDoc.disabled = true;
+        if (btnUploadDocText) btnUploadDocText.textContent = 'บันทึกและอัปโหลดเอกสารขึ้น Cloud';
+      }
+      return;
+    }
+
+    docsQueueContainer.style.display = 'flex';
+    if (docsQueueCount) docsQueueCount.textContent = selectedDocFiles.length;
+
+    const totalBytes = selectedDocFiles.reduce((acc, cur) => acc + (cur.file ? cur.file.size : 0), 0);
+    if (docsQueueTotalSize) docsQueueTotalSize.textContent = `(${formatDocSize(totalBytes)})`;
+
+    docsQueueList.innerHTML = '';
+    selectedDocFiles.forEach((item, index) => {
+      const row = document.createElement('div');
+      row.className = 'doc-queue-item';
+
+      const iconInfo = getFileIconMeta(item.file.name);
+
+      row.innerHTML = `
+        <div class="doc-queue-icon ${iconInfo.cls}">
+          <i class="fa-solid ${iconInfo.icon}"></i>
+        </div>
+        <div class="doc-queue-file-meta">
+          <span class="doc-queue-filename" title="${escapeHtml(item.file.name)}">${escapeHtml(item.file.name)}</span>
+          <span class="doc-queue-filesize">${formatDocSize(item.file.size)}</span>
+        </div>
+        <div class="doc-queue-inputs">
+          <input type="text" class="doc-queue-title-input" value="${escapeHtml(item.title)}" placeholder="ชื่อเอกสาร..." title="ชื่อที่จะแสดงในระบบ">
+          <select class="doc-queue-cat-select" title="หมวดหมู่เอกสาร">
+            <option value="แบบฟอร์มบันทึกทางการพยาบาล"${item.category === 'แบบฟอร์มบันทึกทางการพยาบาล' ? ' selected' : ''}>แบบฟอร์มบันทึก</option>
+            <option value="แบบประเมินทางการพยาบาล"${item.category === 'แบบประเมินทางการพยาบาล' ? ' selected' : ''}>แบบประเมิน</option>
+            <option value="แนวทาง CPG / หัตถการ"${item.category === 'แนวทาง CPG / หัตถการ' ? ' selected' : ''}>แนวทาง CPG</option>
+            <option value="เอกสารและแบบฟอร์มทั่วไป"${item.category === 'เอกสารและแบบฟอร์มทั่วไป' ? ' selected' : ''}>เอกสารทั่วไป</option>
+          </select>
+        </div>
+        <button type="button" class="btn-queue-remove" title="นำไฟล์นี้ออกจากรายการ"><i class="fa-solid fa-xmark"></i></button>
+      `;
+
+      // Input bindings
+      const titleInput = row.querySelector('.doc-queue-title-input');
+      if (titleInput) {
+        titleInput.addEventListener('input', (e) => {
+          item.title = e.target.value;
+        });
+      }
+
+      const catSelect = row.querySelector('.doc-queue-cat-select');
+      if (catSelect) {
+        catSelect.addEventListener('change', (e) => {
+          item.category = e.target.value;
+        });
+      }
+
+      const removeBtn = row.querySelector('.btn-queue-remove');
+      if (removeBtn) {
+        removeBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          selectedDocFiles.splice(index, 1);
+          renderDocUploadQueue();
+        });
+      }
+
+      docsQueueList.appendChild(row);
+    });
+
+    if (btnUploadDoc) {
+      btnUploadDoc.disabled = false;
+      if (btnUploadDocText) {
+        btnUploadDocText.textContent = selectedDocFiles.length === 1
+          ? 'บันทึกและอัปโหลด 1 เอกสารขึ้น Cloud'
+          : `บันทึกและอัปโหลดทั้ง ${selectedDocFiles.length} เอกสารขึ้น Cloud`;
+      }
+    }
+  }
+
+  function handleFilesAdded(fileList) {
+    if (!fileList || fileList.length === 0) return;
+    const defaultCat = (newDocCategory ? newDocCategory.value : '') || 'แบบฟอร์มบันทึกทางการพยาบาล';
+    let oversizedCount = 0;
+
+    Array.from(fileList).forEach(file => {
+      if (file.size > 15 * 1024 * 1024) {
+        oversizedCount++;
+        return;
+      }
+
+      const cleanTitle = file.name.replace(/\.[^/.]+$/, '');
+      const existingIdx = selectedDocFiles.findIndex(item => item.file.name.toLowerCase() === file.name.toLowerCase());
+      const itemData = {
+        id: 'queue_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
+        file: file,
+        title: cleanTitle,
+        category: defaultCat
+      };
+
+      if (existingIdx >= 0) {
+        selectedDocFiles[existingIdx] = itemData;
+      } else {
+        selectedDocFiles.push(itemData);
+      }
+    });
+
+    if (oversizedCount > 0) {
+      showToast(`⚠️ ข้าม ${oversizedCount} ไฟล์ที่มีขนาดเกิน 15MB`, 'warning');
+    }
+
+    renderDocUploadQueue();
+  }
+
   // File Selection & Drag-and-Drop
   if (docsDropZone && docsFileInput) {
-    docsDropZone.addEventListener('click', () => docsFileInput.click());
+    docsDropZone.addEventListener('click', () => {
+      docsFileInput.value = '';
+      docsFileInput.click();
+    });
 
     docsDropZone.addEventListener('dragover', (e) => {
       e.preventDefault();
@@ -2282,87 +2419,141 @@ function initDocumentsSystem() {
       e.preventDefault();
       docsDropZone.classList.remove('drag-active');
       if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-        handleFileSelected(e.dataTransfer.files[0]);
+        handleFilesAdded(e.dataTransfer.files);
       }
     });
 
     docsFileInput.addEventListener('change', () => {
       if (docsFileInput.files && docsFileInput.files.length > 0) {
-        handleFileSelected(docsFileInput.files[0]);
+        handleFilesAdded(docsFileInput.files);
       }
     });
   }
 
-  function handleFileSelected(file) {
-    if (file.size > 15 * 1024 * 1024) {
-      showToast('⚠️ ขนาดไฟล์ใหญ่เกิน 15MB', 'warning');
-      return;
-    }
-
-    selectedDocFile = file;
-    if (docsSelectedFileName) docsSelectedFileName.textContent = file.name;
-    if (docsSelectedFileSize) docsSelectedFileSize.textContent = `(${(file.size / 1024).toFixed(1)} KB)`;
-
-    // Auto-fill title if empty
-    if (newDocTitle && !newDocTitle.value.trim()) {
-      newDocTitle.value = file.name.replace(/\.[^/.]+$/, '');
-    }
-
-    // Set preview icon
-    const ext = file.name.split('.').pop().toLowerCase();
-    if (docsSelectedFileIcon) {
-      if (ext === 'xlsx' || ext === 'xls') docsSelectedFileIcon.className = 'fa-solid fa-file-excel file-icon-selected';
-      else if (ext === 'docx' || ext === 'doc') docsSelectedFileIcon.className = 'fa-solid fa-file-word file-icon-selected';
-      else if (ext === 'pdf') docsSelectedFileIcon.className = 'fa-solid fa-file-pdf file-icon-selected';
-      else docsSelectedFileIcon.className = 'fa-solid fa-file-lines file-icon-selected';
-    }
-
-    if (docsSelectedFile) docsSelectedFile.style.display = 'flex';
-    if (docsDropZone) docsDropZone.style.display = 'none';
-    if (btnUploadDoc) btnUploadDoc.disabled = false;
-  }
-
-  if (btnRemoveSelectedDoc) {
-    btnRemoveSelectedDoc.addEventListener('click', (e) => {
-      e.stopPropagation();
-      resetSelectedDocFile();
+  // Queue toolbar buttons
+  if (btnAddMoreDocs && docsFileInput) {
+    btnAddMoreDocs.addEventListener('click', () => {
+      docsFileInput.value = '';
+      docsFileInput.click();
     });
   }
 
-  function resetSelectedDocFile() {
-    selectedDocFile = null;
-    if (docsFileInput) docsFileInput.value = '';
-    if (docsSelectedFile) docsSelectedFile.style.display = 'none';
-    if (docsDropZone) docsDropZone.style.display = 'block';
-    if (btnUploadDoc) btnUploadDoc.disabled = true;
+  if (btnClearDocsQueue) {
+    btnClearDocsQueue.addEventListener('click', () => {
+      selectedDocFiles = [];
+      if (docsFileInput) docsFileInput.value = '';
+      renderDocUploadQueue();
+    });
   }
 
-  // Upload to Supabase Bed 100
+  // Upload Batch to Supabase Bed 100
   if (btnUploadDoc) {
     btnUploadDoc.addEventListener('click', async () => {
-      if (!selectedDocFile) return;
+      if (selectedDocFiles.length === 0) return;
+
+      const uploader = (docsUploaderName ? docsUploaderName.value.trim() : '') || 'Admin (เว็บ/มือถือ)';
+      if (docsUploaderName && docsUploaderName.value.trim()) {
+        try { localStorage.setItem('ward_author_name', docsUploaderName.value.trim()); } catch {}
+      }
 
       btnUploadDoc.disabled = true;
-      btnUploadDoc.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังอัปโหลด...';
+      const totalCount = selectedDocFiles.length;
 
       try {
-        const title = (newDocTitle ? newDocTitle.value.trim() : '') || selectedDocFile.name.replace(/\.[^/.]+$/, '');
-        const category = (newDocCategory ? newDocCategory.value : '') || 'แบบฟอร์มบันทึกทางการพยาบาล';
-        const uploader = (docsUploaderName ? docsUploaderName.value.trim() : '') || 'Admin (เว็บ/มือถือ)';
+        const nowUtc = new Date().toISOString();
+        let uploadedNames = [];
 
-        await uploadNewDocument(selectedDocFile, title, category, uploader);
+        for (let i = 0; i < totalCount; i++) {
+          const item = selectedDocFiles[i];
+          if (btnUploadDocText) {
+            btnUploadDocText.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> กำลังอ่านไฟล์ (${i + 1}/${totalCount}) ${escapeHtml(item.file.name)}...`;
+          }
 
-        resetSelectedDocFile();
-        if (newDocTitle) newDocTitle.value = '';
+          const base64Data = await readFileAsBase64(item.file);
+          const ext = item.file.name.split('.').pop().toLowerCase();
+          const docId = 'doc_' + Date.now() + '_' + i;
+          const newDoc = {
+            id: docId,
+            title: (item.title || '').trim() || item.file.name.replace(/\.[^/.]+$/, ''),
+            category: item.category || 'แบบฟอร์มบันทึกทางการพยาบาล',
+            filename: item.file.name,
+            download_name: item.file.name,
+            file_type: ext,
+            size: item.file.size,
+            updated_at: nowUtc,
+            updated_by: uploader,
+            base64: base64Data
+          };
 
-        showToast(`✅ อัปโหลดเอกสาร [${title}] ขึ้น Cloud สำเร็จ! ทุกเครื่องในวอร์ดจะเห็นเอกสารนี้ทันที`, 'success');
+          const existingIdx = currentDocsCatalog.documents.findIndex(d => d.filename.toLowerCase() === item.file.name.toLowerCase());
+          if (existingIdx >= 0) {
+            currentDocsCatalog.documents[existingIdx] = newDoc;
+          } else {
+            currentDocsCatalog.documents.unshift(newDoc);
+          }
+          uploadedNames.push(newDoc.title);
+        }
+
+        if (btnUploadDocText) {
+          btnUploadDocText.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> กำลังบันทึก ${totalCount} เอกสารขึ้น Cloud...`;
+        }
+
+        const jsonString = JSON.stringify(currentDocsCatalog);
+
+        // 1. Single atomic Supabase PATCH to bed_notes row 100
+        const patchRes = await fetch(`${SUPABASE_URL}/rest/v1/bed_notes?bed_number=eq.100`, {
+          method: 'PATCH',
+          headers: {
+            'apikey': SUPABASE_KEY,
+            'Authorization': `Bearer ${SUPABASE_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            content: jsonString,
+            updated_at: nowUtc,
+            updated_by: uploader
+          })
+        });
+
+        if (!patchRes.ok) throw new Error(`Supabase PATCH failed: ${patchRes.status}`);
+
+        // 2. Audit log
+        fetch(`${SUPABASE_URL}/rest/v1/bed_history`, {
+          method: 'POST',
+          headers: {
+            'apikey': SUPABASE_KEY,
+            'Authorization': `Bearer ${SUPABASE_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            bed_number: 100,
+            reason: `อัปโหลดเอกสารวอร์ด (${totalCount} ไฟล์) โดย ${uploader}`,
+            content: `รายการ: ${uploadedNames.join(', ')}`,
+            char_count: totalCount,
+            created_at: nowUtc
+          })
+        }).catch(err => console.warn('History snapshot error:', err));
+
+        // 3. Cache locally & refresh UI
+        try { localStorage.setItem('ward_docs_catalog', jsonString); } catch {}
+        renderDocumentsList();
+
+        selectedDocFiles = [];
+        if (docsFileInput) docsFileInput.value = '';
+        renderDocUploadQueue();
+
+        showToast(`✅ อัปโหลดเอกสาร ${totalCount} รายการขึ้น Cloud สำเร็จเรียบร้อย! ทุกเครื่องในวอร์ดจะเห็นเอกสารใหม่ทันที`, 'success');
 
       } catch (err) {
-        console.error('Upload document error:', err);
+        console.error('Batch upload documents error:', err);
         showToast('❌ อัปโหลดล้มเหลว กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ต', 'error');
       } finally {
-        btnUploadDoc.disabled = false;
-        btnUploadDoc.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> บันทึกและอัปโหลดเอกสารขึ้น Cloud';
+        if (btnUploadDoc) {
+          btnUploadDoc.disabled = selectedDocFiles.length === 0;
+          if (btnUploadDocText) {
+            btnUploadDocText.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> บันทึกและอัปโหลดเอกสารขึ้น Cloud';
+          }
+        }
       }
     });
   }

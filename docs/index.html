@@ -15,7 +15,7 @@
   <!-- FontAwesome Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   
-  <link rel="stylesheet" href="style.css?v=1.6.6">
+  <link rel="stylesheet" href="style.css?v=1.6.7">
 </head>
 <body>
   <!-- Top Navigation Bar -->
@@ -494,13 +494,10 @@
                 <i class="fa-solid fa-lock-open"></i> ได้รับสิทธิ์ผู้ดูแลระบบเรียบร้อย (Admin Mode)
               </div>
 
+              <!-- Batch Defaults Row -->
               <div class="doc-form-row">
-                <div class="doc-form-group flex-2">
-                  <label class="doc-form-label"><i class="fa-solid fa-heading"></i> ชื่อเอกสาร / แบบฟอร์ม *</label>
-                  <input type="text" id="newDocTitle" class="doc-form-input" placeholder="เช่น แบบฟอร์มบันทึก Intake / Output (I/O)" maxlength="100">
-                </div>
                 <div class="doc-form-group flex-1">
-                  <label class="doc-form-label"><i class="fa-solid fa-tag"></i> หมวดหมู่เอกสาร</label>
+                  <label class="doc-form-label"><i class="fa-solid fa-tag"></i> หมวดหมู่เอกสารเริ่มต้น</label>
                   <select id="newDocCategory" class="doc-form-select">
                     <option value="แบบฟอร์มบันทึกทางการพยาบาล">แบบฟอร์มบันทึกทางการพยาบาล</option>
                     <option value="แบบประเมินทางการพยาบาล">แบบประเมินทางการพยาบาล</option>
@@ -508,33 +505,43 @@
                     <option value="เอกสารและแบบฟอร์มทั่วไป">เอกสารและแบบฟอร์มทั่วไป</option>
                   </select>
                 </div>
+                <div class="doc-form-group flex-1">
+                  <label class="doc-form-label"><i class="fa-solid fa-user-pen"></i> ชื่อผู้แก้ไข / หัวหน้าเวร</label>
+                  <input type="text" id="docsUploaderName" class="doc-form-input" placeholder="เช่น พี่วิ Nurse In-charge" maxlength="50">
+                </div>
               </div>
 
+              <!-- Multi-file Drop Zone -->
               <div class="io-drop-zone docs-drop-zone" id="docsDropZone">
                 <i class="fa-solid fa-cloud-arrow-up drop-zone-icon"></i>
-                <p class="drop-zone-text">ลากไฟล์เอกสาร (.xlsx, .xls, .docx, .doc, .pdf) มาวางที่นี่ หรือ <strong>คลิกเพื่อเลือกไฟล์</strong></p>
-                <span class="drop-zone-sub">ไฟล์จะถูกบันทึกลง Cloud อัตโนมัติ ทุกเครื่องและมือถือในวอร์ดจะได้รับเอกสารนี้ทันที</span>
-                <input type="file" id="docsFileInput" accept=".xlsx,.xls,.docx,.doc,.pdf,.txt,.csv" style="display: none;">
+                <p class="drop-zone-text">ลากไฟล์เอกสารมาวางที่นี่ หรือ <strong>คลิกเพื่อเลือกไฟล์ (เลือกได้หลายไฟล์พร้อมกัน)</strong></p>
+                <span class="drop-zone-sub">รองรับ Excel (.xlsx, .xls), Word (.docx, .doc), PDF (.pdf) และไฟล์อื่นๆ สูงสุดไฟล์ละ 15MB</span>
+                <input type="file" id="docsFileInput" accept=".xlsx,.xls,.docx,.doc,.pdf,.txt,.csv" multiple style="display: none;">
               </div>
 
-              <div class="io-selected-file" id="docsSelectedFile" style="display: none;">
-                <div class="selected-file-info">
-                  <i class="fa-solid fa-file-lines file-icon-selected" id="docsSelectedFileIcon"></i>
-                  <div>
-                    <strong id="docsSelectedFileName">filename.xlsx</strong>
-                    <span id="docsSelectedFileSize">(0 KB)</span>
+              <!-- Multi-File Queue Container -->
+              <div class="docs-queue-container" id="docsQueueContainer" style="display: none;">
+                <div class="docs-queue-header">
+                  <div class="docs-queue-header-left">
+                    <span class="docs-queue-title"><i class="fa-solid fa-file-circle-check"></i> รายการไฟล์ที่พร้อมอัปโหลด (<span id="docsQueueCount">0</span> ไฟล์)</span>
+                    <span class="docs-queue-totalsize" id="docsQueueTotalSize">(0 KB)</span>
+                  </div>
+                  <div class="docs-queue-header-right">
+                    <button type="button" class="btn-queue-action btn-add-more" id="btnAddMoreDocs" title="เลือกไฟล์เพิ่ม"><i class="fa-solid fa-plus"></i> เพิ่มไฟล์อีก</button>
+                    <button type="button" class="btn-queue-action btn-clear-all" id="btnClearDocsQueue" title="ล้างรายการทั้งหมด"><i class="fa-solid fa-trash-can"></i> ล้างรายการ</button>
                   </div>
                 </div>
-                <button type="button" class="btn-remove-selected" id="btnRemoveSelectedDoc" title="ยกเลิกไฟล์นี้"><i class="fa-solid fa-xmark"></i></button>
+
+                <div class="docs-queue-list" id="docsQueueList">
+                  <!-- Dynamically populated file rows -->
+                </div>
               </div>
 
-              <div class="io-upload-meta-row">
-                <div class="io-input-wrap flex-1">
-                  <i class="fa-solid fa-user-pen"></i>
-                  <input type="text" id="docsUploaderName" class="io-uploader-input" placeholder="ชื่อผู้แก้ไข / หัวหน้าเวร (เช่น พี่วิ Nurse In-charge)" maxlength="50">
-                </div>
+              <!-- Upload Submit Action Bar -->
+              <div class="docs-upload-actions-bar">
                 <button type="button" class="btn-submit-upload" id="btnUploadDoc" disabled>
-                  <i class="fa-solid fa-cloud-arrow-up"></i> บันทึกและอัปโหลดเอกสารขึ้น Cloud
+                  <i class="fa-solid fa-cloud-arrow-up"></i>
+                  <span id="btnUploadDocText">บันทึกและอัปโหลดเอกสารขึ้น Cloud</span>
                 </button>
               </div>
             </div>
@@ -558,6 +565,6 @@
   <div class="toast-container" id="toastContainer"></div>
 
   <!-- Application Logic -->
-  <script src="app.js?v=1.6.6"></script>
+  <script src="app.js?v=1.6.7"></script>
 </body>
 </html>
