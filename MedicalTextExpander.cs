@@ -196,7 +196,7 @@ namespace MedicalTextExpander {
     }
 
     public static class AppUpdater {
-        public const string CurrentVersion = "1.6.6";
+        public const string CurrentVersion = "1.6.9";
         public const string DefaultGitHubRepo = "oatzilla/Medical_Text_Expander";
 
         public static void CheckForUpdatesAsync(string repo, bool isManual, Form parent = null, string token = null) {
