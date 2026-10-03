@@ -1,8 +1,8 @@
 {
-  "version": "1.7.0",
+  "version": "1.8.0",
   "downloadUrl": "https://raw.githubusercontent.com/oatzilla/Medical_Text_Expander/main/Medical_Text_Expander.exe",
   "download_url": "https://raw.githubusercontent.com/oatzilla/Medical_Text_Expander/main/Medical_Text_Expander.exe",
   "releaseDate": "2026-10-03",
   "release_date": "2026-10-03",
-  "changelog": "- นำคำอธิบายชื่อสีตามเลขเตียง (เช่น ฟ้าคราม, เขียวมรกต) ออกจากหัวเรื่องหน้าต่างบันทึกเตียง (Header Title) และ Tooltip เพื่อความกระชับ สะอาดตา และเป็นมืออาชีพ\r\n- แสดงเฉพาะหมายเลขเตียง เช่น '🛏️ ข้อมูลผู้ป่วย เตียง 01' โดยคงโทนสีประจำเตียงที่สวยงามและสบายตาไว้ตามเดิม"
+  "changelog": "- ระบบรองรับหลายผู้ใช้งาน (Multi-User & Workspace Isolation) พร้อมระบบจัดการสิทธิ์โดย Admin\r\n- ข้อมูลผู้ป่วยเตียง 1-30 เดิมคงอยู่ครบถ้วน 100% เป็นพื้นที่งานของผู้ดูแลระบบ (Admin)\r\n- ผู้ใช้/พยาบาลแต่ละคนมีชุดเตียง 1-30 แยกอิสระของตนเอง พร้อมซิงค์ Real-Time ขึ้น Supabase Cloud\r\n- ผู้ดูแลระบบ (Admin) สามารถสลับเข้าไปดู ตรวจสอบ และควบคุมชุดเตียงของทุกคนได้ผ่าน Workspace Switcher พร้อมแถบแจ้งเตือนสีส้มชัดเจน\r\n- หน้าต่างเข้าสู่ระบบ (Login) และหน้าต่างจัดการบัญชีผู้ใช้งาน (User Management) เพิ่ม/แก้ไข/ลบ/เปลี่ยนรหัสผ่าน พร้อมการเข้ารหัสความปลอดภัย SHA-256"
 }

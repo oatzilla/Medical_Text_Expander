@@ -54,6 +54,296 @@ let selectedHistoryItem = null;
 let pollTimer = null;
 let isSaving = false;
 
+// ==========================================
+// Multi-User & Workspace System (v1.8.0)
+// ==========================================
+let usersCatalogCache = [
+  {
+    id: "u_admin",
+    username: "admin",
+    display_name: "ผู้ดูแลระบบ (Admin)",
+    password_hash: "8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918",
+    role: "admin",
+    user_slot: 0,
+    is_active: true,
+    created_at: new Date().toISOString(),
+    last_login_at: null
+  }
+];
+
+function getCurrentUser() {
+  try {
+    const stored = localStorage.getItem('ward_current_user');
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      if (parsed && parsed.username) return parsed;
+    }
+  } catch {}
+  return {
+    id: "u_admin",
+    username: "admin",
+    display_name: "ผู้ดูแลระบบ (Admin)",
+    role: "admin",
+    user_slot: 0,
+    is_active: true
+  };
+}
+
+function setCurrentUser(user) {
+  try {
+    localStorage.setItem('ward_current_user', JSON.stringify({
+      id: user.id || user.username,
+      username: user.username,
+      display_name: user.display_name,
+      role: user.role,
+      user_slot: user.user_slot || 0,
+      is_active: user.is_active !== false
+    }));
+  } catch {}
+  updateUserUI();
+}
+
+function getActiveWorkspaceUser() {
+  const curUser = getCurrentUser();
+  if (curUser.role !== 'admin') {
+    return curUser.username;
+  }
+  const wsSelect = document.getElementById('workspaceSelect');
+  if (wsSelect && wsSelect.value) {
+    return wsSelect.value;
+  }
+  return localStorage.getItem('ward_admin_active_workspace') || 'admin';
+}
+
+function setActiveWorkspaceUser(username) {
+  const curUser = getCurrentUser();
+  if (curUser.role !== 'admin') return;
+  try {
+    localStorage.setItem('ward_admin_active_workspace', username);
+  } catch {}
+  const wsSelect = document.getElementById('workspaceSelect');
+  if (wsSelect && wsSelect.value !== username) {
+    wsSelect.value = username;
+  }
+  prevContentMap.clear();
+  updateWorkspaceNoticeBanner();
+  initEmptyBeds();
+  loadCachedBeds();
+  fetchAllBeds();
+}
+
+function getActiveWorkspaceSlot() {
+  const wsUser = getActiveWorkspaceUser();
+  if (wsUser === 'admin') return 0;
+  const user = usersCatalogCache.find(u => u.username.toLowerCase() === wsUser.toLowerCase());
+  return user ? (user.user_slot || 0) : 0;
+}
+
+function getRemoteBedNumber(bedNum) {
+  const slot = getActiveWorkspaceSlot();
+  return slot === 0 ? bedNum : (slot * 100) + bedNum;
+}
+
+async function fetchUsersCatalogFromCloud() {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/bed_notes?bed_number=eq.101&select=content,updated_at,updated_by`, {
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`
+      }
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.length > 0 && data[0].content) {
+        const parsed = JSON.parse(data[0].content);
+        if (parsed && Array.isArray(parsed.users) && parsed.users.length > 0) {
+          usersCatalogCache = parsed.users;
+          try {
+            localStorage.setItem('ward_users_catalog_cache', JSON.stringify(parsed));
+          } catch {}
+          updateWorkspaceSelectOptions();
+          return usersCatalogCache;
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('fetchUsersCatalogFromCloud error:', err);
+  }
+
+  try {
+    const cached = localStorage.getItem('ward_users_catalog_cache');
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      if (parsed && Array.isArray(parsed.users)) {
+        usersCatalogCache = parsed.users;
+      }
+    }
+  } catch {}
+  updateWorkspaceSelectOptions();
+  return usersCatalogCache;
+}
+
+async function saveUsersCatalogToCloud(usersList) {
+  usersCatalogCache = usersList;
+  const payload = {
+    version: 1,
+    users: usersList
+  };
+  const jsonStr = JSON.stringify(payload);
+  try {
+    localStorage.setItem('ward_users_catalog_cache', jsonStr);
+  } catch {}
+
+  try {
+    const nowIso = new Date().toISOString();
+    await fetch(`${SUPABASE_URL}/rest/v1/bed_notes?bed_number=eq.101`, {
+      method: 'PATCH',
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        content: jsonStr,
+        updated_at: nowIso,
+        updated_by: getCurrentUser().username || 'admin'
+      })
+    });
+  } catch (err) {
+    console.error('saveUsersCatalogToCloud error:', err);
+  }
+}
+
+async function ensureUserSlotRowsExist(userSlot, username) {
+  if (!userSlot || userSlot <= 0) return true;
+  try {
+    const minBed = (userSlot * 100) + 1;
+    const checkRes = await fetch(`${SUPABASE_URL}/rest/v1/bed_notes?bed_number=eq.${minBed}&select=bed_number`, {
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`
+      }
+    });
+    if (checkRes.ok) {
+      const rows = await checkRes.json();
+      if (rows && rows.length > 0) return true;
+    }
+
+    const rowsToInsert = [];
+    const nowIso = new Date().toISOString();
+    for (let i = 1; i <= 30; i++) {
+      rowsToInsert.push({
+        bed_number: (userSlot * 100) + i,
+        content: '',
+        updated_at: nowIso,
+        updated_by: username || 'user'
+      });
+    }
+
+    const postRes = await fetch(`${SUPABASE_URL}/rest/v1/bed_notes`, {
+      method: 'POST',
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=minimal'
+      },
+      body: JSON.stringify(rowsToInsert)
+    });
+    return postRes.ok;
+  } catch (err) {
+    console.warn('ensureUserSlotRowsExist error:', err);
+    return false;
+  }
+}
+
+function updateUserUI() {
+  const curUser = getCurrentUser();
+  const badgeName = document.getElementById('userBadgeName');
+  if (badgeName) {
+    badgeName.textContent = curUser.display_name || curUser.username;
+  }
+
+  const menuDisplayName = document.getElementById('menuUserDisplayName');
+  if (menuDisplayName) {
+    menuDisplayName.textContent = curUser.display_name || curUser.username;
+  }
+
+  const menuRole = document.getElementById('menuUserRole');
+  if (menuRole) {
+    menuRole.textContent = curUser.role === 'admin' ? '👑 ผู้ดูแลระบบ (Admin)' : '👩‍⚕️ พยาบาล / ผู้ใช้ทั่วไป';
+  }
+
+  const btnManageUsers = document.getElementById('btnOpenUserManagement');
+  const wsWrapper = document.getElementById('workspaceSelectWrapper');
+
+  if (curUser.role === 'admin') {
+    if (btnManageUsers) btnManageUsers.style.display = 'flex';
+    if (wsWrapper) wsWrapper.style.display = 'flex';
+  } else {
+    if (btnManageUsers) btnManageUsers.style.display = 'none';
+    if (wsWrapper) wsWrapper.style.display = 'none';
+  }
+
+  updateWorkspaceSelectOptions();
+  updateWorkspaceNoticeBanner();
+}
+
+function updateWorkspaceSelectOptions() {
+  const wsSelect = document.getElementById('workspaceSelect');
+  if (!wsSelect) return;
+  const curUser = getCurrentUser();
+  if (curUser.role !== 'admin') return;
+
+  const currentVal = wsSelect.value || localStorage.getItem('ward_admin_active_workspace') || 'admin';
+  wsSelect.innerHTML = '';
+
+  const optAdmin = document.createElement('option');
+  optAdmin.value = 'admin';
+  optAdmin.textContent = '👑 พื้นที่งาน: Admin (เตียงหลักวอร์ด)';
+  wsSelect.appendChild(optAdmin);
+
+  usersCatalogCache.forEach(u => {
+    if (u.username.toLowerCase() !== 'admin' && u.is_active !== false) {
+      const opt = document.createElement('option');
+      opt.value = u.username;
+      opt.textContent = `👩‍⚕️ เตียงของ: ${u.display_name} (${u.username})`;
+      wsSelect.appendChild(opt);
+    }
+  });
+
+  if (Array.from(wsSelect.options).some(o => o.value === currentVal)) {
+    wsSelect.value = currentVal;
+  } else {
+    wsSelect.value = 'admin';
+  }
+}
+
+function updateWorkspaceNoticeBanner() {
+  const banner = document.getElementById('workspaceNoticeBanner');
+  const label = document.getElementById('workspaceNoticeLabel');
+  if (!banner) return;
+
+  const curUser = getCurrentUser();
+  const wsUser = getActiveWorkspaceUser();
+
+  if (curUser.role === 'admin' && wsUser !== 'admin') {
+    const targetUser = usersCatalogCache.find(u => u.username.toLowerCase() === wsUser.toLowerCase());
+    const dName = targetUser ? `${targetUser.display_name} (${targetUser.username})` : wsUser;
+    if (label) label.textContent = `กำลังดูและจัดการเตียงของ: ${dName} (โหมด Admin ควบคุม)`;
+    banner.style.display = 'flex';
+  } else {
+    banner.style.display = 'none';
+  }
+}
+
+function initMultiUserSession() {
+  updateUserUI();
+  fetchUsersCatalogFromCloud().then(() => {
+    updateUserUI();
+  });
+}
+
 // DOM Elements
 const bedsGrid = document.getElementById('bedsGrid');
 const cloudStatusBadge = document.getElementById('cloudStatusBadge');
@@ -106,6 +396,7 @@ const toastContainer = document.getElementById('toastContainer');
 // ==========================================
 document.addEventListener('DOMContentLoaded', () => {
   initTheme();
+  initMultiUserSession();
   initAuthorName();
   initEmptyBeds();
   loadCachedBeds();
@@ -134,7 +425,8 @@ function initEmptyBeds() {
 // Load cached beds from LocalStorage (Instant offline display)
 function loadCachedBeds() {
   try {
-    const cached = localStorage.getItem('ward_bed_notes_cache');
+    const wsUser = getActiveWorkspaceUser() || 'admin';
+    const cached = localStorage.getItem('ward_bed_notes_cache_' + wsUser) || (wsUser === 'admin' ? localStorage.getItem('ward_bed_notes_cache') : null);
     if (cached) {
       const parsed = JSON.parse(cached);
       if (Array.isArray(parsed) && parsed.length > 0) {
@@ -174,12 +466,305 @@ function updateThemeIcon(theme) {
 
 // Author Name Management
 function initAuthorName() {
-  const savedAuthor = localStorage.getItem('ward_author_name') || '';
-  if (savedAuthor) authorInput.value = savedAuthor;
+  const curUser = getCurrentUser();
+  const defaultAuthor = curUser ? (curUser.display_name || curUser.username) : '';
+  const savedAuthor = localStorage.getItem('ward_author_name') || defaultAuthor;
+  if (savedAuthor && authorInput) authorInput.value = savedAuthor;
 }
 
 function saveAuthorName(name) {
   if (name) localStorage.setItem('ward_author_name', name.trim());
+}
+
+// ==========================================
+// Multi-User UI & Modal Management
+// ==========================================
+function openLoginModal() {
+  const modal = document.getElementById('loginModal');
+  const userInp = document.getElementById('loginUsername');
+  const passInp = document.getElementById('loginPassword');
+  const errMsg = document.getElementById('loginErrorMessage');
+  if (errMsg) errMsg.style.display = 'none';
+  if (userInp) userInp.value = '';
+  if (passInp) passInp.value = '';
+  if (modal) {
+    modal.classList.add('open');
+    modal.setAttribute('aria-hidden', 'false');
+    setTimeout(() => { if (userInp) userInp.focus(); }, 150);
+  }
+}
+
+function closeLoginModal() {
+  const modal = document.getElementById('loginModal');
+  if (modal) {
+    modal.classList.remove('open');
+    modal.setAttribute('aria-hidden', 'true');
+  }
+}
+
+function openUserManagementModal() {
+  const modal = document.getElementById('userManagementModal');
+  if (!modal) return;
+  fetchUsersCatalogFromCloud().then(() => renderUsersTable());
+  renderUsersTable();
+  modal.classList.add('open');
+  modal.setAttribute('aria-hidden', 'false');
+}
+
+function closeUserManagementModal() {
+  const modal = document.getElementById('userManagementModal');
+  if (modal) {
+    modal.classList.remove('open');
+    modal.setAttribute('aria-hidden', 'true');
+  }
+}
+
+function renderUsersTable(filterText = '') {
+  const tbody = document.getElementById('usersTableBody');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+
+  const q = (filterText || '').trim().toLowerCase();
+  const filtered = usersCatalogCache.filter(u => {
+    if (!q) return true;
+    return (u.username && u.username.toLowerCase().includes(q)) ||
+           (u.display_name && u.display_name.toLowerCase().includes(q));
+  });
+
+  filtered.forEach(u => {
+    const tr = document.createElement('tr');
+
+    const roleBadge = u.role === 'admin'
+      ? '<span class="badge-role-admin">👑 Admin</span>'
+      : '<span class="badge-role-user">👩‍⚕️ User</span>';
+
+    const slotText = u.user_slot === 0
+      ? '<span style="font-weight:600; color:#0d9488;">เตียงหลัก (1-30)</span>'
+      : `<span>Slot ${u.user_slot} (${(u.user_slot * 100) + 1} - ${(u.user_slot * 100) + 30})</span>`;
+
+    const statusBadge = u.is_active !== false
+      ? '<span class="badge-status-active"><i class="fa-solid fa-circle-check"></i> ใช้งาน</span>'
+      : '<span class="badge-status-inactive"><i class="fa-solid fa-circle-xmark"></i> ปิดใช้งาน</span>';
+
+    let actionBtns = '';
+    // Switch to view bed
+    actionBtns += `<button type="button" class="btn btn-secondary btn-sm" onclick="handleAdminSwitchToUser('${escapeHtml(u.username)}')" title="สลับดูเตียงของผู้ใช้นี้" style="margin-right:6px; padding:3px 8px; font-size:12px;">
+      <i class="fa-solid fa-eye"></i> ดูเตียง
+    </button>`;
+
+    // Edit button
+    actionBtns += `<button type="button" class="btn btn-secondary btn-sm" onclick="handleOpenEditUserModal('${escapeHtml(u.id || u.username)}')" title="แก้ไขข้อมูล" style="margin-right:6px; padding:3px 8px; font-size:12px;">
+      <i class="fa-solid fa-pen"></i> แก้ไข
+    </button>`;
+
+    // Delete button (not for admin)
+    if (u.username.toLowerCase() !== 'admin') {
+      actionBtns += `<button type="button" class="btn btn-secondary btn-sm" onclick="handleDeleteUser('${escapeHtml(u.username)}')" title="ลบผู้ใช้" style="padding:3px 8px; font-size:12px; color:#ef4444;">
+        <i class="fa-solid fa-trash"></i>
+      </button>`;
+    }
+
+    tr.innerHTML = `
+      <td style="font-weight:600; font-family:var(--font-mono);">${escapeHtml(u.username)}</td>
+      <td>${escapeHtml(u.display_name || u.username)}</td>
+      <td>${roleBadge}</td>
+      <td>${slotText}</td>
+      <td>${statusBadge}</td>
+      <td style="text-align:right; white-space:nowrap;">${actionBtns}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+window.handleAdminSwitchToUser = function(username) {
+  closeUserManagementModal();
+  setActiveWorkspaceUser(username);
+  showToast(`👀 กำลังเปิดดูเตียงของ ${username}`, 'info');
+};
+
+window.handleDeleteUser = async function(username) {
+  if (username.toLowerCase() === 'admin') {
+    alert('ไม่สามารถลบบัญชีผู้ดูแลระบบหลัก (admin) ได้');
+    return;
+  }
+  if (!confirm(`ต้องการลบบัญชีผู้ใช้ [${username}] ออกจากระบบใช่หรือไม่?\n\nหมายเหตุ: ข้อมูลเตียงของผู้ใช้นี้บน Cloud จะยังคงปลอดภัย`)) {
+    return;
+  }
+  usersCatalogCache = usersCatalogCache.filter(u => u.username.toLowerCase() !== username.toLowerCase());
+  await saveUsersCatalogToCloud(usersCatalogCache);
+  updateWorkspaceSelectOptions();
+  renderUsersTable(document.getElementById('userSearchInput')?.value || '');
+  showToast(`🗑️ ลบผู้ใช้ [${username}] เรียบร้อยแล้ว`, 'success');
+};
+
+window.handleOpenEditUserModal = function(idOrUsername) {
+  const user = usersCatalogCache.find(u => u.id === idOrUsername || u.username === idOrUsername);
+  if (!user) return;
+  openAddEditUserModal(user);
+};
+
+function openAddEditUserModal(user = null) {
+  const modal = document.getElementById('addEditUserModal');
+  const title = document.getElementById('addEditUserTitle');
+  const formId = document.getElementById('userFormId');
+  const formUser = document.getElementById('userFormUsername');
+  const formDisplay = document.getElementById('userFormDisplayName');
+  const formRole = document.getElementById('userFormRole');
+  const formPass = document.getElementById('userFormPassword');
+  const formPassHint = document.getElementById('userFormPasswordHint');
+  const formActive = document.getElementById('userFormIsActive');
+  const errMsg = document.getElementById('userFormErrorMessage');
+
+  if (errMsg) errMsg.style.display = 'none';
+  if (formPass) formPass.value = '';
+
+  if (user) {
+    // Edit Mode
+    if (title) title.innerHTML = `<i class="fa-solid fa-user-pen"></i> แก้ไขข้อมูลผู้ใช้: ${escapeHtml(user.username)}`;
+    if (formId) formId.value = user.id || user.username;
+    if (formUser) {
+      formUser.value = user.username;
+      formUser.disabled = true;
+    }
+    if (formDisplay) formDisplay.value = user.display_name || user.username;
+    if (formRole) formRole.value = user.role || 'user';
+    if (formPassHint) formPassHint.textContent = '(เว้นว่างไว้หากไม่ต้องการเปลี่ยนรหัสผ่าน)';
+    if (formActive) formActive.checked = user.is_active !== false;
+  } else {
+    // Add Mode
+    if (title) title.innerHTML = '<i class="fa-solid fa-user-plus"></i> เพิ่มผู้ใช้งานใหม่';
+    if (formId) formId.value = '';
+    if (formUser) {
+      formUser.value = '';
+      formUser.disabled = false;
+    }
+    if (formDisplay) formDisplay.value = '';
+    if (formRole) formRole.value = 'user';
+    if (formPassHint) formPassHint.textContent = '(ต้องระบุรหัสผ่านสำหรับการสร้างบัญชีใหม่)';
+    if (formActive) formActive.checked = true;
+  }
+
+  if (modal) {
+    modal.classList.add('open');
+    modal.setAttribute('aria-hidden', 'false');
+    setTimeout(() => {
+      if (user) {
+        if (formDisplay) formDisplay.focus();
+      } else {
+        if (formUser) formUser.focus();
+      }
+    }, 150);
+  }
+}
+
+function closeAddEditUserModal() {
+  const modal = document.getElementById('addEditUserModal');
+  if (modal) {
+    modal.classList.remove('open');
+    modal.setAttribute('aria-hidden', 'true');
+  }
+}
+
+async function saveAddEditUserSubmit() {
+  const formId = document.getElementById('userFormId')?.value;
+  const formUser = document.getElementById('userFormUsername')?.value.trim();
+  const formDisplay = document.getElementById('userFormDisplayName')?.value.trim();
+  const formRole = document.getElementById('userFormRole')?.value || 'user';
+  const formPass = document.getElementById('userFormPassword')?.value || '';
+  const formActive = document.getElementById('userFormIsActive')?.checked ?? true;
+  const errMsg = document.getElementById('userFormErrorMessage');
+  const btnSubmit = document.getElementById('btnSaveUserSubmit');
+
+  if (errMsg) errMsg.style.display = 'none';
+
+  if (!formUser) {
+    if (errMsg) { errMsg.textContent = 'กรุณาระบุ Username'; errMsg.style.display = 'flex'; }
+    return;
+  }
+  if (!formDisplay) {
+    if (errMsg) { errMsg.textContent = 'กรุณาระบุชื่อแสดง (Display Name)'; errMsg.style.display = 'flex'; }
+    return;
+  }
+
+  const isAdd = !formId;
+  if (isAdd && !formPass) {
+    if (errMsg) { errMsg.textContent = 'กรุณาระบุรหัสผ่านสำหรับผู้ใช้ใหม่'; errMsg.style.display = 'flex'; }
+    return;
+  }
+
+  if (btnSubmit) {
+    btnSubmit.disabled = true;
+    btnSubmit.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังบันทึก...';
+  }
+
+  try {
+    if (isAdd) {
+      // Check duplicate
+      const exists = usersCatalogCache.some(u => u.username.toLowerCase() === formUser.toLowerCase());
+      if (exists) {
+        if (errMsg) { errMsg.textContent = `Username "${formUser}" มีอยู่ในระบบแล้ว`; errMsg.style.display = 'flex'; }
+        return;
+      }
+
+      // Find next slot (slot >= 2)
+      let maxSlot = 1;
+      usersCatalogCache.forEach(u => {
+        if (u.user_slot && u.user_slot > maxSlot) maxSlot = u.user_slot;
+      });
+      const newSlot = Math.max(2, maxSlot + 1);
+      const passHash = await sha256Hex(formPass);
+
+      const newUser = {
+        id: 'u_' + Date.now().toString(36),
+        username: formUser,
+        display_name: formDisplay,
+        password_hash: passHash,
+        role: formRole,
+        user_slot: newSlot,
+        is_active: formActive,
+        created_at: new Date().toISOString(),
+        last_login_at: null
+      };
+
+      usersCatalogCache.push(newUser);
+      await saveUsersCatalogToCloud(usersCatalogCache);
+      await ensureUserSlotRowsExist(newSlot, formUser);
+
+      showToast(`✅ สร้างผู้ใช้งาน [${formDisplay}] สำเร็จแล้ว (Slot ${newSlot})`, 'success');
+
+    } else {
+      // Edit
+      const targetUser = usersCatalogCache.find(u => u.id === formId || u.username === formId || u.username.toLowerCase() === formUser.toLowerCase());
+      if (!targetUser) {
+        if (errMsg) { errMsg.textContent = 'ไม่พบผู้ใช้ในระบบ'; errMsg.style.display = 'flex'; }
+        return;
+      }
+
+      targetUser.display_name = formDisplay;
+      targetUser.role = formRole;
+      targetUser.is_active = formActive;
+
+      if (formPass) {
+        targetUser.password_hash = await sha256Hex(formPass);
+      }
+
+      await saveUsersCatalogToCloud(usersCatalogCache);
+      showToast(`✏️ อัปเดตข้อมูลผู้ใช้ [${formDisplay}] เรียบร้อยแล้ว`, 'success');
+    }
+
+    closeAddEditUserModal();
+    updateWorkspaceSelectOptions();
+    renderUsersTable(document.getElementById('userSearchInput')?.value || '');
+
+  } catch (err) {
+    console.error('Save user error:', err);
+    if (errMsg) { errMsg.textContent = 'บันทึกล้มเหลว กรุณาลองใหม่อีกครั้ง'; errMsg.style.display = 'flex'; }
+  } finally {
+    if (btnSubmit) {
+      btnSubmit.disabled = false;
+      btnSubmit.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> บันทึกข้อมูล';
+    }
+  }
 }
 
 // ==========================================
@@ -316,13 +901,235 @@ function setupEventListeners() {
     swapTargetSelect.addEventListener('change', handleTargetBedChanged);
   }
 
+  // Workspace Switcher & User Account Listeners (v1.8.0)
+  const wsSelect = document.getElementById('workspaceSelect');
+  if (wsSelect) {
+    wsSelect.addEventListener('change', (e) => {
+      setActiveWorkspaceUser(e.target.value);
+      showToast(`🔄 สลับพื้นที่งานไปยัง: ${e.target.selectedOptions[0]?.textContent || e.target.value}`, 'info');
+    });
+  }
+
+  const btnBackMyAdmin = document.getElementById('btnBackToMyAdminWorkspace');
+  if (btnBackMyAdmin) {
+    btnBackMyAdmin.addEventListener('click', () => {
+      setActiveWorkspaceUser('admin');
+      showToast('👑 สลับกลับมายังเตียงหลักของ Admin เรียบร้อยแล้ว', 'info');
+    });
+  }
+
+  const userBadgeBtn = document.getElementById('userBadgeBtn');
+  const userDropdownMenu = document.getElementById('userDropdownMenu');
+  if (userBadgeBtn && userDropdownMenu) {
+    userBadgeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isShowing = userDropdownMenu.style.display === 'flex';
+      userDropdownMenu.style.display = isShowing ? 'none' : 'flex';
+      userBadgeBtn.classList.toggle('open', !isShowing);
+    });
+    document.addEventListener('click', (e) => {
+      if (!userDropdownMenu.contains(e.target) && !userBadgeBtn.contains(e.target)) {
+        userDropdownMenu.style.display = 'none';
+        userBadgeBtn.classList.remove('open');
+      }
+    });
+  }
+
+  const btnOpenUserMgmt = document.getElementById('btnOpenUserManagement');
+  if (btnOpenUserMgmt) {
+    btnOpenUserMgmt.addEventListener('click', () => {
+      if (userDropdownMenu) userDropdownMenu.style.display = 'none';
+      if (userBadgeBtn) userBadgeBtn.classList.remove('open');
+      openUserManagementModal();
+    });
+  }
+
+  const btnOpenLogin = document.getElementById('btnOpenLoginModal');
+  if (btnOpenLogin) {
+    btnOpenLogin.addEventListener('click', () => {
+      if (userDropdownMenu) userDropdownMenu.style.display = 'none';
+      if (userBadgeBtn) userBadgeBtn.classList.remove('open');
+      openLoginModal();
+    });
+  }
+
+  const btnLogout = document.getElementById('btnLogoutUser');
+  if (btnLogout) {
+    btnLogout.addEventListener('click', () => {
+      if (confirm('ต้องการออกจากระบบใช่หรือไม่?')) {
+        localStorage.removeItem('ward_current_user');
+        localStorage.removeItem('ward_admin_active_workspace');
+        if (userDropdownMenu) userDropdownMenu.style.display = 'none';
+        if (userBadgeBtn) userBadgeBtn.classList.remove('open');
+        updateUserUI();
+        initEmptyBeds();
+        loadCachedBeds();
+        fetchAllBeds();
+        openLoginModal();
+      }
+    });
+  }
+
+  // Login Modal
+  const btnCloseLogin = document.getElementById('btnCloseLoginModal');
+  const btnCancelLogin = document.getElementById('btnCancelLoginModal');
+  if (btnCloseLogin) btnCloseLogin.addEventListener('click', closeLoginModal);
+  if (btnCancelLogin) btnCancelLogin.addEventListener('click', closeLoginModal);
+
+  const loginModal = document.getElementById('loginModal');
+  if (loginModal) {
+    loginModal.addEventListener('click', (e) => {
+      if (e.target === loginModal) closeLoginModal();
+    });
+  }
+
+  const loginShowPass = document.getElementById('loginShowPassword');
+  if (loginShowPass) {
+    loginShowPass.addEventListener('change', (e) => {
+      const passInp = document.getElementById('loginPassword');
+      if (passInp) passInp.type = e.target.checked ? 'text' : 'password';
+    });
+  }
+
+  const loginForm = document.getElementById('loginForm');
+  if (loginForm) {
+    loginForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const userInp = document.getElementById('loginUsername');
+      const passInp = document.getElementById('loginPassword');
+      const errMsg = document.getElementById('loginErrorMessage');
+      const btnSubmit = document.getElementById('btnLoginSubmit');
+
+      const username = userInp?.value.trim().toLowerCase();
+      const password = passInp?.value || '';
+
+      if (!username || !password) {
+        if (errMsg) { errMsg.textContent = 'กรุณาระบุ Username และ Password ให้ครบถ้วน'; errMsg.style.display = 'flex'; }
+        return;
+      }
+
+      if (btnSubmit) {
+        btnSubmit.disabled = true;
+        btnSubmit.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังเข้าสู่ระบบ...';
+      }
+
+      try {
+        await fetchUsersCatalogFromCloud();
+        const enteredHash = await sha256Hex(password);
+        let matchedUser = usersCatalogCache.find(u => u.username.toLowerCase() === username);
+
+        if (username === 'admin' && (password === '9844' || password === 'admin' || (matchedUser && matchedUser.password_hash === enteredHash))) {
+          if (!matchedUser) {
+            matchedUser = {
+              id: 'u_admin',
+              username: 'admin',
+              display_name: 'ผู้ดูแลระบบ (Admin)',
+              role: 'admin',
+              user_slot: 0,
+              is_active: true
+            };
+          }
+        } else {
+          if (!matchedUser || matchedUser.password_hash !== enteredHash) {
+            if (errMsg) { errMsg.textContent = '❌ ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง'; errMsg.style.display = 'flex'; }
+            return;
+          }
+        }
+
+        if (matchedUser.is_active === false) {
+          if (errMsg) { errMsg.textContent = '⚠️ บัญชีนี้ถูกปิดการใช้งาน กรุณาติดต่อ Admin'; errMsg.style.display = 'flex'; }
+          return;
+        }
+
+        matchedUser.last_login_at = new Date().toISOString();
+        saveUsersCatalogToCloud(usersCatalogCache);
+
+        setCurrentUser(matchedUser);
+        if (matchedUser.role === 'admin') {
+          setActiveWorkspaceUser('admin');
+        } else {
+          localStorage.removeItem('ward_admin_active_workspace');
+        }
+
+        closeLoginModal();
+        showToast(`👋 ยินดีต้อนรับ ${matchedUser.display_name}!`, 'success');
+        initAuthorName();
+        initEmptyBeds();
+        loadCachedBeds();
+        fetchAllBeds();
+
+      } catch (err) {
+        console.error('Login error:', err);
+        if (errMsg) { errMsg.textContent = 'เกิดข้อผิดพลาดในการเชื่อมต่อ กรุณาลองใหม่อีกครั้ง'; errMsg.style.display = 'flex'; }
+      } finally {
+        if (btnSubmit) {
+          btnSubmit.disabled = false;
+          btnSubmit.innerHTML = '<i class="fa-solid fa-arrow-right-to-bracket"></i> เข้าสู่ระบบ';
+        }
+      }
+    });
+  }
+
+  // User Management Modal
+  const btnCloseUserMgmt = document.getElementById('btnCloseUserManagementModal');
+  const btnDismissUserMgmt = document.getElementById('btnDismissUserManagement');
+  if (btnCloseUserMgmt) btnCloseUserMgmt.addEventListener('click', closeUserManagementModal);
+  if (btnDismissUserMgmt) btnDismissUserMgmt.addEventListener('click', closeUserManagementModal);
+
+  const userMgmtModal = document.getElementById('userManagementModal');
+  if (userMgmtModal) {
+    userMgmtModal.addEventListener('click', (e) => {
+      if (e.target === userMgmtModal) closeUserManagementModal();
+    });
+  }
+
+  const btnOpenAddUser = document.getElementById('btnOpenAddUserModal');
+  if (btnOpenAddUser) btnOpenAddUser.addEventListener('click', () => openAddEditUserModal(null));
+
+  const userSearchInp = document.getElementById('userSearchInput');
+  if (userSearchInp) {
+    userSearchInp.addEventListener('input', (e) => {
+      renderUsersTable(e.target.value);
+    });
+  }
+
+  // Add / Edit User Modal
+  const btnCloseAddEdit = document.getElementById('btnCloseAddEditUserModal');
+  const btnCancelAddEdit = document.getElementById('btnCancelAddEditUser');
+  if (btnCloseAddEdit) btnCloseAddEdit.addEventListener('click', closeAddEditUserModal);
+  if (btnCancelAddEdit) btnCancelAddEdit.addEventListener('click', closeAddEditUserModal);
+
+  const addEditModal = document.getElementById('addEditUserModal');
+  if (addEditModal) {
+    addEditModal.addEventListener('click', (e) => {
+      if (e.target === addEditModal) closeAddEditUserModal();
+    });
+  }
+
+  const userFormShowPass = document.getElementById('userFormShowPassword');
+  if (userFormShowPass) {
+    userFormShowPass.addEventListener('change', (e) => {
+      const passInp = document.getElementById('userFormPassword');
+      if (passInp) passInp.type = e.target.checked ? 'text' : 'password';
+    });
+  }
+
+  const btnSaveUser = document.getElementById('btnSaveUserSubmit');
+  if (btnSaveUser) btnSaveUser.addEventListener('click', saveAddEditUserSubmit);
+
   // View Mode Toggle (Compact vs Expanded)
   initViewMode();
 
   // Keyboard Shortcuts
   window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
-      if (templateModal && templateModal.classList.contains('open')) {
+      if (addEditModal && addEditModal.classList.contains('open')) {
+        closeAddEditUserModal();
+      } else if (userMgmtModal && userMgmtModal.classList.contains('open')) {
+        closeUserManagementModal();
+      } else if (loginModal && loginModal.classList.contains('open')) {
+        closeLoginModal();
+      } else if (templateModal && templateModal.classList.contains('open')) {
         closeTemplateModal();
       } else if (document.getElementById('docsModal') && document.getElementById('docsModal').classList.contains('open')) {
         closeDocsModal();
@@ -352,7 +1159,11 @@ function setupEventListeners() {
 // ==========================================
 async function fetchAllBeds() {
   try {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/bed_notes?bed_number=gte.1&bed_number=lte.30&select=bed_number,content,updated_at,updated_by&order=bed_number.asc`, {
+    const slot = getActiveWorkspaceSlot();
+    const startBed = slot === 0 ? 1 : (slot * 100) + 1;
+    const endBed = slot === 0 ? 30 : (slot * 100) + 30;
+
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/bed_notes?bed_number=gte.${startBed}&bed_number=lte.${endBed}&select=bed_number,content,updated_at,updated_by&order=bed_number.asc`, {
       method: 'GET',
       headers: {
         'apikey': SUPABASE_KEY,
@@ -365,24 +1176,40 @@ async function fetchAllBeds() {
     const data = await res.json();
     setCloudStatus(true);
 
+    if (slot > 0 && data.length < 30) {
+      ensureUserSlotRowsExist(slot, getActiveWorkspaceUser());
+    }
+
     // Track changed beds for pulse animation
     const changedBeds = new Set();
     data.forEach(item => {
-      const prev = prevContentMap.get(item.bed_number);
-      if (prev !== undefined && prev !== (item.content || '')) {
-        changedBeds.add(item.bed_number);
-      }
-      prevContentMap.set(item.bed_number, item.content || '');
+      const localBedNum = slot === 0 ? item.bed_number : item.bed_number - (slot * 100);
+      if (localBedNum >= 1 && localBedNum <= 30) {
+        const prev = prevContentMap.get(localBedNum);
+        if (prev !== undefined && prev !== (item.content || '')) {
+          changedBeds.add(localBedNum);
+        }
+        prevContentMap.set(localBedNum, item.content || '');
 
-      const idx = bedsData.findIndex(b => b.bed_number === item.bed_number);
-      if (idx !== -1) {
-        bedsData[idx] = item;
+        const idx = bedsData.findIndex(b => b.bed_number === localBedNum);
+        if (idx !== -1) {
+          bedsData[idx] = {
+            bed_number: localBedNum,
+            content: item.content || '',
+            updated_at: item.updated_at,
+            updated_by: item.updated_by || ''
+          };
+        }
       }
     });
 
-    // Save to localStorage cache
+    // Save to localStorage cache for current workspace
     try {
-      localStorage.setItem('ward_bed_notes_cache', JSON.stringify(bedsData));
+      const wsUser = getActiveWorkspaceUser() || 'admin';
+      localStorage.setItem('ward_bed_notes_cache_' + wsUser, JSON.stringify(bedsData));
+      if (slot === 0) {
+        localStorage.setItem('ward_bed_notes_cache', JSON.stringify(bedsData));
+      }
     } catch {}
 
     renderBeds(changedBeds);
@@ -741,7 +1568,8 @@ async function saveCurrentBed() {
   isSaving = true;
 
   const content = normalizeToCRLF(noteTextarea.value);
-  const author = authorInput.value.trim() || 'มือถือ/เว็บ';
+  const curUser = getCurrentUser();
+  const author = authorInput.value.trim() || (curUser ? (curUser.display_name || curUser.username) : 'มือถือ/เว็บ');
   saveAuthorName(author);
 
   btnSaveBedNote.disabled = true;
@@ -749,9 +1577,10 @@ async function saveCurrentBed() {
 
   try {
     const nowUtc = new Date().toISOString();
+    const remoteBedNum = getRemoteBedNumber(activeBedNumber);
     
     // 1. Update bed_notes table
-    const patchRes = await fetch(`${SUPABASE_URL}/rest/v1/bed_notes?bed_number=eq.${activeBedNumber}`, {
+    const patchRes = await fetch(`${SUPABASE_URL}/rest/v1/bed_notes?bed_number=eq.${remoteBedNum}`, {
       method: 'PATCH',
       headers: {
         'apikey': SUPABASE_KEY,
@@ -777,7 +1606,7 @@ async function saveCurrentBed() {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          bed_number: activeBedNumber,
+          bed_number: remoteBedNum,
           reason: 'แก้ไขจากมือถือ/เว็บ',
           content: content,
           char_count: content.length,
@@ -824,6 +1653,9 @@ async function clearCurrentBed() {
 
   try {
     const nowUtc = new Date().toISOString();
+    const remoteBedNum = getRemoteBedNumber(activeBedNumber);
+    const curUser = getCurrentUser();
+    const author = authorInput.value.trim() || (curUser ? (curUser.display_name || curUser.username) : 'มือถือ/เว็บ');
 
     // Archive current note to history first
     if (oldContent && oldContent.trim()) {
@@ -835,7 +1667,7 @@ async function clearCurrentBed() {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          bed_number: activeBedNumber,
+          bed_number: remoteBedNum,
           reason: 'ก่อนล้างเตียง (Clear จากมือถือ/เว็บ)',
           content: oldContent,
           char_count: oldContent.length,
@@ -845,7 +1677,7 @@ async function clearCurrentBed() {
     }
 
     // Clear bed_notes
-    await fetch(`${SUPABASE_URL}/rest/v1/bed_notes?bed_number=eq.${activeBedNumber}`, {
+    await fetch(`${SUPABASE_URL}/rest/v1/bed_notes?bed_number=eq.${remoteBedNum}`, {
       method: 'PATCH',
       headers: {
         'apikey': SUPABASE_KEY,
@@ -855,7 +1687,7 @@ async function clearCurrentBed() {
       body: JSON.stringify({
         content: '',
         updated_at: nowUtc,
-        updated_by: authorInput.value.trim() || 'มือถือ/เว็บ'
+        updated_by: author
       })
     });
 
@@ -909,7 +1741,8 @@ window.openHistoryModal = async function(bedNum) {
   historyModal.setAttribute('aria-hidden', 'false');
 
   try {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/bed_history?bed_number=eq.${bedNum}&order=created_at.desc&limit=50`, {
+    const remoteBedNum = getRemoteBedNumber(bedNum);
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/bed_history?bed_number=eq.${remoteBedNum}&order=created_at.desc&limit=50`, {
       headers: {
         'apikey': SUPABASE_KEY,
         'Authorization': `Bearer ${SUPABASE_KEY}`
@@ -982,8 +1815,9 @@ async function restoreSelectedHistory() {
   try {
     const nowUtc = new Date().toISOString();
     const content = normalizeToCRLF(selectedHistoryItem.content || '');
+    const remoteBedNum = getRemoteBedNumber(activeBedNumber);
 
-    await fetch(`${SUPABASE_URL}/rest/v1/bed_notes?bed_number=eq.${activeBedNumber}`, {
+    await fetch(`${SUPABASE_URL}/rest/v1/bed_notes?bed_number=eq.${remoteBedNum}`, {
       method: 'PATCH',
       headers: {
         'apikey': SUPABASE_KEY,
@@ -1148,8 +1982,11 @@ async function executeBedSwap() {
 
     const fromContent = normalizeToCRLF(fromBed.content || '');
     const toContent = normalizeToCRLF(toBed.content || '');
-    const author = (authorInput ? authorInput.value.trim() : '') || 'มือถือ/เว็บ';
+    const curUser = getCurrentUser();
+    const author = (authorInput ? authorInput.value.trim() : '') || (curUser ? (curUser.display_name || curUser.username) : 'มือถือ/เว็บ');
     const nowUtc = new Date().toISOString();
+    const remoteFromNum = getRemoteBedNumber(fromBedNum);
+    const remoteTargetNum = getRemoteBedNumber(targetBedNum);
 
     // 1. History Snapshots
     const histPromises = [];
@@ -1158,7 +1995,7 @@ async function executeBedSwap() {
         method: 'POST',
         headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          bed_number: fromBedNum,
+          bed_number: remoteFromNum,
           reason: isSwap ? `สลับเตียงกับเตียง ${targetBedNum} (จากเว็บ)` : `ย้ายข้อมูลไปยังเตียง ${targetBedNum} (จากเว็บ)`,
           content: fromContent,
           char_count: fromContent.length,
@@ -1171,7 +2008,7 @@ async function executeBedSwap() {
         method: 'POST',
         headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          bed_number: targetBedNum,
+          bed_number: remoteTargetNum,
           reason: isSwap ? `สลับเตียงกับเตียง ${fromBedNum} (จากเว็บ)` : `รับย้ายข้อมูลมาจากเตียง ${fromBedNum} (สำรองข้อมูลเดิม)`,
           content: toContent,
           char_count: toContent.length,
@@ -1187,12 +2024,12 @@ async function executeBedSwap() {
 
     // 3. Update both beds in Supabase bed_notes
     const updatePromises = [
-      fetch(`${SUPABASE_URL}/rest/v1/bed_notes?bed_number=eq.${fromBedNum}`, {
+      fetch(`${SUPABASE_URL}/rest/v1/bed_notes?bed_number=eq.${remoteFromNum}`, {
         method: 'PATCH',
         headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ content: newFromContent, updated_at: nowUtc, updated_by: author })
       }),
-      fetch(`${SUPABASE_URL}/rest/v1/bed_notes?bed_number=eq.${targetBedNum}`, {
+      fetch(`${SUPABASE_URL}/rest/v1/bed_notes?bed_number=eq.${remoteTargetNum}`, {
         method: 'PATCH',
         headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ content: newToContent, updated_at: nowUtc, updated_by: author })

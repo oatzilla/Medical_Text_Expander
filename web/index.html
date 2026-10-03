@@ -15,7 +15,7 @@
   <!-- FontAwesome Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   
-  <link rel="stylesheet" href="style.css?v=1.6.9">
+  <link rel="stylesheet" href="style.css?v=1.8.0">
 </head>
 <body>
   <!-- Top Navigation Bar -->
@@ -36,6 +36,42 @@
           <span class="status-dot"></span>
           <span class="status-label" id="cloudStatusText">กำลังเชื่อมต่อ...</span>
         </div>
+
+        <!-- Admin Workspace Switcher -->
+        <div class="workspace-select-wrapper" id="workspaceSelectWrapper" style="display:none;" title="สลับพื้นที่งานเพื่อดูและจัดการเตียงของผู้ใช้คนอื่น">
+          <i class="fa-solid fa-layer-group workspace-icon"></i>
+          <select id="workspaceSelect" class="workspace-select" aria-label="เลือกพื้นที่งาน">
+            <option value="admin">👑 พื้นที่งาน: Admin (หลัก)</option>
+          </select>
+        </div>
+
+        <!-- User Menu Dropdown -->
+        <div class="user-dropdown-wrapper" id="userDropdownWrapper">
+          <button class="user-badge-btn" id="userBadgeBtn" title="บัญชีผู้ใช้งาน">
+            <i class="fa-solid fa-circle-user"></i>
+            <span class="user-badge-name" id="userBadgeName">admin</span>
+            <i class="fa-solid fa-chevron-down user-badge-arrow"></i>
+          </button>
+          <div class="user-dropdown-menu" id="userDropdownMenu" style="display:none;">
+            <div class="user-dropdown-header">
+              <div class="user-header-name" id="menuUserDisplayName">ผู้ดูแลระบบ (Admin)</div>
+              <div class="user-header-role" id="menuUserRole">👑 ผู้ดูแลระบบ</div>
+            </div>
+            <div class="user-dropdown-divider"></div>
+            <button class="user-dropdown-item" id="btnOpenUserManagement" style="display:none;">
+              <i class="fa-solid fa-users-gear"></i>
+              <span>จัดการบัญชีผู้ใช้และสิทธิ์</span>
+            </button>
+            <button class="user-dropdown-item" id="btnOpenLoginModal">
+              <i class="fa-solid fa-arrow-right-to-bracket"></i>
+              <span>สลับผู้ใช้งาน / เข้าสู่ระบบ</span>
+            </button>
+            <button class="user-dropdown-item text-danger" id="btnLogoutUser">
+              <i class="fa-solid fa-arrow-right-from-bracket"></i>
+              <span>ออกจากระบบ</span>
+            </button>
+          </div>
+        </div>
         
         <button class="nav-templates-btn nav-docs-btn" id="openDocsModalBtn" title="เปิดศูนย์รวมเอกสารและแบบฟอร์มประจำวอร์ด (Ward Documents & Forms)">
           <i class="fa-solid fa-folder-open"></i>
@@ -54,6 +90,17 @@
       </div>
     </div>
   </header>
+
+  <!-- Workspace Inspection Notice Banner -->
+  <div class="workspace-notice-banner" id="workspaceNoticeBanner" style="display:none;">
+    <div class="workspace-notice-text">
+      <i class="fa-solid fa-eye notice-icon"></i>
+      <span id="workspaceNoticeLabel">กำลังดูและจัดการเตียงของ: ... (โหมด Admin ควบคุม)</span>
+    </div>
+    <button class="btn-back-my-workspace" id="btnBackToMyAdminWorkspace">
+      <i class="fa-solid fa-arrow-rotate-left"></i> กลับไปเตียงของฉัน
+    </button>
+  </div>
 
   <!-- Main Content Container -->
   <main class="main-container">
@@ -600,10 +647,165 @@
     </div>
   </div>
 
+  <!-- User Login Modal -->
+  <div class="modal-overlay" id="loginModal" aria-hidden="true">
+    <div class="modal-card" style="max-width: 420px;">
+      <div class="modal-header" style="background: linear-gradient(135deg, #0d9488 0%, #14b8a6 100%);">
+        <div class="modal-header-left">
+          <span class="modal-badge-docs"><i class="fa-solid fa-lock"></i> Authentication</span>
+          <h2 class="modal-title">🔐 เข้าสู่ระบบผู้ใช้งาน</h2>
+        </div>
+        <button class="modal-close-btn" id="btnCloseLoginModal" aria-label="ปิด"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <div class="modal-body" style="padding: 20px 24px;">
+        <form id="loginForm" onsubmit="return false;">
+          <div class="doc-form-group" style="margin-bottom: 14px;">
+            <label class="doc-form-label"><i class="fa-solid fa-user"></i> ชื่อผู้ใช้งาน (Username)</label>
+            <input type="text" id="loginUsername" class="doc-form-input" placeholder="ระบุ username (เช่น admin)..." required autocomplete="username">
+          </div>
+          <div class="doc-form-group" style="margin-bottom: 10px;">
+            <label class="doc-form-label"><i class="fa-solid fa-key"></i> รหัสผ่าน (Password)</label>
+            <input type="password" id="loginPassword" class="doc-form-input" placeholder="ระบุรหัสผ่าน..." required autocomplete="current-password">
+          </div>
+          <div style="display:flex; align-items:center; gap:8px; margin-bottom: 14px; font-size:13px; color:var(--text-muted); cursor:pointer;">
+            <input type="checkbox" id="loginShowPassword" style="cursor:pointer;">
+            <label for="loginShowPassword" style="cursor:pointer;">แสดงรหัสผ่าน</label>
+          </div>
+          <div id="loginErrorMessage" class="alert-box-danger" style="display:none; margin-bottom: 14px;"></div>
+          <div style="display: flex; gap: 10px; margin-top: 10px;">
+            <button type="submit" class="btn btn-primary" id="btnLoginSubmit" style="flex:1; justify-content:center; background:#0d9488;">
+              <i class="fa-solid fa-arrow-right-to-bracket"></i> เข้าสู่ระบบ
+            </button>
+            <button type="button" class="btn btn-secondary" id="btnCancelLoginModal" style="flex:0.6; justify-content:center;">
+              ยกเลิก
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- User Management Modal (Admin) -->
+  <div class="modal-overlay" id="userManagementModal" aria-hidden="true">
+    <div class="modal-card" style="max-width: 860px; max-height: 90vh; display: flex; flex-direction: column;">
+      <div class="modal-header" style="background: linear-gradient(135deg, #0f766e 0%, #0d9488 100%);">
+        <div class="modal-header-left">
+          <span class="modal-badge-docs"><i class="fa-solid fa-users-gear"></i> Admin Management</span>
+          <h2 class="modal-title">👥 จัดการบัญชีผู้ใช้งานและสิทธิ์ (Ward Users)</h2>
+        </div>
+        <button class="modal-close-btn" id="btnCloseUserManagementModal" aria-label="ปิด"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <div class="modal-body" style="padding: 16px 20px; overflow-y: auto; flex: 1;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 10px;">
+          <button type="button" class="btn btn-primary btn-sm" id="btnOpenAddUserModal" style="background:#10b981; border:none;">
+            <i class="fa-solid fa-user-plus"></i> เพิ่มผู้ใช้งานใหม่
+          </button>
+          <div style="position:relative; width: 260px;">
+            <i class="fa-solid fa-magnifying-glass" style="position:absolute; left:10px; top:50%; transform:translateY(-50%); color:var(--text-muted); font-size:12px;"></i>
+            <input type="text" id="userSearchInput" class="doc-form-input" placeholder="ค้นหาชื่อผู้ใช้..." style="padding-left:30px; height:32px; font-size:13px;">
+          </div>
+        </div>
+
+        <div class="table-responsive-container">
+          <table class="user-management-table" id="usersTable">
+            <thead>
+              <tr>
+                <th>Username</th>
+                <th>ชื่อแสดง (Display Name)</th>
+                <th>บทบาท (Role)</th>
+                <th>ชุดเตียง (Slot)</th>
+                <th>สถานะ</th>
+                <th style="text-align: right;">จัดการ</th>
+              </tr>
+            </thead>
+            <tbody id="usersTableBody">
+              <!-- Populated by JS -->
+            </tbody>
+          </table>
+        </div>
+
+        <div style="background: var(--bg-hover); border-radius: var(--radius-sm); padding: 12px 14px; margin-top: 14px; font-size: 13px; color: var(--text-muted); display:flex; gap:10px; align-items:flex-start;">
+          <i class="fa-solid fa-circle-info" style="color:#0d9488; font-size:16px; margin-top:2px;"></i>
+          <div>
+            <strong>คำแนะนำระบบหลายผู้ใช้:</strong>
+            <ul style="margin: 4px 0 0 16px; padding:0;">
+              <li>บัญชี <strong>admin</strong> ครอบครองข้อมูลเตียง 1-30 หลักของวอร์ด</li>
+              <li>ผู้ใช้แต่ละคนจะมีชุดเตียง 1-30 แยกอิสระเป็นของตนเอง ไม่ปะปนกัน</li>
+              <li>ผู้ดูแลระบบ (Admin) สามารถกดปุ่ม <strong>[สลับดูเตียง]</strong> เพื่อเข้าไปดูและแก้ไขเตียงของพยาบาลทุกคนได้</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer io-modal-footer">
+        <button type="button" class="btn btn-secondary btn-sm" id="btnDismissUserManagement">ปิดหน้าต่าง</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add / Edit User Modal -->
+  <div class="modal-overlay" id="addEditUserModal" aria-hidden="true">
+    <div class="modal-card" style="max-width: 440px;">
+      <div class="modal-header" id="addEditUserHeader" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+        <div class="modal-header-left">
+          <span class="modal-badge-docs"><i class="fa-solid fa-user-pen"></i> User Form</span>
+          <h2 class="modal-title" id="addEditUserTitle">➕ เพิ่มผู้ใช้งานใหม่</h2>
+        </div>
+        <button class="modal-close-btn" id="btnCloseAddEditUserModal" aria-label="ปิด"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <div class="modal-body" style="padding: 16px 20px;">
+        <form id="addEditUserForm" onsubmit="return false;">
+          <input type="hidden" id="userFormId">
+          <div class="doc-form-group" style="margin-bottom: 12px;">
+            <label class="doc-form-label"><i class="fa-solid fa-user"></i> ชื่อผู้ใช้งาน (Username)</label>
+            <input type="text" id="userFormUsername" class="doc-form-input" placeholder="ระบุ username (ภาษาอังกฤษ/ตัวเลข)..." required maxlength="30">
+          </div>
+          <div class="doc-form-group" style="margin-bottom: 12px;">
+            <label class="doc-form-label"><i class="fa-solid fa-id-badge"></i> ชื่อแสดง / ตำแหน่ง (Display Name)</label>
+            <input type="text" id="userFormDisplayName" class="doc-form-input" placeholder="เช่น พว.สมหญิง วอร์ดกระดูก..." required maxlength="60">
+          </div>
+          <div class="doc-form-group" style="margin-bottom: 12px;">
+            <label class="doc-form-label"><i class="fa-solid fa-shield-halved"></i> บทบาท / สิทธิ์ (Role)</label>
+            <select id="userFormRole" class="doc-form-select">
+              <option value="user">👩‍⚕️ พยาบาล / ผู้ใช้งานทั่วไป (User)</option>
+              <option value="admin">👑 ผู้ดูแลระบบ (Admin)</option>
+            </select>
+          </div>
+          <div class="doc-form-group" style="margin-bottom: 10px;">
+            <label class="doc-form-label" id="userFormPasswordLabel"><i class="fa-solid fa-key"></i> รหัสผ่าน (Password)</label>
+            <input type="password" id="userFormPassword" class="doc-form-input" placeholder="ระบุรหัสผ่าน..." autocomplete="new-password">
+            <span style="font-size:11px; color:var(--text-dim);" id="userFormPasswordHint"></span>
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 14px; font-size:13px;">
+            <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+              <input type="checkbox" id="userFormShowPassword" style="cursor:pointer;">
+              <span>แสดงรหัสผ่าน</span>
+            </label>
+            <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+              <input type="checkbox" id="userFormIsActive" checked style="cursor:pointer;">
+              <span>เปิดใช้งานบัญชีนี้</span>
+            </label>
+          </div>
+          <div id="userFormErrorMessage" class="alert-box-danger" style="display:none; margin-bottom: 12px;"></div>
+        </form>
+      </div>
+
+      <div class="modal-footer io-modal-footer">
+        <button type="button" class="btn btn-secondary btn-sm" id="btnCancelAddEditUser">ยกเลิก</button>
+        <button type="button" class="btn btn-primary btn-sm" id="btnSaveUserSubmit" style="background:#0d9488; border:none;">
+          <i class="fa-solid fa-floppy-disk"></i> บันทึกข้อมูล
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- Toast Notification Container -->
   <div class="toast-container" id="toastContainer"></div>
 
   <!-- Application Logic -->
-  <script src="app.js?v=1.6.9"></script>
+  <script src="app.js?v=1.8.0"></script>
 </body>
 </html>
