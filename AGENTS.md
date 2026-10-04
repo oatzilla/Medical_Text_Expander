@@ -19,7 +19,7 @@
 - **คอมไพเลอร์**: `C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe`
 - **คำสั่งคอมไพล์ที่ถูกต้อง**:
   ```cmd
-  C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe /target:winexe /out:Medical_Text_Expander.exe /platform:anycpu /optimize+ /codepage:65001 /utf8output MedicalTextExpander.cs
+  C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe /target:winexe /out:Medical_Text_Expander.exe /platform:anycpu /optimize+ /codepage:65001 /utf8output /win32icon:medical_expander_icon.ico MedicalTextExpander.cs
   ```
 - **ข้อควรระวังเรื่อง Encoding**:
   - ห้ามใช้แฟล็ก `/utf8` เพราะคอมไพเลอร์ csc.exe v4.8 ไม่รองรับ (จะเกิดข้อผิดพลาด CS2007) ให้ใช้ `/codepage:65001 /utf8output` เสมอเพื่อให้อ่านและแสดงผลภาษาไทยได้ถูกต้อง ไม่เกิดปัญหาตัวอักษรเพี้ยน
@@ -53,6 +53,7 @@
 
 ## 6. สรุปประวัติการแก้ไขและเวอร์ชันทั้งหมด (Version History Summary)
 
+| **v1.9.3** | 2026-10-05 | Responsive Header Overlap, Concise Status & Universal App Icon Fix | ป้องกันปุ่มแถบด้านบนซ้อนทับกันเมื่อย่อหน้าต่าง (Collision Guard & Adaptive Widths), ปรับข้อความสถานะการเชื่อมต่อฐานข้อมูลให้กระชับ ("🟢 ☁️ Cloud ออนไลน์") ไม่ยาวเกินไปและไม่ถูกปุ่มผู้ใช้บัง พร้อม Tooltip ข้อมูลเต็ม, และแก้ไขไอคอนโปรแกรมไม่แสดงผล/กลายเป็นสีขาว โดยฝัง /win32icon ในคอมไพเลอร์ และดึง Program.GetAppIcon() กำหนด this.Icon ให้ทุกหน้าต่าง 100% |
 | **v1.9.2** | 2026-10-04 | Top Header Bar Overlap Fix | แก้ไขปัญหาแถบหัวเรื่องด้านบนซ้อนทับกัน (Top Header Bar Overlap Fix): ออกแบบระบบคำนวณพิกัด RepositionTopControls ใหม่ทั้งหมด จัดลำดับชื่อหัวเรื่อง ป้ายสถานะ Cloud ปุ่มบัญชีผู้ใช้ และแถบเครื่องมือด้านขวา ป้องกันปุ่มคำนวณ SOS/ยา และคลังข้อวินิจฉัยซ้อนทับหัวเรื่อง ปรับซ่อนปุ่มลัดซ้ำซ้อนเมื่อหน้าจอปกติ (< 1260px) โดยยังคงมีให้ใช้บนแผงคีย์ด่วนเหนือบันทึกเตียง 100% |
 | **v1.9.1** | 2026-10-04 | Dialog Layout Overlap Fix | แก้ไขปัญหาหน้าต่างลงทะเบียนและเข้าสู่ระบบทับซ้อน (Dialog Layout Fix): ปรับสถาปัตยกรรมคอนเทนเนอร์เป็น pnlContent แยกส่วนชัดเจน ป้องกันแถบ Header ทับช่องกรอกข้อมูล Username/Password แสดงผลคมชัด สวยงาม 100% พร้อมจัดลำดับ Docking ของ User Management Dialog |
 | **v1.9.0** | 2026-10-04 | Mandatory Login & Self-Registration | ระบบหน้าต่างเข้าสู่ระบบบังคับก่อนใช้งาน (Mandatory Authentication Gate) ทั้งบน Desktop และ Web Portal, ระบบลงทะเบียนผู้ใช้ใหม่ด้วยตนเอง (Self-Registration) และเข้าใช้งานเตียงของตนเองได้ทันที, การแยกข้อมูลเตียง 1-30 และ Local Drafts ของแต่ละคนอย่างสมบูรณ์โดยข้อมูลเดิมคงอยู่ครบถ้วนในบัญชี Admin, ระบบ Admin ควบคุม (สลับดูเตียง/รีเซ็ตรหัส/ระงับบัญชี/ลบบัญชีและล้างเตียง Cloud), และระบบ Remember Me พร้อมความปลอดภัย SHA-256 เต็มรูปแบบ |

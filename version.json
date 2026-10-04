@@ -1,8 +1,8 @@
 {
-  "version": "1.9.2",
+  "version": "1.9.3",
   "downloadUrl": "https://raw.githubusercontent.com/oatzilla/Medical_Text_Expander/main/Medical_Text_Expander.exe",
   "download_url": "https://raw.githubusercontent.com/oatzilla/Medical_Text_Expander/main/Medical_Text_Expander.exe",
-  "releaseDate": "2026-10-04",
-  "release_date": "2026-10-04",
-  "changelog": "- แก้ไขปัญหาแถบด้านบนซ้อนทับกัน (Top Header Bar Overlap Fix): ปรับปรุงระบบจัดวาง RepositionTopControls ใหม่ทั้งหมด จัดลำดับชื่อหัวเรื่อง ป้ายสถานะ Cloud ปุ่มบัญชีผู้ใช้ และแถบเครื่องมือด้านขวา ป้องกันปุ่มคำนวณ SOS/ยา และคลังข้อวินิจฉัยซ้อนทับหัวเรื่อง\r\n- ซ่อนปุ่มคีย์ลัดที่ซ้ำซ้อนบนแถบหัวเรื่องเมื่อหน้าจอขนาดมาตรฐาน (< 1260px) โดยยังคงใช้งานได้สะดวกรวดเร็วบนแผงคีย์ด่วนเหนือบันทึกเตียง (pnlQuickButtons) และคีย์ลัด Alt+C / F8 ได้ตามปกติ 100%\r\n- ปรับปรุงปุ่มแสดงบัญชีผู้ใช้งาน (User Account Button) ให้แสดงตราสัญลักษณ์ชัดเจน (👑 Admin / 👤 Nurse) พร้อมเปิดเมนูจัดการและสลับผู้ใช้ได้อย่างราบรื่น"
+  "releaseDate": "2026-10-05",
+  "release_date": "2026-10-05",
+  "changelog": "- ป้องกันปุ่มแถบด้านบนซ้อนทับกันเมื่อย่อหน้าต่าง (Collision-Free Responsive Top Controls): ปรับระบบ RepositionTopControls กำหนดขอบเขตความกว้างแบบไดนามิก ย่อชื่อปุ่มอัตโนมัติ และมีระบบตรวจจับการชน (Collision Guard) ป้องกันปุ่มฝั่งขวาซ้อนทับกับปุ่มผู้ใช้งานและดรอปดาวน์เตียง 100%\r\n- ปรับข้อความสถานะฐานข้อมูลให้กระชับและไม่ถูกบัง: แสดงเป็น '🟢 ☁️ Cloud ออนไลน์' ชัดเจน ไม่กินพื้นที่ และไม่ถูกปุ่มผู้ใช้บัง พร้อม Tooltip แสดงรายละเอียดทั้งหมดเมื่อวางเมาส์\r\n- แก้ไขไอคอนโปรแกรมไม่แสดงผล/หายกลายเป็นสีขาว: ฝัง Win32 Icon Resource (/win32icon) ลงใน .exe โดยตรง และเพิ่มระบบดึงไอคอนอัตโนมัติ (Program.GetAppIcon) ให้แสดงผลถูกต้องใน Title bar ทุกหน้าต่าง, Taskbar, และ Desktop Shortcut"
 }

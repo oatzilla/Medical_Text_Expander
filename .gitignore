@@ -1,4 +1,4 @@
-﻿# Binaries and temp files
+# Binaries and temp files
 *.new.exe
 *.original.exe
 *.bak.exe
@@ -12,3 +12,7 @@ Medical_Text_Expander_New.exe
 bed_notes/
 ward_reminders.txt
 crash.log
+session_user.json
+users_catalog.json
+expander_settings.ini
+scratch/
