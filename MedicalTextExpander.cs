@@ -229,7 +229,7 @@ namespace MedicalTextExpander {
     }
 
     public static class AppUpdater {
-        public const string CurrentVersion = "1.9.3";
+        public const string CurrentVersion = "1.9.4";
         public const string DefaultGitHubRepo = "oatzilla/Medical_Text_Expander";
 
         public static void CheckForUpdatesAsync(string repo, bool isManual, Form parent = null, string token = null) {
@@ -252,6 +252,8 @@ namespace MedicalTextExpander {
                 using (WebClient client = new WebClient()) {
                     client.Encoding = Encoding.UTF8;
                     client.Headers["User-Agent"] = "MedicalTextExpander-AutoUpdater";
+                    client.Headers["Cache-Control"] = "no-cache, no-store, must-revalidate";
+                    client.Headers["Pragma"] = "no-cache";
                     if (!string.IsNullOrEmpty(token)) {
                         client.Headers["Authorization"] = "token " + token.Trim();
                     }
@@ -276,6 +278,28 @@ namespace MedicalTextExpander {
                 }
 
                 UpdateInfo info = ParseVersionJson(json, repo);
+
+                // If not newer or info is null, try querying GitHub Releases API (releases/latest) directly to bypass CDN cache lag
+                if (info == null || !IsNewerVersion(info.Version, CurrentVersion)) {
+                    try {
+                        using (WebClient relClient = new WebClient()) {
+                            relClient.Encoding = Encoding.UTF8;
+                            relClient.Headers["User-Agent"] = "MedicalTextExpander-AutoUpdater";
+                            relClient.Headers["Accept"] = "application/vnd.github.v3+json";
+                            relClient.Headers["Cache-Control"] = "no-cache, no-store, must-revalidate";
+                            relClient.Headers["Pragma"] = "no-cache";
+                            if (!string.IsNullOrEmpty(token)) {
+                                relClient.Headers["Authorization"] = "token " + token.Trim();
+                            }
+                            string relUrl = string.Format("https://api.github.com/repos/{0}/releases/latest", repo.Trim());
+                            string relJson = relClient.DownloadString(relUrl);
+                            UpdateInfo relInfo = ParseReleaseJson(relJson, repo);
+                            if (relInfo != null && IsNewerVersion(relInfo.Version, CurrentVersion)) {
+                                info = relInfo;
+                            }
+                        }
+                    } catch { }
+                }
                 if (info == null || string.IsNullOrEmpty(info.Version)) {
                     if (isManual) {
                         ShowMessage(parent, "ไม่สามารถอ่านข้อมูลเวอร์ชันจาก GitHub ได้ กรุณาตรวจสอบชื่อ Repository ในการตั้งค่า", "ตรวจสอบการอัปเดต", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -345,6 +369,29 @@ namespace MedicalTextExpander {
                 info.DownloadUrl = ExtractJsonValue(json, "downloadUrl");
                 if (string.IsNullOrEmpty(info.DownloadUrl)) info.DownloadUrl = ExtractJsonValue(json, "download_url");
                 if (string.IsNullOrEmpty(info.DownloadUrl) && !string.IsNullOrEmpty(repo)) {
+                    info.DownloadUrl = string.Format("https://github.com/{0}/releases/latest/download/Medical_Text_Expander.exe", repo);
+                }
+                return info;
+            } catch {
+                return null;
+            }
+        }
+
+        private static UpdateInfo ParseReleaseJson(string json, string repo) {
+            try {
+                if (string.IsNullOrEmpty(json)) return null;
+                UpdateInfo info = new UpdateInfo();
+                info.Version = ExtractJsonValue(json, "tag_name").TrimStart('v', 'V').Trim();
+                info.ReleaseDate = ExtractJsonValue(json, "published_at");
+                if (!string.IsNullOrEmpty(info.ReleaseDate) && info.ReleaseDate.Length >= 10) {
+                    info.ReleaseDate = info.ReleaseDate.Substring(0, 10);
+                }
+                info.Changelog = ExtractJsonValue(json, "body");
+
+                Match m = Regex.Match(json, "\"browser_download_url\"\\s*:\\s*\"([^\"]*Medical_Text_Expander\\.exe[^\"]*)\"");
+                if (m.Success) {
+                    info.DownloadUrl = m.Groups[1].Value;
+                } else {
                     info.DownloadUrl = string.Format("https://github.com/{0}/releases/latest/download/Medical_Text_Expander.exe", repo);
                 }
                 return info;
