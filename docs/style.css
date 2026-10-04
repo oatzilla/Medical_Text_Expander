@@ -4115,6 +4115,89 @@ body.modal-open {
   transform: translateY(-1px);
 }
 
+/* Idle Timeout Warning Banner */
+.idle-timeout-banner {
+  background: linear-gradient(90deg, #dc2626 0%, #ea580c 100%);
+  color: #ffffff;
+  padding: 8px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 2px 8px rgba(220, 38, 38, 0.35);
+  z-index: 45;
+  animation: slideDownBanner 0.25s ease-out;
+}
+.idle-timeout-text {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 500;
+  font-size: 13.5px;
+}
+.idle-timeout-text .idle-icon {
+  font-size: 16px;
+  color: #fee2e2;
+  animation: pulseWarning 1s infinite alternate;
+}
+@keyframes pulseWarning {
+  from { transform: scale(1); opacity: 0.8; }
+  to { transform: scale(1.18); opacity: 1; }
+}
+.btn-stay-logged-in {
+  background: #ffffff;
+  color: #dc2626;
+  border: none;
+  font-family: var(--font-family);
+  font-weight: 700;
+  font-size: 12.5px;
+  padding: 5px 14px;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all var(--transition-fast);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+  white-space: nowrap;
+}
+.btn-stay-logged-in:hover {
+  background: #fee2e2;
+  color: #991b1b;
+  transform: translateY(-1px);
+}
+
+.user-dropdown-setting {
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.timeout-setting-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+.timeout-setting-select {
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color, #cbd5e1);
+  background: var(--bg-card, #ffffff);
+  color: var(--text-primary, #0f172a);
+  font-size: 12px;
+  font-family: var(--font-family);
+  cursor: pointer;
+  outline: none;
+}
+.timeout-setting-select:focus {
+  border-color: #0d9488;
+}
+
 /* User Management Table & Badges */
 .table-responsive-container {
   overflow-x: auto;

@@ -107,6 +107,7 @@ function setCurrentUser(user, rememberMe = true) {
       localStorage.removeItem('ward_current_user');
     }
   } catch {}
+  resetIdleTimer();
   updateUserUI();
 }
 
@@ -120,10 +121,174 @@ function clearCurrentUser() {
     clearInterval(pollTimer);
     pollTimer = null;
   }
+  const banner = document.getElementById('idleTimeoutBanner');
+  if (banner) banner.style.display = 'none';
+
+  try {
+    if (editModal && editModal.classList.contains('open')) {
+      document.body.classList.remove('modal-open');
+      editModal.classList.remove('open');
+      editModal.setAttribute('aria-hidden', 'true');
+    }
+  } catch {}
+
   updateUserUI();
   initEmptyBeds();
   renderBeds();
   openLoginModal(true);
+}
+
+// ==========================================
+// Idle Session Timeout System (v1.9.4)
+// ==========================================
+let lastWebActivityTime = Date.now();
+let idleCheckInterval = null;
+
+function getIdleTimeoutMinutes() {
+  const val = localStorage.getItem('ward_idle_timeout_min');
+  if (val === null || val === undefined) return 15;
+  const parsed = parseInt(val, 10);
+  return isNaN(parsed) ? 15 : parsed;
+}
+
+function setIdleTimeoutMinutes(min) {
+  localStorage.setItem('ward_idle_timeout_min', String(min));
+  resetIdleTimer();
+}
+
+function resetIdleTimer() {
+  lastWebActivityTime = Date.now();
+  try {
+    sessionStorage.setItem('ward_last_activity', String(Date.now()));
+  } catch {}
+  const banner = document.getElementById('idleTimeoutBanner');
+  if (banner && banner.style.display !== 'none') {
+    banner.style.display = 'none';
+  }
+}
+
+function initIdleTimeoutTracker() {
+  try {
+    const stored = sessionStorage.getItem('ward_last_activity');
+    if (stored) {
+      const t = parseInt(stored, 10);
+      if (!isNaN(t) && t > 0) lastWebActivityTime = t;
+    }
+  } catch {}
+
+  let throttleTimer = null;
+  const onUserActivity = () => {
+    if (!throttleTimer) {
+      throttleTimer = setTimeout(() => {
+        throttleTimer = null;
+        resetIdleTimer();
+      }, 500);
+    }
+  };
+
+  ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'click'].forEach(evt => {
+    window.addEventListener(evt, onUserActivity, { passive: true });
+  });
+
+  const btnStay = document.getElementById('btnStayLoggedIn');
+  if (btnStay) {
+    btnStay.addEventListener('click', () => {
+      resetIdleTimer();
+      showToast('ขยายเวลาการใช้งานเรียบร้อยแล้ว', 'success');
+    });
+  }
+
+  const selTimeout = document.getElementById('selectIdleTimeout');
+  if (selTimeout) {
+    selTimeout.value = String(getIdleTimeoutMinutes());
+    selTimeout.addEventListener('change', (e) => {
+      const min = parseInt(e.target.value, 10);
+      setIdleTimeoutMinutes(min);
+      showToast(`ตั้งเวลาพักหน้าจอเป็น ${min === 0 ? 'ปิดการใช้งาน' : min + ' นาที'} แล้ว`, 'info');
+    });
+  }
+
+  if (idleCheckInterval) clearInterval(idleCheckInterval);
+  idleCheckInterval = setInterval(checkIdleTimeout, 1000);
+}
+
+function checkIdleTimeout() {
+  const user = getCurrentUser();
+  if (!user) {
+    const banner = document.getElementById('idleTimeoutBanner');
+    if (banner && banner.style.display !== 'none') banner.style.display = 'none';
+    return;
+  }
+
+  const timeoutMin = getIdleTimeoutMinutes();
+  if (timeoutMin <= 0) {
+    const banner = document.getElementById('idleTimeoutBanner');
+    if (banner && banner.style.display !== 'none') banner.style.display = 'none';
+    return;
+  }
+
+  try {
+    const stored = sessionStorage.getItem('ward_last_activity');
+    if (stored) {
+      const t = parseInt(stored, 10);
+      if (!isNaN(t) && t > lastWebActivityTime) {
+        lastWebActivityTime = t;
+      }
+    }
+  } catch {}
+
+  const totalSec = timeoutMin * 60;
+  const elapsedSec = Math.floor((Date.now() - lastWebActivityTime) / 1000);
+  const remainingSec = totalSec - elapsedSec;
+
+  const banner = document.getElementById('idleTimeoutBanner');
+  const label = document.getElementById('idleTimeoutLabel');
+
+  if (remainingSec <= 0) {
+    if (banner) banner.style.display = 'none';
+    handleWebSessionTimeout(timeoutMin);
+  } else if (remainingSec <= 60) {
+    if (label) {
+      label.textContent = `⏳ ไม่มีการใช้งาน ระบบจะออกจากระบบอัตโนมัติในอีก ${remainingSec} วินาทีเพื่อความปลอดภัยของข้อมูลผู้ป่วย`;
+    }
+    if (banner && banner.style.display === 'none') {
+      banner.style.display = 'flex';
+    }
+  } else {
+    if (banner && banner.style.display !== 'none') {
+      banner.style.display = 'none';
+    }
+  }
+}
+
+function handleWebSessionTimeout(timeoutMin) {
+  try {
+    if (editModal && editModal.classList.contains('open') && activeBedNumber > 0) {
+      saveEditDraft(activeBedNumber);
+      document.body.classList.remove('modal-open');
+      editModal.classList.remove('open');
+      editModal.setAttribute('aria-hidden', 'true');
+    }
+  } catch {}
+
+  try {
+    localStorage.removeItem('ward_current_user');
+    sessionStorage.removeItem('ward_current_user');
+    localStorage.removeItem('ward_admin_active_workspace');
+  } catch {}
+
+  if (pollTimer) {
+    clearInterval(pollTimer);
+    pollTimer = null;
+  }
+
+  initEmptyBeds();
+  renderBeds();
+  updateUserUI();
+
+  const noticeMsg = `⚠️ ออกจากระบบอัตโนมัติเนื่องจากไม่มีการใช้งานเกิน ${timeoutMin} นาที เพื่อความปลอดภัยของข้อมูลผู้ป่วย กรุณาเข้าสู่ระบบใหม่`;
+  openLoginModal(true, noticeMsg);
+  showToast(noticeMsg, 'error');
 }
 
 function getActiveWorkspaceUser() {
@@ -432,6 +597,7 @@ const toastContainer = document.getElementById('toastContainer');
 document.addEventListener('DOMContentLoaded', () => {
   initTheme();
   setupEventListeners();
+  initIdleTimeoutTracker();
   initClinicalTemplates();
   initIoTemplateSystem();
 
@@ -554,7 +720,7 @@ function switchAuthTab(tabName) {
   }
 }
 
-function openLoginModal(isMandatory = false) {
+function openLoginModal(isMandatory = false, alertNotice = null) {
   isAuthModalMandatory = isMandatory;
   const modal = document.getElementById('loginModal');
   const btnClose = document.getElementById('btnCloseLoginModal');
@@ -564,7 +730,14 @@ function openLoginModal(isMandatory = false) {
   const errMsg = document.getElementById('loginErrorMessage');
   const regErr = document.getElementById('registerErrorMessage');
 
-  if (errMsg) errMsg.style.display = 'none';
+  if (errMsg) {
+    if (alertNotice) {
+      errMsg.textContent = alertNotice;
+      errMsg.style.display = 'block';
+    } else {
+      errMsg.style.display = 'none';
+    }
+  }
   if (regErr) regErr.style.display = 'none';
   if (userInp) userInp.value = '';
   if (passInp) passInp.value = '';
@@ -943,6 +1116,11 @@ function setupEventListeners() {
   themeToggleBtn.addEventListener('click', toggleTheme);
   
   refreshBtn.addEventListener('click', () => {
+    if (!getCurrentUser()) {
+      openLoginModal(true);
+      return;
+    }
+    resetIdleTimer();
     refreshBtn.classList.add('fa-spin');
     fetchAllBeds().finally(() => {
       setTimeout(() => refreshBtn.classList.remove('fa-spin'), 600);
@@ -1507,6 +1685,22 @@ function setCloudStatus(online) {
 // Render Beds Grid
 // ==========================================
 function renderBeds(changedBeds = new Set()) {
+  if (!getCurrentUser()) {
+    if (statOccupiedBeds) statOccupiedBeds.textContent = '-';
+    if (statAvailableBeds) statAvailableBeds.textContent = '-';
+    if (statLastSyncTime) statLastSyncTime.textContent = '--:--:--';
+    bedsGrid.innerHTML = `
+      <div class="grid-loading" style="grid-column: 1 / -1; padding: 60px 20px; text-align: center;">
+        <i class="fa-solid fa-lock" style="font-size: 48px; color: #0d9488; margin-bottom: 16px;"></i>
+        <h3 style="font-size: 18px; margin-bottom: 8px; color: var(--text-primary);">ระบบถูกล็อกเพื่อความปลอดภัย</h3>
+        <p style="color: var(--text-muted); margin-bottom: 18px;">กรุณาเข้าสู่ระบบเพื่อดูและจัดการข้อมูลผู้ป่วยรายเตียง</p>
+        <button type="button" class="btn btn-primary" onclick="openLoginModal(true)" style="padding: 10px 24px; font-weight: 600;">
+          <i class="fa-solid fa-arrow-right-to-bracket"></i> เข้าสู่ระบบเดี๋ยวนี้
+        </button>
+      </div>`;
+    return;
+  }
+
   const filtered = bedsData.filter(bed => {
     // Filter Tab
     const isOccupied = bed.content && bed.content.trim().length > 0;
@@ -1758,6 +1952,12 @@ function safeCloseEditModal() {
 }
 
 window.openEditModal = function(bedNum) {
+  if (!getCurrentUser()) {
+    openLoginModal(true, 'กรุณาเข้าสู่ระบบก่อนดูหรือแก้ไขข้อมูลผู้ป่วย');
+    return;
+  }
+  resetIdleTimer();
+
   activeBedNumber = bedNum;
   const bed = bedsData.find(b => b.bed_number === bedNum) || { content: '', updated_by: '' };
 
@@ -2603,7 +2803,14 @@ async function initClinicalTemplates() {
 // Setup Event Listeners for Templates
 function setupTemplateEventListeners() {
   if (openTemplateLibraryBtn) {
-    openTemplateLibraryBtn.addEventListener('click', () => openTemplateModal('navbar'));
+    openTemplateLibraryBtn.addEventListener('click', () => {
+      if (!getCurrentUser()) {
+        openLoginModal(true, 'กรุณาเข้าสู่ระบบก่อนเข้าใช้งานคลังเทมเพลต');
+        return;
+      }
+      resetIdleTimer();
+      openTemplateModal('navbar');
+    });
   }
   if (btnOpenTemplatePicker) {
     btnOpenTemplatePicker.addEventListener('click', () => openTemplateModal('editModal'));
@@ -3286,6 +3493,11 @@ function initDocumentsSystem() {
   // Open Modal
   if (openDocsModalBtn) {
     openDocsModalBtn.addEventListener('click', () => {
+      if (!getCurrentUser()) {
+        openLoginModal(true, 'กรุณาเข้าสู่ระบบก่อนเข้าใช้งานเอกสารและแบบฟอร์ม');
+        return;
+      }
+      resetIdleTimer();
       openDocsModal();
       fetchDocsCatalogFromCloud();
     });

@@ -1354,6 +1354,12 @@ namespace MedicalTextExpander {
             get { return string.IsNullOrEmpty(adminPassword) ? "9844" : adminPassword; }
             set { adminPassword = value; SaveConfigFile(); }
         }
+
+        private int idleTimeoutMinutes = 15;
+        public int IdleTimeoutMinutes {
+            get { return idleTimeoutMinutes; }
+            set { idleTimeoutMinutes = value; SaveConfigFile(); }
+        }
         private FileSystemWatcher watcher = null;
         private string iconPath;
         private bool isEnabled = true;
@@ -1628,6 +1634,11 @@ namespace MedicalTextExpander {
                         } else if (t.StartsWith("AdminPassword=", StringComparison.OrdinalIgnoreCase)) {
                             string ap = t.Substring("AdminPassword=".Length).Trim();
                             if (!string.IsNullOrEmpty(ap)) adminPassword = ap;
+                        } else if (t.StartsWith("IdleTimeoutMinutes=", StringComparison.OrdinalIgnoreCase)) {
+                            int to;
+                            if (int.TryParse(t.Substring("IdleTimeoutMinutes=".Length).Trim(), out to) && to >= 0 && to <= 1440) {
+                                idleTimeoutMinutes = to;
+                            }
                         }
                     }
                 } catch {}
@@ -1672,6 +1683,7 @@ namespace MedicalTextExpander {
                 sb.AppendLine("SupabaseKey=" + supabaseKey);
                 sb.AppendLine("SupabaseEnabled=" + supabaseEnabled.ToString().ToLower());
                 sb.AppendLine("AdminPassword=" + (string.IsNullOrEmpty(adminPassword) ? "9844" : adminPassword));
+                sb.AppendLine("IdleTimeoutMinutes=" + idleTimeoutMinutes);
                 File.WriteAllText(settingsIniPath, sb.ToString(), Encoding.UTF8);
             } catch {}
         }
@@ -1835,6 +1847,10 @@ namespace MedicalTextExpander {
                 if ((isAlt && key == Keys.T) || (isCtrl && isShift && key == Keys.T)) {
                     ShowStickyReminders();
                     return (IntPtr)1;
+                }
+
+                if (bedNotesForm != null && !bedNotesForm.IsDisposed) {
+                    bedNotesForm.ResetActivityTimer();
                 }
 
                 if (isEnabled) {
@@ -2064,16 +2080,22 @@ namespace MedicalTextExpander {
             }
         }
 
-        public void Logout() {
+        public void Logout(string timeoutNotice = null) {
+            if (bedNotesForm != null && !bedNotesForm.IsDisposed) {
+                try {
+                    bedNotesForm.FlushSave();
+                    bedNotesForm.Hide();
+                } catch {}
+            }
             if (userManager != null) {
                 userManager.Logout();
             }
-            if (bedNotesForm != null && !bedNotesForm.IsDisposed) bedNotesForm.Hide();
             if (paletteForm != null && !paletteForm.IsDisposed) paletteForm.Hide();
             if (calculatorForm != null && !calculatorForm.IsDisposed) calculatorForm.Hide();
             if (stickyReminderForm != null && !stickyReminderForm.IsDisposed) stickyReminderForm.Hide();
+            if (historyViewerForm != null && !historyViewerForm.IsDisposed) historyViewerForm.Hide();
 
-            using (var dlg = new LoginRegisterDialog(this, isStartupGate: true)) {
+            using (var dlg = new LoginRegisterDialog(this, isStartupGate: true, alertNotice: timeoutNotice)) {
                 if (dlg.ShowDialog() == DialogResult.OK && userManager != null && userManager.CurrentUser != null) {
                     var u = userManager.ActiveWorkspaceUser;
                     bedNotesManager.SetActiveWorkspace(u.UserSlot, u.Username, u.DisplayName);
@@ -4288,11 +4310,13 @@ namespace MedicalTextExpander {
 
         // Bottom Exit / Cancel Button
         private Button btnBottomClose;
+        private string alertNotice;
 
-        public LoginRegisterDialog(ExpanderContext ctx, bool isStartupGate = false) {
+        public LoginRegisterDialog(ExpanderContext ctx, bool isStartupGate = false, string alertNotice = null) {
             context = ctx;
             userManager = ctx != null ? ctx.UserManager : null;
             IsStartupGate = isStartupGate;
+            this.alertNotice = alertNotice;
             InitializeUI();
         }
 
@@ -4471,14 +4495,14 @@ namespace MedicalTextExpander {
             y += 32;
 
             lblLoginError = new Label {
-                Text = "",
+                Text = !string.IsNullOrEmpty(alertNotice) ? alertNotice : "",
                 ForeColor = Color.FromArgb(220, 38, 38),
                 Location = new Point(24, y),
-                Size = new Size(412, 22),
+                Size = new Size(412, 34),
                 Font = new Font("Leelawadee UI", 8.5f, FontStyle.Bold)
             };
             pnlLogin.Controls.Add(lblLoginError);
-            y += 26;
+            y += 38;
 
             btnLoginSubmit = new Button {
                 Text = "เข้าสู่ระบบ (Login)",
@@ -4683,7 +4707,7 @@ namespace MedicalTextExpander {
     }
 
     public class UserLoginDialog : LoginRegisterDialog {
-        public UserLoginDialog(ExpanderContext ctx) : base(ctx, false) { }
+        public UserLoginDialog(ExpanderContext ctx, string alertNotice = null) : base(ctx, false, alertNotice) { }
     }
 
     public class UserManagementDialog : Form {
@@ -5211,6 +5235,31 @@ namespace MedicalTextExpander {
         private Button btnBackToMyWorkspace;
         private Button btnManageUsers;
 
+        private Panel pnlTimeoutWarning;
+        private Label lblTimeoutWarning;
+        private Button btnStayLoggedIn;
+        private System.Windows.Forms.Timer idleCheckTimer;
+        private DateTime lastActivityTime = DateTime.Now;
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct LASTINPUTINFO {
+            public static readonly int SizeOf = Marshal.SizeOf(typeof(LASTINPUTINFO));
+            [MarshalAs(UnmanagedType.U4)]
+            public UInt32 cbSize;
+            [MarshalAs(UnmanagedType.U4)]
+            public UInt32 dwTime;
+        }
+
+        [DllImport("user32.dll")]
+        private static extern bool GetLastInputInfo(ref LASTINPUTINFO plii);
+
+        public void ResetActivityTimer() {
+            lastActivityTime = DateTime.Now;
+            if (pnlTimeoutWarning != null && pnlTimeoutWarning.Visible) {
+                pnlTimeoutWarning.Visible = false;
+            }
+        }
+
         [DllImport("user32.dll")]
         private static extern IntPtr GetForegroundWindow();
 
@@ -5428,6 +5477,36 @@ namespace MedicalTextExpander {
 
             pnlWorkspaceNotice.Controls.Add(lblWorkspaceNotice);
             pnlWorkspaceNotice.Controls.Add(btnBackToMyWorkspace);
+
+            // Idle Timeout Warning Banner
+            pnlTimeoutWarning = new Panel();
+            pnlTimeoutWarning.Dock = DockStyle.Top;
+            pnlTimeoutWarning.Height = 36;
+            pnlTimeoutWarning.BackColor = Color.FromArgb(254, 242, 242);
+            pnlTimeoutWarning.Visible = false;
+
+            lblTimeoutWarning = new Label();
+            lblTimeoutWarning.Text = "⏳ ไม่มีการใช้งาน ระบบจะออกจากระบบอัตโนมัติในอีก 60 วินาทีเพื่อความปลอดภัย";
+            lblTimeoutWarning.ForeColor = Color.FromArgb(185, 28, 28);
+            lblTimeoutWarning.Font = new Font("Leelawadee UI", 9.5f, FontStyle.Bold);
+            lblTimeoutWarning.Location = new Point(14, 8);
+            lblTimeoutWarning.AutoSize = true;
+
+            btnStayLoggedIn = new Button();
+            btnStayLoggedIn.Text = "🔄 ใช้งานต่อ (Stay Logged In)";
+            btnStayLoggedIn.Size = new Size(185, 28);
+            btnStayLoggedIn.Location = new Point(this.ClientSize.Width - 200, 4);
+            btnStayLoggedIn.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            btnStayLoggedIn.BackColor = Color.FromArgb(220, 38, 38);
+            btnStayLoggedIn.ForeColor = Color.White;
+            btnStayLoggedIn.FlatStyle = FlatStyle.Flat;
+            btnStayLoggedIn.FlatAppearance.BorderSize = 0;
+            btnStayLoggedIn.Font = new Font("Leelawadee UI", 9f, FontStyle.Bold);
+            btnStayLoggedIn.Cursor = Cursors.Hand;
+            btnStayLoggedIn.Click += (s, e) => ResetActivityTimer();
+
+            pnlTimeoutWarning.Controls.Add(lblTimeoutWarning);
+            pnlTimeoutWarning.Controls.Add(btnStayLoggedIn);
 
             // Bottom Action Panel
             pnlBottom = new Panel();
@@ -5829,12 +5908,14 @@ namespace MedicalTextExpander {
 
             // Docking order
             this.Controls.Add(split);
+            this.Controls.Add(pnlTimeoutWarning);
             this.Controls.Add(pnlWorkspaceNotice);
             this.Controls.Add(pnlBottom);
             this.Controls.Add(pnlTop);
 
             pnlTop.SendToBack();
             pnlWorkspaceNotice.SendToBack();
+            pnlTimeoutWarning.SendToBack();
             pnlBottom.SendToBack();
             split.BringToFront();
 
@@ -5855,6 +5936,16 @@ namespace MedicalTextExpander {
                 RefreshAllBedButtons();
             };
             reminderBlinkTimer.Start();
+
+            // Idle timeout check timer (1000ms)
+            idleCheckTimer = new System.Windows.Forms.Timer();
+            idleCheckTimer.Interval = 1000;
+            idleCheckTimer.Tick += IdleCheckTimer_Tick;
+            idleCheckTimer.Start();
+
+            this.MouseMove += (s, e) => ResetActivityTimer();
+            split.MouseMove += (s, e) => ResetActivityTimer();
+            flowBeds.MouseMove += (s, e) => ResetActivityTimer();
 
             this.KeyPreview = true;
             this.KeyDown += (s, e) => {
@@ -5892,6 +5983,46 @@ namespace MedicalTextExpander {
             RepositionTopControls();
             RepositionBottomControls();
             RepositionNoteHeaderControls();
+        }
+
+        private void IdleCheckTimer_Tick(object sender, EventArgs e) {
+            if (context == null || context.IdleTimeoutMinutes <= 0) {
+                if (pnlTimeoutWarning != null && pnlTimeoutWarning.Visible) {
+                    pnlTimeoutWarning.Visible = false;
+                }
+                return;
+            }
+
+            try {
+                LASTINPUTINFO lii = new LASTINPUTINFO();
+                lii.cbSize = (uint)Marshal.SizeOf(lii);
+                if (GetLastInputInfo(ref lii)) {
+                    uint systemIdleMs = (uint)Environment.TickCount - lii.dwTime;
+                    if (systemIdleMs < 3000) {
+                        lastActivityTime = DateTime.Now;
+                    }
+                }
+            } catch {}
+
+            int totalTimeoutSec = context.IdleTimeoutMinutes * 60;
+            int elapsedSec = (int)(DateTime.Now - lastActivityTime).TotalSeconds;
+            int remainingSec = totalTimeoutSec - elapsedSec;
+
+            if (remainingSec <= 0) {
+                if (pnlTimeoutWarning != null) pnlTimeoutWarning.Visible = false;
+                lastActivityTime = DateTime.Now;
+                string notice = string.Format("⚠️ ออกจากระบบอัตโนมัติเนื่องจากไม่มีการใช้งานเกิน {0} นาที\nเพื่อความปลอดภัยของข้อมูลผู้ป่วย กรุณาเข้าสู่ระบบใหม่", context.IdleTimeoutMinutes);
+                context.Logout(notice);
+            } else if (remainingSec <= 60) {
+                if (pnlTimeoutWarning != null) {
+                    lblTimeoutWarning.Text = string.Format("⏳ ไม่มีการใช้งาน ระบบจะออกจากระบบอัตโนมัติในอีก {0} วินาทีเพื่อความปลอดภัยของข้อมูลผู้ป่วย", remainingSec);
+                    if (!pnlTimeoutWarning.Visible) pnlTimeoutWarning.Visible = true;
+                }
+            } else {
+                if (pnlTimeoutWarning != null && pnlTimeoutWarning.Visible) {
+                    pnlTimeoutWarning.Visible = false;
+                }
+            }
         }
 
         private void SetSafeSplitterDistance(int dist) {
@@ -9083,6 +9214,40 @@ public void RefreshAllBedButtons() {
             };
             this.Controls.Add(btnTogglePass);
 
+            // 5. Idle Session Timeout
+            Label lblTimeout = new Label();
+            lblTimeout.Text = "5. ⏱️ พักหน้าจออัตโนมัติ (Idle Timeout):";
+            lblTimeout.Location = new Point(330, 472);
+            lblTimeout.AutoSize = true;
+            lblTimeout.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
+            lblTimeout.ForeColor = Color.FromArgb(15, 118, 110);
+            this.Controls.Add(lblTimeout);
+
+            ComboBox cboIdleTimeout = new ComboBox();
+            cboIdleTimeout.Location = new Point(330, 497);
+            cboIdleTimeout.Size = new Size(285, 29);
+            cboIdleTimeout.Font = new Font("Segoe UI", 9.5f);
+            cboIdleTimeout.DropDownStyle = ComboBoxStyle.DropDownList;
+            cboIdleTimeout.Items.Add("5 นาที");
+            cboIdleTimeout.Items.Add("10 นาที");
+            cboIdleTimeout.Items.Add("15 นาที (แนะนำ)");
+            cboIdleTimeout.Items.Add("30 นาที");
+            cboIdleTimeout.Items.Add("60 นาที (1 ชั่วโมง)");
+            cboIdleTimeout.Items.Add("ปิดการใช้งาน (ไม่ตัดเซสชัน)");
+
+            int curTo = context.IdleTimeoutMinutes;
+            if (curTo == 5) cboIdleTimeout.SelectedIndex = 0;
+            else if (curTo == 10) cboIdleTimeout.SelectedIndex = 1;
+            else if (curTo == 15) cboIdleTimeout.SelectedIndex = 2;
+            else if (curTo == 30) cboIdleTimeout.SelectedIndex = 3;
+            else if (curTo == 60) cboIdleTimeout.SelectedIndex = 4;
+            else if (curTo == 0) cboIdleTimeout.SelectedIndex = 5;
+            else {
+                cboIdleTimeout.Items.Add(curTo + " นาที");
+                cboIdleTimeout.SelectedIndex = cboIdleTimeout.Items.Count - 1;
+            }
+            this.Controls.Add(cboIdleTimeout);
+
             lblStatus = new Label();
             lblStatus.Location = new Point(18, 537);
             lblStatus.Size = new Size(600, 36);
@@ -9128,6 +9293,16 @@ public void RefreshAllBedButtons() {
                 if (!string.IsNullOrEmpty(txtAdminPassword.Text.Trim())) {
                     context.AdminPassword = txtAdminPassword.Text.Trim();
                 }
+
+                int selectedTo = 15;
+                if (cboIdleTimeout.SelectedIndex == 0) selectedTo = 5;
+                else if (cboIdleTimeout.SelectedIndex == 1) selectedTo = 10;
+                else if (cboIdleTimeout.SelectedIndex == 2) selectedTo = 15;
+                else if (cboIdleTimeout.SelectedIndex == 3) selectedTo = 30;
+                else if (cboIdleTimeout.SelectedIndex == 4) selectedTo = 60;
+                else if (cboIdleTimeout.SelectedIndex == 5) selectedTo = 0;
+                context.IdleTimeoutMinutes = selectedTo;
+
                 context.SaveSettings(pTpl, pBed);
                 context.SetGitHubRepo(txtGitHubRepo.Text.Trim());
                 context.SetSupabaseConfig(txtSupabaseUrl.Text.Trim(), txtSupabaseKey.Text.Trim(), chkEnableSupabase.Checked);

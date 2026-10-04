@@ -1,8 +1,8 @@
 {
-  "version": "1.9.3",
+  "version": "1.9.4",
   "downloadUrl": "https://raw.githubusercontent.com/oatzilla/Medical_Text_Expander/main/Medical_Text_Expander.exe",
   "download_url": "https://raw.githubusercontent.com/oatzilla/Medical_Text_Expander/main/Medical_Text_Expander.exe",
   "releaseDate": "2026-10-05",
   "release_date": "2026-10-05",
-  "changelog": "- ป้องกันปุ่มแถบด้านบนซ้อนทับกันเมื่อย่อหน้าต่าง (Collision-Free Responsive Top Controls): ปรับระบบ RepositionTopControls กำหนดขอบเขตความกว้างแบบไดนามิก ย่อชื่อปุ่มอัตโนมัติ และมีระบบตรวจจับการชน (Collision Guard) ป้องกันปุ่มฝั่งขวาซ้อนทับกับปุ่มผู้ใช้งานและดรอปดาวน์เตียง 100%\r\n- ปรับข้อความสถานะฐานข้อมูลให้กระชับและไม่ถูกบัง: แสดงเป็น '🟢 ☁️ Cloud ออนไลน์' ชัดเจน ไม่กินพื้นที่ และไม่ถูกปุ่มผู้ใช้บัง พร้อม Tooltip แสดงรายละเอียดทั้งหมดเมื่อวางเมาส์\r\n- แก้ไขไอคอนโปรแกรมไม่แสดงผล/หายกลายเป็นสีขาว: ฝัง Win32 Icon Resource (/win32icon) ลงใน .exe โดยตรง และเพิ่มระบบดึงไอคอนอัตโนมัติ (Program.GetAppIcon) ให้แสดงผลถูกต้องใน Title bar ทุกหน้าต่าง, Taskbar, และ Desktop Shortcut"
+  "changelog": "- ระบบพักหน้าจอและออกจากระบบอัตโนมัติเมื่อไม่มีการใช้งาน (Idle Session Timeout): พักหน้าจออัตโนมัติ 15 นาทีเป็นค่าเริ่มต้น (ปรับตั้งค่าได้ 5, 10, 15, 30, 60 นาที หรือปิด) พร้อมแถบเตือนสีส้มแดงนับถอยหลัง 60 วินาทีและปุ่ม [🔄 ใช้งานต่อ (Stay Logged In)] ทั้งบนโปรแกรม Desktop และ Web & Mobile Cloud Portal\r\n- ป้องกันข้อมูลสูญหาย 100%: บันทึกข้อมูลร่างเตียงปัจจุบัน (Auto Flush/Draft Save) โดยอัตโนมัติก่อนตัดเซสชันและล็อกหน้าจอ\r\n- ระบบตรวจจับความเคลื่อนไหวอัจฉริยะ (Smart Activity Tracking): บน Desktop ตรวจจับทั้งการพิมพ์คีย์ลัด/e-PHIS (Global Keyboard Hook) และอินพุตของระบบปฏิบัติการ (Win32 GetLastInputInfo) เพื่อไม่ให้รบกวนขณะทำงานจริง\r\n- ปรับปรุงความปลอดภัยหลัง Logout บน Web Portal: ล็อกการแสดงผลและซ่อนข้อมูลเตียงทันทีหลังออกจากระบบหรือหมดเวลา พร้อมหน้าต่างบังคับเข้าสู่ระบบเพื่อความปลอดภัยของข้อมูลผู้ป่วยสูงสุด"
 }
