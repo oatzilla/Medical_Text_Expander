@@ -197,7 +197,7 @@ namespace MedicalTextExpander {
     }
 
     public static class AppUpdater {
-        public const string CurrentVersion = "1.9.0";
+        public const string CurrentVersion = "1.9.1";
         public const string DefaultGitHubRepo = "oatzilla/Medical_Text_Expander";
 
         public static void CheckForUpdatesAsync(string repo, bool isManual, Form parent = null, string token = null) {
@@ -4217,7 +4217,10 @@ namespace MedicalTextExpander {
         private WardUserManager userManager;
         public bool IsStartupGate { get; private set; }
 
-        // Tab Navigation
+        // Navigation & Panels
+        private Panel pnlHeader;
+        private Panel pnlTabBar;
+        private Panel pnlContent;
         private Button btnTabLogin;
         private Button btnTabRegister;
         private Panel pnlLogin;
@@ -4253,7 +4256,7 @@ namespace MedicalTextExpander {
 
         private void InitializeUI() {
             this.Text = "🔐 เข้าสู่ระบบ / ลงทะเบียนผู้ใช้งาน (Ward Authentication)";
-            this.Size = new Size(460, 520);
+            this.ClientSize = new Size(460, 532);
             this.StartPosition = FormStartPosition.CenterScreen;
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
             this.MaximizeBox = false;
@@ -4261,40 +4264,40 @@ namespace MedicalTextExpander {
             this.BackColor = Color.White;
             this.Font = new Font("Leelawadee UI", 9.5f, FontStyle.Regular);
 
-            // Header Panel
-            var pnlHeader = new Panel {
-                Dock = DockStyle.Top,
-                Height = 65,
+            // 1. Header Banner Panel (Y: 0..68)
+            pnlHeader = new Panel {
+                Location = new Point(0, 0),
+                Size = new Size(460, 68),
                 BackColor = Color.FromArgb(13, 148, 136)
             };
             var lblTitle = new Label {
                 Text = "🏥 Medical & Nursing Text Expander",
                 Font = new Font("Leelawadee UI", 12f, FontStyle.Bold),
                 ForeColor = Color.White,
-                Location = new Point(16, 11),
+                Location = new Point(16, 12),
                 AutoSize = true
             };
             var lblSub = new Label {
                 Text = "ระบบบันทึกและจัดการข้อมูลผู้ป่วยรายเตียง (Multi-User Ward System)",
                 Font = new Font("Leelawadee UI", 8.5f),
                 ForeColor = Color.FromArgb(204, 251, 241),
-                Location = new Point(18, 36),
+                Location = new Point(18, 38),
                 AutoSize = true
             };
             pnlHeader.Controls.Add(lblTitle);
             pnlHeader.Controls.Add(lblSub);
             this.Controls.Add(pnlHeader);
 
-            // Tab Bar
-            var pnlTabBar = new Panel {
-                Dock = DockStyle.Top,
-                Height = 44,
+            // 2. Tab Bar Panel (Y: 68..112)
+            pnlTabBar = new Panel {
+                Location = new Point(0, 68),
+                Size = new Size(460, 44),
                 BackColor = Color.FromArgb(241, 245, 249)
             };
 
             btnTabLogin = new Button {
                 Text = "🔐 เข้าสู่ระบบ (Login)",
-                Size = new Size(210, 36),
+                Size = new Size(206, 36),
                 Location = new Point(16, 4),
                 FlatStyle = FlatStyle.Flat,
                 Font = new Font("Leelawadee UI", 9.5f, FontStyle.Bold),
@@ -4305,8 +4308,8 @@ namespace MedicalTextExpander {
 
             btnTabRegister = new Button {
                 Text = "📝 ลงทะเบียนใหม่ (Register)",
-                Size = new Size(210, 36),
-                Location = new Point(232, 4),
+                Size = new Size(206, 36),
+                Location = new Point(236, 4),
                 FlatStyle = FlatStyle.Flat,
                 Font = new Font("Leelawadee UI", 9.5f, FontStyle.Bold),
                 Cursor = Cursors.Hand
@@ -4318,22 +4321,33 @@ namespace MedicalTextExpander {
             pnlTabBar.Controls.Add(btnTabRegister);
             this.Controls.Add(pnlTabBar);
 
-            // Build Login Panel
+            // 3. Content Panel Container (Y: 112..532)
+            pnlContent = new Panel {
+                Location = new Point(0, 112),
+                Size = new Size(460, 420),
+                BackColor = Color.White
+            };
+
+            // Build Login Panel (child of pnlContent)
             pnlLogin = new Panel {
-                Dock = DockStyle.Fill,
+                Location = new Point(0, 0),
+                Size = new Size(460, 420),
                 BackColor = Color.White
             };
             BuildLoginControls();
-            this.Controls.Add(pnlLogin);
+            pnlContent.Controls.Add(pnlLogin);
 
-            // Build Register Panel
+            // Build Register Panel (child of pnlContent)
             pnlRegister = new Panel {
-                Dock = DockStyle.Fill,
+                Location = new Point(0, 0),
+                Size = new Size(460, 420),
                 BackColor = Color.White,
                 Visible = false
             };
             BuildRegisterControls();
-            this.Controls.Add(pnlRegister);
+            pnlContent.Controls.Add(pnlRegister);
+
+            this.Controls.Add(pnlContent);
 
             // Default to Login Tab
             SwitchTab(true);
@@ -4364,11 +4378,11 @@ namespace MedicalTextExpander {
             int y = 16;
             var lblUser = new Label { Text = "ชื่อผู้ใช้งาน (Username):", Location = new Point(24, y), AutoSize = true, Font = new Font("Leelawadee UI", 9f, FontStyle.Bold) };
             pnlLogin.Controls.Add(lblUser);
-            y += 22;
+            y += 24;
 
             txtLoginUser = new TextBox {
                 Location = new Point(24, y),
-                Size = new Size(395, 28),
+                Size = new Size(412, 28),
                 Font = new Font("Segoe UI", 10.5f)
             };
             if (userManager != null && userManager.CurrentUser != null) {
@@ -4377,20 +4391,20 @@ namespace MedicalTextExpander {
                 txtLoginUser.Text = "admin";
             }
             pnlLogin.Controls.Add(txtLoginUser);
-            y += 36;
+            y += 38;
 
             var lblPass = new Label { Text = "รหัสผ่าน (Password):", Location = new Point(24, y), AutoSize = true, Font = new Font("Leelawadee UI", 9f, FontStyle.Bold) };
             pnlLogin.Controls.Add(lblPass);
-            y += 22;
+            y += 24;
 
             txtLoginPass = new TextBox {
                 Location = new Point(24, y),
-                Size = new Size(395, 28),
+                Size = new Size(412, 28),
                 Font = new Font("Segoe UI", 10.5f),
                 UseSystemPasswordChar = true
             };
             pnlLogin.Controls.Add(txtLoginPass);
-            y += 32;
+            y += 36;
 
             chkLoginShowPass = new CheckBox {
                 Text = "แสดงรหัสผ่าน",
@@ -4405,28 +4419,28 @@ namespace MedicalTextExpander {
 
             chkLoginRemember = new CheckBox {
                 Text = "จดจำการเข้าสู่ระบบในเครื่องนี้ (Remember Me)",
-                Location = new Point(160, y),
+                Location = new Point(155, y),
                 AutoSize = true,
                 Checked = true,
                 Cursor = Cursors.Hand
             };
             pnlLogin.Controls.Add(chkLoginRemember);
-            y += 28;
+            y += 32;
 
             lblLoginError = new Label {
                 Text = "",
                 ForeColor = Color.FromArgb(220, 38, 38),
                 Location = new Point(24, y),
-                Size = new Size(395, 22),
+                Size = new Size(412, 22),
                 Font = new Font("Leelawadee UI", 8.5f, FontStyle.Bold)
             };
             pnlLogin.Controls.Add(lblLoginError);
-            y += 28;
+            y += 26;
 
             btnLoginSubmit = new Button {
                 Text = "เข้าสู่ระบบ (Login)",
                 Location = new Point(24, y),
-                Size = new Size(275, 38),
+                Size = new Size(286, 40),
                 BackColor = Color.FromArgb(13, 148, 136),
                 ForeColor = Color.White,
                 FlatStyle = FlatStyle.Flat,
@@ -4440,8 +4454,8 @@ namespace MedicalTextExpander {
             btnBottomClose = new Button {
                 Text = IsStartupGate ? "ปิดโปรแกรม" : "ยกเลิก",
                 DialogResult = DialogResult.Cancel,
-                Location = new Point(310, y),
-                Size = new Size(109, 38),
+                Location = new Point(318, y),
+                Size = new Size(118, 40),
                 BackColor = Color.FromArgb(241, 245, 249),
                 ForeColor = Color.FromArgb(71, 85, 105),
                 FlatStyle = FlatStyle.Flat,
@@ -4449,7 +4463,7 @@ namespace MedicalTextExpander {
             };
             btnBottomClose.FlatAppearance.BorderColor = Color.FromArgb(203, 213, 225);
             pnlLogin.Controls.Add(btnBottomClose);
-            y += 50;
+            y += 56;
 
             var lnkGoRegister = new LinkLabel {
                 Text = "👉 ยังไม่มีบัญชีผู้ใช้งาน? กดที่นี่เพื่อลงทะเบียนและเข้าใช้งานได้เลย",
@@ -4466,53 +4480,53 @@ namespace MedicalTextExpander {
             int y = 10;
             var lblU = new Label { Text = "ชื่อผู้ใช้งานภาษาอังกฤษ (Username):", Location = new Point(24, y), AutoSize = true, Font = new Font("Leelawadee UI", 9f, FontStyle.Bold) };
             pnlRegister.Controls.Add(lblU);
-            y += 20;
+            y += 22;
 
             txtRegUser = new TextBox {
                 Location = new Point(24, y),
-                Size = new Size(395, 26),
+                Size = new Size(412, 26),
                 Font = new Font("Segoe UI", 10f)
             };
             pnlRegister.Controls.Add(txtRegUser);
-            y += 30;
+            y += 34;
 
             var lblD = new Label { Text = "ชื่อแสดง / ชื่อเรียกพยาบาล (Display Name):", Location = new Point(24, y), AutoSize = true, Font = new Font("Leelawadee UI", 9f, FontStyle.Bold) };
             pnlRegister.Controls.Add(lblD);
-            y += 20;
+            y += 22;
 
             txtRegDisplay = new TextBox {
                 Location = new Point(24, y),
-                Size = new Size(395, 26),
+                Size = new Size(412, 26),
                 Font = new Font("Segoe UI", 10f)
             };
             pnlRegister.Controls.Add(txtRegDisplay);
-            y += 30;
+            y += 34;
 
             var lblP = new Label { Text = "รหัสผ่าน (Password, อย่างน้อย 4 ตัว):", Location = new Point(24, y), AutoSize = true, Font = new Font("Leelawadee UI", 9f, FontStyle.Bold) };
             pnlRegister.Controls.Add(lblP);
-            y += 20;
+            y += 22;
 
             txtRegPass = new TextBox {
                 Location = new Point(24, y),
-                Size = new Size(395, 26),
+                Size = new Size(412, 26),
                 Font = new Font("Segoe UI", 10f),
                 UseSystemPasswordChar = true
             };
             pnlRegister.Controls.Add(txtRegPass);
-            y += 30;
+            y += 34;
 
             var lblC = new Label { Text = "ยืนยันรหัสผ่าน (Confirm Password):", Location = new Point(24, y), AutoSize = true, Font = new Font("Leelawadee UI", 9f, FontStyle.Bold) };
             pnlRegister.Controls.Add(lblC);
-            y += 20;
+            y += 22;
 
             txtRegConfirm = new TextBox {
                 Location = new Point(24, y),
-                Size = new Size(395, 26),
+                Size = new Size(412, 26),
                 Font = new Font("Segoe UI", 10f),
                 UseSystemPasswordChar = true
             };
             pnlRegister.Controls.Add(txtRegConfirm);
-            y += 28;
+            y += 32;
 
             chkRegShowPass = new CheckBox {
                 Text = "แสดงรหัสผ่าน",
@@ -4534,13 +4548,13 @@ namespace MedicalTextExpander {
                 Cursor = Cursors.Hand
             };
             pnlRegister.Controls.Add(chkRegRemember);
-            y += 24;
+            y += 28;
 
             lblRegError = new Label {
                 Text = "",
                 ForeColor = Color.FromArgb(220, 38, 38),
                 Location = new Point(24, y),
-                Size = new Size(395, 20),
+                Size = new Size(412, 20),
                 Font = new Font("Leelawadee UI", 8.5f, FontStyle.Bold)
             };
             pnlRegister.Controls.Add(lblRegError);
@@ -4549,7 +4563,7 @@ namespace MedicalTextExpander {
             btnRegSubmit = new Button {
                 Text = "📝 ลงทะเบียนและเริ่มใช้งานทันที",
                 Location = new Point(24, y),
-                Size = new Size(275, 38),
+                Size = new Size(286, 40),
                 BackColor = Color.FromArgb(16, 185, 129),
                 ForeColor = Color.White,
                 FlatStyle = FlatStyle.Flat,
@@ -4563,8 +4577,8 @@ namespace MedicalTextExpander {
             var btnRegCancel = new Button {
                 Text = IsStartupGate ? "ปิดโปรแกรม" : "ยกเลิก",
                 DialogResult = DialogResult.Cancel,
-                Location = new Point(310, y),
-                Size = new Size(109, 38),
+                Location = new Point(318, y),
+                Size = new Size(118, 40),
                 BackColor = Color.FromArgb(241, 245, 249),
                 ForeColor = Color.FromArgb(71, 85, 105),
                 FlatStyle = FlatStyle.Flat,
@@ -4572,7 +4586,7 @@ namespace MedicalTextExpander {
             };
             btnRegCancel.FlatAppearance.BorderColor = Color.FromArgb(203, 213, 225);
             pnlRegister.Controls.Add(btnRegCancel);
-            y += 48;
+            y += 54;
 
             var lnkGoLogin = new LinkLabel {
                 Text = "👈 มีบัญชีผู้ใช้งานอยู่แล้ว? กดที่นี่เพื่อเข้าสู่ระบบ",
@@ -4794,6 +4808,11 @@ namespace MedicalTextExpander {
             pnlBottom.Controls.Add(lblInfo);
             pnlBottom.Controls.Add(btnClose);
             this.Controls.Add(pnlBottom);
+
+            pnlTop.SendToBack();
+            pnlToolbar.SendToBack();
+            pnlBottom.SendToBack();
+            lvUsers.BringToFront();
         }
 
         private void LoadUserList() {
