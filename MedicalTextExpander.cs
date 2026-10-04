@@ -197,7 +197,7 @@ namespace MedicalTextExpander {
     }
 
     public static class AppUpdater {
-        public const string CurrentVersion = "1.9.1";
+        public const string CurrentVersion = "1.9.2";
         public const string DefaultGitHubRepo = "oatzilla/Medical_Text_Expander";
 
         public static void CheckForUpdatesAsync(string repo, bool isManual, Form parent = null, string token = null) {
@@ -5894,76 +5894,89 @@ namespace MedicalTextExpander {
             if (pnlTop == null) return;
             int w = pnlTop.ClientSize.Width;
 
-            // Compact, elegant title that never collides
+            // 1. App Title & Cloud Status (Left)
             if (lblAppTitle != null) {
-                lblAppTitle.Text = (w < 880) ? "🛏️ เตียง 1-30" : "🛏️ ข้อมูลรายเตียง 1-30";
+                lblAppTitle.Text = (w < 850) ? "🛏️ เตียง 1-30" : "🛏️ ข้อมูลรายเตียง 1-30";
                 lblAppTitle.Font = new Font("Segoe UI", 11.5f, FontStyle.Bold);
-                lblAppTitle.Location = new Point(14, 11);
+                lblAppTitle.Location = new Point(14, 8);
+            }
+            if (lblNetworkStatus != null) {
+                lblNetworkStatus.Location = new Point(16, 32);
             }
 
-            int curLeft = (lblAppTitle != null) ? (lblAppTitle.Right + 10) : 160;
+            // 2. Active User Account Button & Workspace Selector
+            int leftOccupied = (lblAppTitle != null) ? (lblAppTitle.Right + 12) : 180;
             if (btnUserAccount != null) {
-                btnUserAccount.Location = new Point(curLeft, 11);
-                curLeft += btnUserAccount.Width + 8;
+                int userBtnW = (w < 850) ? 115 : 140;
+                btnUserAccount.Size = new Size(userBtnW, 34);
+                btnUserAccount.Location = new Point(leftOccupied, 11);
+                btnUserAccount.BringToFront();
+                leftOccupied = btnUserAccount.Right + 8;
             }
             if (cboWorkspaceUser != null && cboWorkspaceUser.Visible) {
-                cboWorkspaceUser.Location = new Point(curLeft, 13);
-                curLeft += cboWorkspaceUser.Width + 8;
+                int cboW = (w < 850) ? 130 : 155;
+                cboWorkspaceUser.Size = new Size(cboW, 28);
+                cboWorkspaceUser.Location = new Point(leftOccupied, 14);
+                cboWorkspaceUser.BringToFront();
+                leftOccupied = cboWorkspaceUser.Right + 10;
             }
 
-            // Compact buttons to ensure zero overlapping
-            if (btnCalc != null) {
-                btnCalc.Text = "🧮 คำนวณ SOS/ยา";
-                btnCalc.Size = new Size(140, 34);
-            }
-            if (btnGoToPalette != null) {
-                btnGoToPalette.Text = "📋 คลังข้อวินิจฉัย (F8)";
-                btnGoToPalette.Size = new Size(145, 34);
-            }
-            if (btnMobilePortal != null) {
-                btnMobilePortal.Text = "📱 มือถือ (QR)";
-                btnMobilePortal.Size = new Size(100, 34);
-            }
-            if (btnIoTemplate != null) {
-                btnIoTemplate.Text = "📁 เอกสาร & แบบฟอร์มวอร์ด";
-                btnIoTemplate.Size = new Size(195, 34);
-            }
-            if (btnCheckUpdate != null) {
-                btnCheckUpdate.Text = "🔄 อัปเดต";
-                btnCheckUpdate.Size = new Size(82, 34);
-            }
-
+            // 3. Right-Aligned Tool Buttons
             int rx = w - 10;
             if (btnZoomIn != null) {
+                btnZoomIn.Size = new Size(34, 34);
                 btnZoomIn.Location = new Point(rx - btnZoomIn.Width, 11);
                 rx -= (btnZoomIn.Width + 4);
             }
             if (btnZoomOut != null) {
+                btnZoomOut.Size = new Size(34, 34);
                 btnZoomOut.Location = new Point(rx - btnZoomOut.Width, 11);
                 rx -= (btnZoomOut.Width + 6);
             }
             if (btnCheckUpdate != null) {
+                btnCheckUpdate.Text = "🔄 อัปเดต";
+                btnCheckUpdate.Size = new Size(76, 34);
                 btnCheckUpdate.Location = new Point(rx - btnCheckUpdate.Width, 11);
                 rx -= (btnCheckUpdate.Width + 6);
             }
             if (btnIoTemplate != null) {
+                btnIoTemplate.Text = (w < 900) ? "📁 เอกสารวอร์ด" : "📁 เอกสาร & แบบฟอร์มวอร์ด";
+                btnIoTemplate.Size = (w < 900) ? new Size(130, 34) : new Size(185, 34);
                 btnIoTemplate.Location = new Point(rx - btnIoTemplate.Width, 11);
                 rx -= (btnIoTemplate.Width + 6);
             }
             if (btnMobilePortal != null) {
+                btnMobilePortal.Text = (w < 900) ? "📱 มือถือ" : "📱 มือถือ (QR)";
+                btnMobilePortal.Size = (w < 900) ? new Size(82, 34) : new Size(100, 34);
                 btnMobilePortal.Location = new Point(rx - btnMobilePortal.Width, 11);
                 rx -= (btnMobilePortal.Width + 6);
             }
+
+            // 4. Extra Quick Action Buttons on Top Panel
+            // Note: DAR Catalog and SOS Calculator are already prominently available
+            // on pnlQuickButtons right above the nurse note. Only show them on pnlTop if screen
+            // is wide enough (>= 1260px) to prevent ANY collision with left controls.
             if (btnGoToPalette != null) {
-                btnGoToPalette.Location = new Point(rx - btnGoToPalette.Width, 11);
-                rx -= (btnGoToPalette.Width + 6);
+                int neededW = (btnCalc != null ? 135 + 6 : 0) + 140;
+                if (w >= 1260 && (rx - neededW >= leftOccupied + 15)) {
+                    btnGoToPalette.Visible = true;
+                    btnGoToPalette.Text = "📋 คลังข้อวินิจฉัย (F8)";
+                    btnGoToPalette.Size = new Size(140, 34);
+                    btnGoToPalette.Location = new Point(rx - btnGoToPalette.Width, 11);
+                    rx -= (btnGoToPalette.Width + 6);
+                } else {
+                    btnGoToPalette.Visible = false;
+                }
             }
             if (btnCalc != null) {
-                btnCalc.Location = new Point(rx - btnCalc.Width, 11);
-                if (lblAppTitle != null && btnCalc.Location.X < curLeft + 10) {
-                    if (btnUserAccount != null) btnUserAccount.Size = new Size(110, 34);
-                } else if (btnUserAccount != null) {
-                    btnUserAccount.Size = new Size(150, 34);
+                if (btnGoToPalette != null && btnGoToPalette.Visible && (rx - 135 >= leftOccupied + 15)) {
+                    btnCalc.Visible = true;
+                    btnCalc.Text = "🧮 คำนวณ SOS/ยา";
+                    btnCalc.Size = new Size(135, 34);
+                    btnCalc.Location = new Point(rx - btnCalc.Width, 11);
+                    rx -= (btnCalc.Width + 6);
+                } else {
+                    btnCalc.Visible = false;
                 }
             }
         }
@@ -6081,7 +6094,9 @@ namespace MedicalTextExpander {
             string name = (context != null && context.UserManager != null && context.UserManager.CurrentUser != null)
                 ? context.UserManager.CurrentUser.DisplayName
                 : "Admin";
-            btnUserAccount.Text = "👤 " + name;
+            bool isAdmin = (context != null && context.UserManager != null && context.UserManager.IsAdminLoggedIn);
+            btnUserAccount.Text = (isAdmin ? "👑 " : "👤 ") + name;
+            btnUserAccount.BackColor = isAdmin ? Color.FromArgb(15, 76, 129) : Color.FromArgb(19, 78, 74);
         }
 
         private void ShowUserMenu() {
