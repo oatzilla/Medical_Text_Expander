@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Ward Bed Notes - ระบบบันทึกข้อมูลผู้ป่วยรายเตียง (Cloud Portal)</title>
+  <meta name="description" content="ระบบบันทึกและติดตามข้อมูลผู้ป่วยรายเตียง 1-30 หอผู้ป่วย เชื่อมต่อแบบเรียลไทม์ผ่าน Supabase Cloud รองรับการใช้งานทั้งบนมือถือ แท็บเล็ต และคอมพิวเตอร์">
+  <meta name="theme-color" content="#0d9488">
+  
+  <!-- Google Fonts: Prompt & Outfit -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  
+  <link rel="stylesheet" href="style.css?v=1.9.0">
+</head>
+<body>
+  <!-- Top Navigation Bar -->
+  <header class="navbar" id="navbar">
+    <div class="nav-container">
+      <div class="brand">
+        <div class="brand-icon">
+          <i class="fa-solid fa-hospital-user"></i>
+        </div>
+        <div class="brand-text">
+          <h1 class="brand-title">Ward Bed Notes</h1>
+          <span class="brand-subtitle">ระบบบันทึกผู้ป่วยรายเตียง (Cloud Portal)</span>
+        </div>
+      </div>
+
+      <div class="nav-actions">
+        <div class="status-badge" id="cloudStatusBadge" title="สถานะการเชื่อมต่อฐานข้อมูล Supabase">
+          <span class="status-dot"></span>
+          <span class="status-label" id="cloudStatusText">กำลังเชื่อมต่อ...</span>
+        </div>
+
+        <!-- Admin Workspace Switcher -->
+        <div class="workspace-select-wrapper" id="workspaceSelectWrapper" style="display:none;" title="สลับพื้นที่งานเพื่อดูและจัดการเตียงของผู้ใช้คนอื่น">
+          <i class="fa-solid fa-layer-group workspace-icon"></i>
+          <select id="workspaceSelect" class="workspace-select" aria-label="เลือกพื้นที่งาน">
+            <option value="admin">👑 พื้นที่งาน: Admin (หลัก)</option>
+          </select>
+        </div>
+
+        <!-- User Menu Dropdown -->
+        <div class="user-dropdown-wrapper" id="userDropdownWrapper">
+          <button class="user-badge-btn" id="userBadgeBtn" title="บัญชีผู้ใช้งาน">
+            <i class="fa-solid fa-circle-user"></i>
+            <span class="user-badge-name" id="userBadgeName">admin</span>
+            <i class="fa-solid fa-chevron-down user-badge-arrow"></i>
+          </button>
+          <div class="user-dropdown-menu" id="userDropdownMenu" style="display:none;">
+            <div class="user-dropdown-header">
+              <div class="user-header-name" id="menuUserDisplayName">ผู้ดูแลระบบ (Admin)</div>
+              <div class="user-header-role" id="menuUserRole">👑 ผู้ดูแลระบบ</div>
+            </div>
+            <div class="user-dropdown-divider"></div>
+            <button class="user-dropdown-item" id="btnOpenUserManagement" style="display:none;">
+              <i class="fa-solid fa-users-gear"></i>
+              <span>จัดการบัญชีผู้ใช้และสิทธิ์</span>
+            </button>
+            <button class="user-dropdown-item" id="btnOpenLoginModal">
+              <i class="fa-solid fa-arrow-right-to-bracket"></i>
+              <span>สลับผู้ใช้งาน / เข้าสู่ระบบ</span>
+            </button>
+            <button class="user-dropdown-item text-danger" id="btnLogoutUser">
+              <i class="fa-solid fa-arrow-right-from-bracket"></i>
+              <span>ออกจากระบบ</span>
+            </button>
+          </div>
+        </div>
+        
+        <button class="nav-templates-btn nav-docs-btn" id="openDocsModalBtn" title="เปิดศูนย์รวมเอกสารและแบบฟอร์มประจำวอร์ด (Ward Documents & Forms)">
+          <i class="fa-solid fa-folder-open"></i>
+          <span class="nav-btn-text">เอกสาร & แบบฟอร์มวอร์ด</span>
+        </button>
+        <button class="nav-templates-btn" id="openTemplateLibraryBtn" title="เปิดคลังข้อวินิจฉัยและกิจกรรมพยาบาล (Templates)">
+          <i class="fa-solid fa-book-medical"></i>
+          <span class="nav-btn-text">คลังเทมเพลต (DAR)</span>
+        </button>
+        <button class="icon-btn" id="themeToggleBtn" title="สลับโหมดมืด / โหมดสว่าง" aria-label="Toggle theme">
+          <i class="fa-solid fa-moon"></i>
+        </button>
+        <button class="icon-btn" id="refreshBtn" title="รีเฟรชข้อมูลเดี๋ยวนี้" aria-label="Refresh data">
+          <i class="fa-solid fa-arrows-rotate"></i>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Workspace Inspection Notice Banner -->
+  <div class="workspace-notice-banner" id="workspaceNoticeBanner" style="display:none;">
+    <div class="workspace-notice-text">
+      <i class="fa-solid fa-eye notice-icon"></i>
+      <span id="workspaceNoticeLabel">กำลังดูและจัดการเตียงของ: ... (โหมด Admin ควบคุม)</span>
+    </div>
+    <button class="btn-back-my-workspace" id="btnBackToMyAdminWorkspace">
+      <i class="fa-solid fa-arrow-rotate-left"></i> กลับไปเตียงของฉัน
+    </button>
+  </div>
+
+  <!-- Main Content Container -->
+  <main class="main-container">
+    <!-- Census & Summary Bar -->
+    <section class="summary-section">
+      <div class="summary-card stat-total">
+        <div class="stat-icon"><i class="fa-solid fa-bed"></i></div>
+        <div class="stat-info">
+          <span class="stat-value" id="statTotalBeds">30</span>
+          <span class="stat-name">เตียงทั้งหมด</span>
+        </div>
+      </div>
+
+      <div class="summary-card stat-occupied">
+        <div class="stat-icon"><i class="fa-solid fa-user-injured"></i></div>
+        <div class="stat-info">
+          <span class="stat-value" id="statOccupiedBeds">0</span>
+          <span class="stat-name">มีผู้ป่วย (ครองเตียง)</span>
+        </div>
+      </div>
+
+      <div class="summary-card stat-available">
+        <div class="stat-icon"><i class="fa-solid fa-circle-check"></i></div>
+        <div class="stat-info">
+          <span class="stat-value" id="statAvailableBeds">30</span>
+          <span class="stat-name">เตียงว่าง</span>
+        </div>
+      </div>
+
+      <div class="summary-card stat-time">
+        <div class="stat-icon"><i class="fa-solid fa-clock-rotate-left"></i></div>
+        <div class="stat-info">
+          <span class="stat-value" id="statLastSyncTime">--:--:--</span>
+          <span class="stat-name">อัปเดตล่าสุด</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Search & Filter Controls -->
+    <section class="controls-section">
+      <div class="search-box">
+        <i class="fa-solid fa-magnifying-glass search-icon"></i>
+        <input type="text" id="searchInput" placeholder="ค้นหาตามเลขเตียง, อาการ, ยา, คำสั่งแพทย์, วินิจฉัย..." autocomplete="off">
+        <button class="clear-search-btn" id="clearSearchBtn" aria-label="ล้างคำค้นหา"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <div class="controls-right-group">
+        <div class="filter-tabs">
+          <button class="tab-btn active" data-filter="all" id="tabAll">
+            ทั้งหมด <span class="tab-count" id="countAll">30</span>
+          </button>
+          <button class="tab-btn" data-filter="occupied" id="tabOccupied">
+            มีผู้ป่วย <span class="tab-count" id="countOccupied">0</span>
+          </button>
+          <button class="tab-btn" data-filter="available" id="tabAvailable">
+            เตียงว่าง <span class="tab-count" id="countAvailable">30</span>
+          </button>
+        </div>
+
+        <div class="view-mode-toggle" id="viewModeToggle">
+          <button type="button" class="view-toggle-btn active" id="btnViewCompact" title="มุมมองกะทัดรัด (เห็นครบทุกเตียง ไม่ต้องเลื่อนเยอะ)">
+            <i class="fa-solid fa-table-cells"></i> กะทัดรัด
+          </button>
+          <button type="button" class="view-toggle-btn" id="btnViewExpanded" title="มุมมองขยาย (แสดงเนื้อหาขยาย)">
+            <i class="fa-solid fa-table-cells-large"></i> ขยาย
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Drag & Drop Hint Banner -->
+    <div class="drag-hint-banner" id="dragHintBanner">
+      <span><i class="fa-solid fa-hand-pointer"></i> <strong>เทคนิคลัด:</strong> สามารถ <strong>คลิกลากเตียง</strong> ไปวางทับเตียงอื่นเพื่อ <strong>"สลับเตียง / ย้ายเตียง"</strong> ได้ทันที</span>
+    </div>
+
+    <!-- Live Bed Cards Grid (Beds 1-30) -->
+    <section class="beds-grid" id="bedsGrid">
+      <div class="grid-loading" id="gridLoading">
+        <div class="spinner"></div>
+        <p>กำลังโหลดข้อมูลผู้ป่วยจาก Cloud Database...</p>
+      </div>
+    </section>
+  </main>
+
+  <!-- Edit Bed Note Modal -->
+  <div class="modal-overlay" id="editModal" aria-hidden="true">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <div class="modal-bed-badge" id="modalBedBadge">เตียง 01</div>
+          <h2 class="modal-title" id="modalTitle">บันทึกข้อมูลผู้ป่วย</h2>
+        </div>
+        <button class="modal-close-btn" id="modalCloseBtn" aria-label="Close modal"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Quick Templates Bar -->
+        <div class="quick-templates-bar">
+          <button type="button" class="btn-picker-trigger" id="btnOpenTemplatePicker" title="เปิดคลังเลือกข้อวินิจฉัยและกิจกรรมการพยาบาล">
+            <i class="fa-solid fa-book-medical"></i> เลือกข้อวินิจฉัย/DAR (110 เทมเพลต)
+          </button>
+          <span class="quick-divider">|</span>
+          <span class="quick-label"><i class="fa-solid fa-bolt"></i> แทรกด่วน:</span>
+          <button type="button" class="quick-tag-btn" data-snippet="[V/S] BP:  /  PR:  RR:  T:  SpO2:  % (RA)">+ V/S</button>
+          <button type="button" class="quick-tag-btn" data-snippet="[Lab] CBC:  BUN/Cr:  Electrolyte:  LFT: ">+ Labs</button>
+          <button type="button" class="quick-tag-btn" data-snippet="[Order] IV:  Med:  Diet:  Activity: ">+ Order</button>
+          <button type="button" class="quick-tag-btn" data-snippet="[SBAR]&#10;S: &#10;B: &#10;A: &#10;R: ">+ SBAR</button>
+          <button type="button" class="quick-tag-btn" data-snippet="[SOS] Score:  (Alert: )">+ SOS</button>
+        </div>
+
+        <div class="editor-container">
+          <textarea id="noteTextarea" placeholder="พิมพ์บันทึกข้อมูลผู้ป่วย, คำสั่งแพทย์, แผนการพยาบาล, หรือผลแล็บที่นี่..." rows="12"></textarea>
+        </div>
+
+        <div class="editor-meta">
+          <span id="charCountDisplay">0 ตัวอักษร | 0 บรรทัด</span>
+          <div class="author-input-group">
+            <i class="fa-solid fa-user-pen"></i>
+            <input type="text" id="authorInput" placeholder="ชื่อผู้บันทึก (เช่น พว.สมหญิง / นพ.ธนา)" maxlength="40">
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <div class="modal-footer-left">
+          <button type="button" class="btn btn-secondary" id="btnSwapBedFromModal" style="background: rgba(79, 70, 229, 0.12); color: #4f46e5; border-color: rgba(79, 70, 229, 0.3);">
+            <i class="fa-solid fa-arrow-right-arrow-left"></i> สลับ/ย้ายเตียง
+          </button>
+          <button type="button" class="btn btn-secondary" id="btnViewHistoryFromModal">
+            <i class="fa-solid fa-clock-rotate-left"></i> ประวัติย้อนหลัง
+          </button>
+          <button type="button" class="btn btn-danger-outline" id="btnClearBedNote">
+            <i class="fa-solid fa-trash-can"></i> ล้างเตียงนี้
+          </button>
+        </div>
+        <div class="modal-footer-right">
+          <button type="button" class="btn btn-secondary" id="btnCancelEdit">ยกเลิก</button>
+          <button type="button" class="btn btn-primary" id="btnSaveBedNote">
+            <i class="fa-solid fa-cloud-arrow-up"></i> บันทึกลง Cloud
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- History Viewer Modal -->
+  <div class="modal-overlay" id="historyModal" aria-hidden="true">
+    <div class="modal-card modal-lg">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <div class="modal-bed-badge" id="historyBedBadge">เตียง 01</div>
+          <h2 class="modal-title">ประวัติการบันทึกย้อนหลัง (History Log)</h2>
+        </div>
+        <button class="modal-close-btn" id="historyCloseBtn" aria-label="Close history modal"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <div class="modal-body history-body">
+        <div class="history-list-pane" id="historyListPane">
+          <div class="history-loading">กำลังโหลดประวัติ...</div>
+        </div>
+        <div class="history-preview-pane">
+          <div class="preview-header">
+            <span id="historySelectedMeta">เลือกรายการด้านซ้ายเพื่อดูเนื้อหา</span>
+            <button class="btn btn-sm btn-secondary" id="btnCopyHistoryText"><i class="fa-regular fa-copy"></i> คัดลอก</button>
+          </div>
+          <textarea id="historyPreviewText" readonly placeholder="เนื้อหาประวัติจะแสดงที่นี่..."></textarea>
+          <div class="history-actions">
+            <button class="btn btn-primary" id="btnRestoreFromHistory">
+              <i class="fa-solid fa-rotate-left"></i> กู้คืนเวอร์ชันนี้ไปยังเตียง
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" id="btnCloseHistory">ปิดหน้าต่าง</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Swap/Move Bed Modal -->
+  <div class="modal-overlay" id="swapModal" aria-hidden="true">
+    <div class="modal-card" style="max-width: 520px;">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <div class="modal-bed-badge" id="swapSourceBedBadge" style="background: #4f46e5;">เตียง 01</div>
+          <h2 class="modal-title"><i class="fa-solid fa-arrow-right-arrow-left" style="color: #4f46e5; margin-right: 6px;"></i> สลับหรือย้ายเตียงผู้ป่วย</h2>
+        </div>
+        <button class="modal-close-btn" id="swapCloseBtn" aria-label="Close swap modal"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <div class="modal-body" style="display: flex; flex-direction: column; gap: 14px;">
+        <!-- Source Bed Card Preview -->
+        <div class="swap-bed-box">
+          <div class="swap-box-header">
+            <span class="swap-box-title"><i class="fa-solid fa-bed"></i> เตียงต้นทาง</span>
+            <span class="swap-box-badge" id="swapSourceStatus">มีข้อมูล</span>
+          </div>
+          <div class="swap-box-content" id="swapSourcePreview">...</div>
+        </div>
+
+        <!-- Arrow Divider -->
+        <div class="swap-direction-indicator">
+          <div class="swap-arrow-circle" id="swapDirectionIcon">
+            <i class="fa-solid fa-arrow-down"></i>
+          </div>
+          <span class="swap-direction-text" id="swapDirectionText">ย้ายข้อมูลไปยังเตียงว่าง</span>
+        </div>
+
+        <!-- Target Bed Selection -->
+        <div class="swap-target-group">
+          <label for="swapTargetSelect" class="swap-label"><i class="fa-solid fa-hospital-user"></i> เลือกเตียงปลายทาง (1 - 30):</label>
+          <select id="swapTargetSelect" class="swap-select">
+            <!-- Populated dynamically via JS -->
+          </select>
+        </div>
+
+        <!-- Dynamic Notice & Options -->
+        <div class="swap-action-card" id="swapActionCard">
+          <div class="swap-mode-title" id="swapModeTitle">รูปแบบการดำเนินการ:</div>
+          <div class="swap-options-group" id="swapOptionsGroup">
+            <label class="swap-radio-label" id="swapOptionSwapLabel">
+              <input type="radio" name="swapMode" id="swapModeSwap" value="swap" checked>
+              <div class="swap-radio-content">
+                <strong>🔄 สลับเตียงกัน (Swap)</strong>
+                <span>แลกเปลี่ยนข้อมูลระหว่าง 2 เตียง ทั้งสองฝ่าย</span>
+              </div>
+            </label>
+            <label class="swap-radio-label" id="swapOptionMoveLabel">
+              <input type="radio" name="swapMode" id="swapModeMove" value="move">
+              <div class="swap-radio-content">
+                <strong>➡️ ย้ายเตียง (Transfer / Move)</strong>
+                <span>ย้ายข้อมูลไปเตียงปลายทาง (เตียงต้นทางจะว่างลง)</span>
+              </div>
+            </label>
+          </div>
+          <div class="swap-note" id="swapNote">
+            💡 ระบบจะสำรองข้อมูลเดิมของทั้งสองเตียงลงใน &quot;ประวัติย้อนหลัง&quot; โดยอัตโนมัติ ป้องกันข้อมูลสูญหาย 100%
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <div class="modal-footer-left">
+          <span style="font-size: 0.8rem; color: var(--text-dim);" id="swapInfoFooter">สำรองประวัติอัตโนมัติ</span>
+        </div>
+        <div class="modal-footer-right">
+          <button type="button" class="btn btn-secondary" id="btnCancelSwap">ยกเลิก</button>
+          <button type="button" class="btn btn-primary" id="btnConfirmSwap" style="background: #4f46e5; border-color: #4f46e5;">
+            <i class="fa-solid fa-check"></i> ยืนยันดำเนินการ
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  
+  <!-- Template Catalog & DAR Picker Modal -->
+  <div class="modal-overlay" id="templateModal" aria-hidden="true">
+    <div class="modal-card modal-xl">
+      <!-- Modal Header: Sleek Single-Line Bar -->
+      <div class="modal-header template-modal-hdr">
+        <div class="modal-title-group">
+          <div class="modal-bed-badge template-header-badge"><i class="fa-solid fa-book-medical"></i> DAR</div>
+          <div class="modal-title-row">
+            <h2 class="modal-title">คลังข้อวินิจฉัยและกิจกรรมการพยาบาล</h2>
+            <span class="template-count-badge" id="templateCountBadge">62 เทมเพลต</span>
+          </div>
+        </div>
+        <button class="modal-close-btn" id="templateModalCloseBtn" aria-label="Close template modal"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <!-- Search & Category Filters Bar -->
+      <div class="template-filter-section">
+        <div class="template-search-box">
+          <i class="fa-solid fa-magnifying-glass search-icon"></i>
+          <input type="text" id="templateSearchInput" placeholder="พิมพ์ค้นหา เช่น tka, tha, bha, สันหลัง, acdf, laminectomy, sepsis, orif..." autocomplete="off">
+          <button class="clear-search-btn" id="clearTemplateSearchBtn" aria-label="ล้างคำค้น"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="template-category-pills" id="templateCategoryPills">
+          <!-- Rendered by JS -->
+        </div>
+      </div>
+
+      <!-- Main Content Split (List & Preview) -->
+      <div class="template-content-split" id="templateContentSplit">
+        <!-- Left: Template Cards List -->
+        <div class="template-list-pane" id="templateListPane">
+          <!-- Rendered by JS -->
+        </div>
+
+        <!-- Right: Full Preview & Reading Canvas -->
+        <div class="template-preview-pane" id="templatePreviewPane">
+          <div class="template-preview-empty" id="templatePreviewEmpty">
+            <i class="fa-solid fa-hand-pointer"></i>
+            <h3>เลือกข้อวินิจฉัยจากรายการ</h3>
+            <p>แตะหรือคลิกรายการทางด้านซ้ายเพื่อเปิดอ่านรายละเอียดเต็มและนำไปใช้งาน</p>
+          </div>
+          
+          <div class="template-preview-content" id="templatePreviewContent" style="display: none;">
+            <!-- Mobile Back Button -->
+            <div class="mobile-preview-back-bar" id="mobilePreviewBackBar">
+              <button type="button" class="btn-mobile-back" id="btnMobileBackToList">
+                <i class="fa-solid fa-arrow-left"></i> กลับไปรายการข้อวินิจฉัย
+              </button>
+            </div>
+
+            <!-- Streamlined 2-Tier Preview Header (Space-Saving & High-Density) -->
+            <div class="preview-header-bar">
+              <div class="preview-title-row">
+                <div class="preview-title-block">
+                  <span class="preview-shortcut-tag" id="previewShortcutTag">.tka</span>
+                  <span class="preview-category-tag" id="previewCategoryTag">ศัลยกรรมข้อเข่าเสื่อม</span>
+                  <h3 class="preview-title" id="previewTitle">ผ่าตัดเปลี่ยนข้อเข่าเทียม (TKA)</h3>
+                </div>
+                <div class="preview-view-tabs">
+                  <button type="button" class="view-tab-btn active" id="tabViewDAR" title="จัดหน้า DAR สวยงาม">
+                    <i class="fa-solid fa-layer-group"></i> <span>DAR</span>
+                  </button>
+                  <button type="button" class="view-tab-btn" id="tabViewRaw" title="ข้อความเต็มสำหรับคัดลอก">
+                    <i class="fa-solid fa-code"></i> <span>Raw</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Shift Filter Bar (Morning, Afternoon, Night, All) -->
+              <div class="preview-shift-bar" id="previewShiftBar" style="display: none;">
+                <span class="shift-bar-label"><i class="fa-solid fa-clock"></i> กิจกรรมตามเวร:</span>
+                <div class="shift-tabs">
+                  <button type="button" class="shift-tab-btn" data-shift="morning" id="tabShiftMorning" title="เวรเช้า (08:00-16:00)">☀️ เวรเช้า</button>
+                  <button type="button" class="shift-tab-btn" data-shift="afternoon" id="tabShiftAfternoon" title="เวรบ่าย (16:00-24:00)">⛅ เวรบ่าย</button>
+                  <button type="button" class="shift-tab-btn" data-shift="night" id="tabShiftNight" title="เวรดึก (24:00-08:00)">🌙 เวรดึก</button>
+                  <button type="button" class="shift-tab-btn active" data-shift="all" id="tabShiftAll" title="แสดงรวมทุกเวร">📋 รวมทุกเวร</button>
+                </div>
+              </div>
+
+              <div class="preview-header-actions">
+                <div class="bed-target-select-wrapper" id="bedTargetSelectWrapper" style="display: none;">
+                  <span class="target-bed-label">ใส่เตียง:</span>
+                  <select id="targetBedSelect" class="form-select-sm"></select>
+                </div>
+                <button type="button" class="btn btn-primary btn-sm" id="btnApplyTemplate" title="นำไปใช้ที่เตียงที่เลือก">
+                  <i class="fa-solid fa-file-signature"></i> <span id="btnApplyText">ใช้ที่เตียงที่เลือก</span>
+                </button>
+                <button type="button" class="btn btn-outline btn-sm" id="btnInsertTemplate" title="แทรกต่อท้ายข้อความเดิม">
+                  <i class="fa-solid fa-arrow-down"></i> <span id="btnInsertText">แทรกต่อท้าย</span>
+                </button>
+                <button type="button" class="btn btn-secondary btn-sm" id="btnCopyTemplate" title="คัดลอกลง Clipboard">
+                  <i class="fa-regular fa-copy"></i> <span>คัดลอก</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Formatted DAR View -->
+            <div class="preview-formatted-view" id="previewFormattedView"></div>
+
+            <!-- Raw Text Area -->
+            <div class="preview-raw-view" id="previewRawView" style="display: none;">
+              <textarea id="templateRawText" class="template-raw-textarea" readonly></textarea>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Clean Compact Footer -->
+      <div class="modal-footer template-modal-footer">
+        <div class="template-tip">
+          <i class="fa-solid fa-circle-info"></i>
+          <span>บนคอมพิวเตอร์สามารถพิมพ์คำย่อ เช่น <code>.tka</code> <code>.tha</code> <code>.plif</code> ใน e-PHIS หรือกด <strong>F8</strong> เพื่อเปิดคลังเทมเพลต</span>
+        </div>
+        <button type="button" class="btn btn-secondary btn-sm" id="btnCloseTemplateModal">ปิดหน้าต่าง</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Ward Documents & Forms Modal (Ward Document Center) -->
+  <div class="modal-overlay" id="docsModal" aria-hidden="true">
+    <div class="modal-card docs-modal-card">
+      <div class="modal-header docs-modal-header">
+        <div class="modal-header-left">
+          <span class="modal-badge-docs"><i class="fa-solid fa-folder-open"></i> Ward Documents &amp; Forms</span>
+          <h2 class="modal-title">📁 ศูนย์รวมเอกสารและแบบฟอร์มประจำวอร์ด</h2>
+        </div>
+        <button class="modal-close-btn" id="docsModalCloseBtn" aria-label="ปิดหน้าต่าง"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <div class="modal-body docs-modal-body">
+        <!-- Search & Filter Controls -->
+        <div class="docs-filter-bar">
+          <div class="docs-search-wrap">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <input type="text" id="docSearchInput" placeholder="ค้นหาชื่อเอกสาร, หมวดหมู่, หรือนามสกุลไฟล์..." autocomplete="off">
+            <button type="button" class="btn-clear-doc-search" id="btnClearDocSearch" title="ล้างการค้นหา" style="display: none;"><i class="fa-solid fa-xmark"></i></button>
+          </div>
+          <div class="docs-category-chips" id="docCategoryChips">
+            <button type="button" class="doc-chip active" data-category="all">ทั้งหมด</button>
+            <button type="button" class="doc-chip" data-category="แบบฟอร์มบันทึก">แบบฟอร์มบันทึก</button>
+            <button type="button" class="doc-chip" data-category="แบบประเมิน">แบบประเมิน</button>
+            <button type="button" class="doc-chip" data-category="CPG">แนวทาง CPG</button>
+            <button type="button" class="doc-chip" data-category="ทั่วไป">เอกสารทั่วไป</button>
+          </div>
+        </div>
+
+        <!-- Documents List -->
+        <div class="docs-list-grid" id="docsListGrid">
+          <!-- Populated dynamically by renderDocumentsList() -->
+        </div>
+
+        <!-- Admin Management Accordion -->
+        <div class="io-admin-wrapper docs-admin-wrapper">
+          <div class="io-admin-toggle" id="docsAdminToggle" role="button" tabindex="0">
+            <div class="io-admin-toggle-left">
+              <i class="fa-solid fa-shield-halved"></i>
+              <span>จัดการและอัปโหลดเอกสารใหม่ (สำหรับ Admin / หัวหน้าเวร)</span>
+            </div>
+            <i class="fa-solid fa-chevron-down" id="docsAdminChevron"></i>
+          </div>
+
+          <div class="io-admin-panel" id="docsAdminPanel" style="display: none;">
+            <!-- Password Gate -->
+            <div class="io-admin-gate" id="docsAdminGate">
+              <p class="io-gate-desc">กรุณาใส่รหัสผ่านผู้ดูแลระบบ (Admin Password) เพื่อเลือกไฟล์และอัปเดตเอกสารใหม่ขึ้น Cloud:</p>
+              <div class="io-pass-row">
+                <div class="io-input-wrap">
+                  <i class="fa-solid fa-key"></i>
+                  <input type="password" id="docsAdminPassword" placeholder="รหัสผ่าน Admin..." autocomplete="off">
+                </div>
+                <button type="button" class="btn-unlock-admin" id="btnUnlockDocsAdmin">
+                  <i class="fa-solid fa-unlock-keyhole"></i> ปลดล็อก
+                </button>
+              </div>
+            </div>
+
+            <!-- Upload Form (Unlocked) -->
+            <div class="io-upload-section" id="docsUploadSection" style="display: none;">
+              <div class="io-admin-badge-success">
+                <i class="fa-solid fa-lock-open"></i> ได้รับสิทธิ์ผู้ดูแลระบบเรียบร้อย (Admin Mode)
+              </div>
+
+              <!-- Batch Defaults Row -->
+              <div class="doc-form-row">
+                <div class="doc-form-group flex-1">
+                  <label class="doc-form-label"><i class="fa-solid fa-tag"></i> หมวดหมู่เอกสารเริ่มต้น</label>
+                  <select id="newDocCategory" class="doc-form-select">
+                    <option value="แบบฟอร์มบันทึกทางการพยาบาล">แบบฟอร์มบันทึกทางการพยาบาล</option>
+                    <option value="แบบประเมินทางการพยาบาล">แบบประเมินทางการพยาบาล</option>
+                    <option value="แนวทาง CPG / หัตถการ">แนวทาง CPG / หัตถการ</option>
+                    <option value="เอกสารและแบบฟอร์มทั่วไป">เอกสารและแบบฟอร์มทั่วไป</option>
+                  </select>
+                </div>
+                <div class="doc-form-group flex-1">
+                  <label class="doc-form-label"><i class="fa-solid fa-user-pen"></i> ชื่อผู้แก้ไข / หัวหน้าเวร</label>
+                  <input type="text" id="docsUploaderName" class="doc-form-input" placeholder="เช่น พี่วิ Nurse In-charge" maxlength="50">
+                </div>
+              </div>
+
+              <!-- Multi-file Drop Zone -->
+              <div class="io-drop-zone docs-drop-zone" id="docsDropZone">
+                <i class="fa-solid fa-cloud-arrow-up drop-zone-icon"></i>
+                <p class="drop-zone-text">ลากไฟล์เอกสารมาวางที่นี่ หรือ <strong>คลิกเพื่อเลือกไฟล์ (เลือกได้หลายไฟล์พร้อมกัน)</strong></p>
+                <span class="drop-zone-sub">รองรับ Excel (.xlsx, .xls), Word (.docx, .doc), PDF (.pdf) และไฟล์อื่นๆ สูงสุดไฟล์ละ 15MB</span>
+                <input type="file" id="docsFileInput" accept=".xlsx,.xls,.docx,.doc,.pdf,.txt,.csv" multiple style="display: none;">
+              </div>
+
+              <!-- Multi-File Queue Container -->
+              <div class="docs-queue-container" id="docsQueueContainer" style="display: none;">
+                <div class="docs-queue-header">
+                  <div class="docs-queue-header-left">
+                    <span class="docs-queue-title"><i class="fa-solid fa-file-circle-check"></i> รายการไฟล์ที่พร้อมอัปโหลด (<span id="docsQueueCount">0</span> ไฟล์)</span>
+                    <span class="docs-queue-totalsize" id="docsQueueTotalSize">(0 KB)</span>
+                  </div>
+                  <div class="docs-queue-header-right">
+                    <button type="button" class="btn-queue-action btn-add-more" id="btnAddMoreDocs" title="เลือกไฟล์เพิ่ม"><i class="fa-solid fa-plus"></i> เพิ่มไฟล์อีก</button>
+                    <button type="button" class="btn-queue-action btn-clear-all" id="btnClearDocsQueue" title="ล้างรายการทั้งหมด"><i class="fa-solid fa-trash-can"></i> ล้างรายการ</button>
+                  </div>
+                </div>
+
+                <div class="docs-queue-list" id="docsQueueList">
+                  <!-- Dynamically populated file rows -->
+                </div>
+              </div>
+
+              <!-- Upload Submit Action Bar -->
+              <div class="docs-upload-actions-bar">
+                <button type="button" class="btn-submit-upload" id="btnUploadDoc" disabled>
+                  <i class="fa-solid fa-cloud-arrow-up"></i>
+                  <span id="btnUploadDocText">บันทึกและอัปโหลดเอกสารขึ้น Cloud</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="modal-footer io-modal-footer">
+        <div class="template-tip">
+          <i class="fa-solid fa-circle-info"></i>
+          <span>สามารถดาวน์โหลดไฟล์ไปเปิดใช้งานบน Excel, Word, PDF Reader หรืออุปกรณ์มือถือ/แท็บเล็ตได้ทันที</span>
+        </div>
+        <button type="button" class="btn btn-secondary btn-sm" id="btnCloseDocsModal">ปิดหน้าต่าง</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit Document Modal (Admin) -->
+  <div class="modal-overlay" id="editDocModal" aria-hidden="true">
+    <div class="modal-card" style="max-width: 480px;">
+      <div class="modal-header docs-modal-header" style="background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);">
+        <div class="modal-header-left">
+          <span class="modal-badge-docs"><i class="fa-solid fa-pen-to-square"></i> Edit Document</span>
+          <h2 class="modal-title">✏️ แก้ไขชื่อและหมวดหมู่เอกสาร</h2>
+        </div>
+        <button class="modal-close-btn" id="btnCancelEditDoc" aria-label="ปิด"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <div class="modal-body" style="padding: 16px 20px;">
+        <div class="doc-form-group" style="margin-bottom: 12px;">
+          <label class="doc-form-label"><i class="fa-solid fa-paperclip"></i> ชื่อไฟล์ต้นฉบับ</label>
+          <input type="text" id="editDocFilename" class="doc-form-input" disabled style="opacity: 0.75; background: var(--bg-hover);">
+        </div>
+        <div class="doc-form-group" style="margin-bottom: 12px;">
+          <label class="doc-form-label"><i class="fa-solid fa-file-signature"></i> ชื่อเอกสาร (ที่จะแสดงในระบบ)</label>
+          <input type="text" id="editDocTitle" class="doc-form-input" placeholder="ระบุชื่อเอกสาร..." maxlength="100">
+        </div>
+        <div class="doc-form-group" style="margin-bottom: 12px;">
+          <label class="doc-form-label"><i class="fa-solid fa-tag"></i> หมวดหมู่เอกสาร</label>
+          <select id="editDocCategory" class="doc-form-select">
+            <option value="แบบฟอร์มบันทึกทางการพยาบาล">แบบฟอร์มบันทึกทางการพยาบาล</option>
+            <option value="แบบประเมินทางการพยาบาล">แบบประเมินทางการพยาบาล</option>
+            <option value="แนวทาง CPG / หัตถการ">แนวทาง CPG / หัตถการ</option>
+            <option value="เอกสารและแบบฟอร์มทั่วไป">เอกสารและแบบฟอร์มทั่วไป</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="modal-footer io-modal-footer">
+        <button type="button" class="btn btn-secondary btn-sm" id="btnCloseEditDocModal">ยกเลิก</button>
+        <button type="button" class="btn btn-primary btn-sm" id="btnSaveEditDoc" style="background: #2563eb; color: #ffffff; border: none; padding: 7px 18px; border-radius: var(--radius-sm); font-weight: 600; cursor: pointer;">
+          <i class="fa-solid fa-floppy-disk"></i> บันทึกการแก้ไข
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- User Login & Register Modal -->
+  <div class="modal-overlay" id="loginModal" aria-hidden="true">
+    <div class="modal-card" style="max-width: 440px;">
+      <div class="modal-header" style="background: linear-gradient(135deg, #0d9488 0%, #14b8a6 100%);">
+        <div class="modal-header-left">
+          <span class="modal-badge-docs"><i class="fa-solid fa-hospital-user"></i> Medical Text Expander</span>
+          <h2 class="modal-title" id="authModalTitle">🔐 เข้าสู่ระบบผู้ใช้งาน</h2>
+        </div>
+        <button class="modal-close-btn" id="btnCloseLoginModal" aria-label="ปิด" style="display:none;"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <!-- Auth Tabs: Login vs Register -->
+      <div class="auth-modal-tabs">
+        <button type="button" class="auth-tab-btn active" id="tabBtnLogin">
+          <i class="fa-solid fa-arrow-right-to-bracket"></i> เข้าสู่ระบบ
+        </button>
+        <button type="button" class="auth-tab-btn" id="tabBtnRegister">
+          <i class="fa-solid fa-user-plus"></i> ลงทะเบียนใหม่
+        </button>
+      </div>
+
+      <div class="modal-body" style="padding: 20px 24px;">
+        <!-- TAB 1: LOGIN FORM -->
+        <form id="loginForm" onsubmit="return false;">
+          <div class="doc-form-group" style="margin-bottom: 14px;">
+            <label class="doc-form-label"><i class="fa-solid fa-user"></i> ชื่อผู้ใช้งาน (Username)</label>
+            <input type="text" id="loginUsername" class="doc-form-input" placeholder="ระบุ username (เช่น admin)..." required autocomplete="username">
+          </div>
+          <div class="doc-form-group" style="margin-bottom: 10px;">
+            <label class="doc-form-label"><i class="fa-solid fa-key"></i> รหัสผ่าน (Password)</label>
+            <input type="password" id="loginPassword" class="doc-form-input" placeholder="ระบุรหัสผ่าน..." required autocomplete="current-password">
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 14px; font-size:13px; color:var(--text-muted);">
+            <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+              <input type="checkbox" id="loginShowPassword" style="cursor:pointer;">
+              <span>แสดงรหัสผ่าน</span>
+            </label>
+            <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+              <input type="checkbox" id="loginRememberMe" checked style="cursor:pointer;">
+              <span title="จดจำการล็อกอินไว้ในอุปกรณ์นี้">จดจำการเข้าสู่ระบบ</span>
+            </label>
+          </div>
+          <div id="loginErrorMessage" class="alert-box-danger" style="display:none; margin-bottom: 14px;"></div>
+          <div style="display: flex; gap: 10px; margin-top: 10px;">
+            <button type="submit" class="btn btn-primary" id="btnLoginSubmit" style="flex:1; justify-content:center; background:#0d9488;">
+              <i class="fa-solid fa-arrow-right-to-bracket"></i> เข้าสู่ระบบ
+            </button>
+            <button type="button" class="btn btn-secondary" id="btnCancelLoginModal" style="flex:0.6; justify-content:center; display:none;">
+              ยกเลิก
+            </button>
+          </div>
+        </form>
+
+        <!-- TAB 2: REGISTER FORM -->
+        <form id="registerForm" onsubmit="return false;" style="display:none;">
+          <div class="doc-form-group" style="margin-bottom: 12px;">
+            <label class="doc-form-label"><i class="fa-solid fa-id-badge"></i> ชื่อผู้ใช้งาน (Username สำหรับล็อกอิน) *</label>
+            <input type="text" id="regUsername" class="doc-form-input" placeholder="ภาษาอังกฤษหรือตัวเลข (เช่น nurse01)..." required autocomplete="off">
+            <span style="font-size:11px; color:var(--text-muted); margin-top:2px; display:block;">ใช้ตัวอักษร a-z, 0-9 หรือขีดล่าง ความยาว 3-20 ตัวอักษร</span>
+          </div>
+          <div class="doc-form-group" style="margin-bottom: 12px;">
+            <label class="doc-form-label"><i class="fa-solid fa-user-tag"></i> ชื่อ-สกุล หรือชื่อแสดงในวอร์ด *</label>
+            <input type="text" id="regDisplayName" class="doc-form-input" placeholder="เช่น พว. สุดา (กะเช้า)..." required autocomplete="off">
+          </div>
+          <div class="doc-form-group" style="margin-bottom: 12px;">
+            <label class="doc-form-label"><i class="fa-solid fa-key"></i> กำหนดรหัสผ่าน *</label>
+            <input type="password" id="regPassword" class="doc-form-input" placeholder="อย่างน้อย 4 ตัวอักษร..." required autocomplete="new-password">
+          </div>
+          <div class="doc-form-group" style="margin-bottom: 10px;">
+            <label class="doc-form-label"><i class="fa-solid fa-shield-halved"></i> ยืนยันรหัสผ่านอีกครั้ง *</label>
+            <input type="password" id="regConfirmPassword" class="doc-form-input" placeholder="กรอกรหัสผ่านซ้ำ..." required autocomplete="new-password">
+          </div>
+          <div style="display:flex; align-items:center; gap:8px; margin-bottom: 14px; font-size:13px; color:var(--text-muted); cursor:pointer;">
+            <input type="checkbox" id="regShowPassword" style="cursor:pointer;">
+            <label for="regShowPassword" style="cursor:pointer;">แสดงรหัสผ่าน</label>
+          </div>
+          <div id="registerErrorMessage" class="alert-box-danger" style="display:none; margin-bottom: 14px;"></div>
+          <div style="display: flex; gap: 10px; margin-top: 10px;">
+            <button type="submit" class="btn btn-primary" id="btnRegisterSubmit" style="flex:1; justify-content:center; background:#10b981;">
+              <i class="fa-solid fa-user-plus"></i> ลงทะเบียนและเข้าใช้งานทันที
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- User Management Modal (Admin) -->
+  <div class="modal-overlay" id="userManagementModal" aria-hidden="true">
+    <div class="modal-card" style="max-width: 860px; max-height: 90vh; display: flex; flex-direction: column;">
+      <div class="modal-header" style="background: linear-gradient(135deg, #0f766e 0%, #0d9488 100%);">
+        <div class="modal-header-left">
+          <span class="modal-badge-docs"><i class="fa-solid fa-users-gear"></i> Admin Management</span>
+          <h2 class="modal-title">👥 จัดการบัญชีผู้ใช้งานและสิทธิ์ (Ward Users)</h2>
+        </div>
+        <button class="modal-close-btn" id="btnCloseUserManagementModal" aria-label="ปิด"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <div class="modal-body" style="padding: 16px 20px; overflow-y: auto; flex: 1;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 10px;">
+          <button type="button" class="btn btn-primary btn-sm" id="btnOpenAddUserModal" style="background:#10b981; border:none;">
+            <i class="fa-solid fa-user-plus"></i> เพิ่มผู้ใช้งานใหม่
+          </button>
+          <div style="position:relative; width: 260px;">
+            <i class="fa-solid fa-magnifying-glass" style="position:absolute; left:10px; top:50%; transform:translateY(-50%); color:var(--text-muted); font-size:12px;"></i>
+            <input type="text" id="userSearchInput" class="doc-form-input" placeholder="ค้นหาชื่อผู้ใช้..." style="padding-left:30px; height:32px; font-size:13px;">
+          </div>
+        </div>
+
+        <div class="table-responsive-container">
+          <table class="user-management-table" id="usersTable">
+            <thead>
+              <tr>
+                <th>Username</th>
+                <th>ชื่อแสดง (Display Name)</th>
+                <th>บทบาท (Role)</th>
+                <th>ชุดเตียง (Slot)</th>
+                <th>วิธีสมัคร</th>
+                <th>เข้าใช้ล่าสุด</th>
+                <th>สถานะ</th>
+                <th style="text-align: right;">จัดการ</th>
+              </tr>
+            </thead>
+            <tbody id="usersTableBody">
+              <!-- Populated by JS -->
+            </tbody>
+          </table>
+        </div>
+
+        <div style="background: var(--bg-hover); border-radius: var(--radius-sm); padding: 12px 14px; margin-top: 14px; font-size: 13px; color: var(--text-muted); display:flex; gap:10px; align-items:flex-start;">
+          <i class="fa-solid fa-circle-info" style="color:#0d9488; font-size:16px; margin-top:2px;"></i>
+          <div>
+            <strong>คำแนะนำระบบหลายผู้ใช้:</strong>
+            <ul style="margin: 4px 0 0 16px; padding:0;">
+              <li>บัญชี <strong>admin</strong> ครอบครองข้อมูลเตียง 1-30 หลักของวอร์ด</li>
+              <li>ผู้ใช้แต่ละคนจะมีชุดเตียง 1-30 แยกอิสระเป็นของตนเอง ไม่ปะปนกัน</li>
+              <li>ผู้ดูแลระบบ (Admin) สามารถกดปุ่ม <strong>[สลับดูเตียง]</strong> เพื่อเข้าไปดูและแก้ไขเตียงของพยาบาลทุกคนได้</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer io-modal-footer">
+        <button type="button" class="btn btn-secondary btn-sm" id="btnDismissUserManagement">ปิดหน้าต่าง</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add / Edit User Modal -->
+  <div class="modal-overlay" id="addEditUserModal" aria-hidden="true">
+    <div class="modal-card" style="max-width: 440px;">
+      <div class="modal-header" id="addEditUserHeader" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+        <div class="modal-header-left">
+          <span class="modal-badge-docs"><i class="fa-solid fa-user-pen"></i> User Form</span>
+          <h2 class="modal-title" id="addEditUserTitle">➕ เพิ่มผู้ใช้งานใหม่</h2>
+        </div>
+        <button class="modal-close-btn" id="btnCloseAddEditUserModal" aria-label="ปิด"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <div class="modal-body" style="padding: 16px 20px;">
+        <form id="addEditUserForm" onsubmit="return false;">
+          <input type="hidden" id="userFormId">
+          <div class="doc-form-group" style="margin-bottom: 12px;">
+            <label class="doc-form-label"><i class="fa-solid fa-user"></i> ชื่อผู้ใช้งาน (Username)</label>
+            <input type="text" id="userFormUsername" class="doc-form-input" placeholder="ระบุ username (ภาษาอังกฤษ/ตัวเลข)..." required maxlength="30">
+          </div>
+          <div class="doc-form-group" style="margin-bottom: 12px;">
+            <label class="doc-form-label"><i class="fa-solid fa-id-badge"></i> ชื่อแสดง / ตำแหน่ง (Display Name)</label>
+            <input type="text" id="userFormDisplayName" class="doc-form-input" placeholder="เช่น พว.สมหญิง วอร์ดกระดูก..." required maxlength="60">
+          </div>
+          <div class="doc-form-group" style="margin-bottom: 12px;">
+            <label class="doc-form-label"><i class="fa-solid fa-shield-halved"></i> บทบาท / สิทธิ์ (Role)</label>
+            <select id="userFormRole" class="doc-form-select">
+              <option value="user">👩‍⚕️ พยาบาล / ผู้ใช้งานทั่วไป (User)</option>
+              <option value="admin">👑 ผู้ดูแลระบบ (Admin)</option>
+            </select>
+          </div>
+          <div class="doc-form-group" style="margin-bottom: 10px;">
+            <label class="doc-form-label" id="userFormPasswordLabel"><i class="fa-solid fa-key"></i> รหัสผ่าน (Password)</label>
+            <input type="password" id="userFormPassword" class="doc-form-input" placeholder="ระบุรหัสผ่าน..." autocomplete="new-password">
+            <span style="font-size:11px; color:var(--text-dim);" id="userFormPasswordHint"></span>
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 14px; font-size:13px;">
+            <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+              <input type="checkbox" id="userFormShowPassword" style="cursor:pointer;">
+              <span>แสดงรหัสผ่าน</span>
+            </label>
+            <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+              <input type="checkbox" id="userFormIsActive" checked style="cursor:pointer;">
+              <span>เปิดใช้งานบัญชีนี้</span>
+            </label>
+          </div>
+          <div id="userFormErrorMessage" class="alert-box-danger" style="display:none; margin-bottom: 12px;"></div>
+        </form>
+      </div>
+
+      <div class="modal-footer io-modal-footer">
+        <button type="button" class="btn btn-secondary btn-sm" id="btnCancelAddEditUser">ยกเลิก</button>
+        <button type="button" class="btn btn-primary btn-sm" id="btnSaveUserSubmit" style="background:#0d9488; border:none;">
+          <i class="fa-solid fa-floppy-disk"></i> บันทึกข้อมูล
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- Application Logic -->
+  <script src="app.js?v=1.9.0"></script>
+</body>
+</html>
