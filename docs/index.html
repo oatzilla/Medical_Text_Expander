@@ -15,7 +15,7 @@
   <!-- FontAwesome Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   
-  <link rel="stylesheet" href="style.css?v=1.8.0">
+  <link rel="stylesheet" href="style.css?v=1.9.0">
 </head>
 <body>
   <!-- Top Navigation Bar -->
@@ -647,18 +647,29 @@
     </div>
   </div>
 
-  <!-- User Login Modal -->
+  <!-- User Login & Register Modal -->
   <div class="modal-overlay" id="loginModal" aria-hidden="true">
-    <div class="modal-card" style="max-width: 420px;">
+    <div class="modal-card" style="max-width: 440px;">
       <div class="modal-header" style="background: linear-gradient(135deg, #0d9488 0%, #14b8a6 100%);">
         <div class="modal-header-left">
-          <span class="modal-badge-docs"><i class="fa-solid fa-lock"></i> Authentication</span>
-          <h2 class="modal-title">🔐 เข้าสู่ระบบผู้ใช้งาน</h2>
+          <span class="modal-badge-docs"><i class="fa-solid fa-hospital-user"></i> Medical Text Expander</span>
+          <h2 class="modal-title" id="authModalTitle">🔐 เข้าสู่ระบบผู้ใช้งาน</h2>
         </div>
-        <button class="modal-close-btn" id="btnCloseLoginModal" aria-label="ปิด"><i class="fa-solid fa-xmark"></i></button>
+        <button class="modal-close-btn" id="btnCloseLoginModal" aria-label="ปิด" style="display:none;"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <!-- Auth Tabs: Login vs Register -->
+      <div class="auth-modal-tabs">
+        <button type="button" class="auth-tab-btn active" id="tabBtnLogin">
+          <i class="fa-solid fa-arrow-right-to-bracket"></i> เข้าสู่ระบบ
+        </button>
+        <button type="button" class="auth-tab-btn" id="tabBtnRegister">
+          <i class="fa-solid fa-user-plus"></i> ลงทะเบียนใหม่
+        </button>
       </div>
 
       <div class="modal-body" style="padding: 20px 24px;">
+        <!-- TAB 1: LOGIN FORM -->
         <form id="loginForm" onsubmit="return false;">
           <div class="doc-form-group" style="margin-bottom: 14px;">
             <label class="doc-form-label"><i class="fa-solid fa-user"></i> ชื่อผู้ใช้งาน (Username)</label>
@@ -668,17 +679,54 @@
             <label class="doc-form-label"><i class="fa-solid fa-key"></i> รหัสผ่าน (Password)</label>
             <input type="password" id="loginPassword" class="doc-form-input" placeholder="ระบุรหัสผ่าน..." required autocomplete="current-password">
           </div>
-          <div style="display:flex; align-items:center; gap:8px; margin-bottom: 14px; font-size:13px; color:var(--text-muted); cursor:pointer;">
-            <input type="checkbox" id="loginShowPassword" style="cursor:pointer;">
-            <label for="loginShowPassword" style="cursor:pointer;">แสดงรหัสผ่าน</label>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 14px; font-size:13px; color:var(--text-muted);">
+            <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+              <input type="checkbox" id="loginShowPassword" style="cursor:pointer;">
+              <span>แสดงรหัสผ่าน</span>
+            </label>
+            <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+              <input type="checkbox" id="loginRememberMe" checked style="cursor:pointer;">
+              <span title="จดจำการล็อกอินไว้ในอุปกรณ์นี้">จดจำการเข้าสู่ระบบ</span>
+            </label>
           </div>
           <div id="loginErrorMessage" class="alert-box-danger" style="display:none; margin-bottom: 14px;"></div>
           <div style="display: flex; gap: 10px; margin-top: 10px;">
             <button type="submit" class="btn btn-primary" id="btnLoginSubmit" style="flex:1; justify-content:center; background:#0d9488;">
               <i class="fa-solid fa-arrow-right-to-bracket"></i> เข้าสู่ระบบ
             </button>
-            <button type="button" class="btn btn-secondary" id="btnCancelLoginModal" style="flex:0.6; justify-content:center;">
+            <button type="button" class="btn btn-secondary" id="btnCancelLoginModal" style="flex:0.6; justify-content:center; display:none;">
               ยกเลิก
+            </button>
+          </div>
+        </form>
+
+        <!-- TAB 2: REGISTER FORM -->
+        <form id="registerForm" onsubmit="return false;" style="display:none;">
+          <div class="doc-form-group" style="margin-bottom: 12px;">
+            <label class="doc-form-label"><i class="fa-solid fa-id-badge"></i> ชื่อผู้ใช้งาน (Username สำหรับล็อกอิน) *</label>
+            <input type="text" id="regUsername" class="doc-form-input" placeholder="ภาษาอังกฤษหรือตัวเลข (เช่น nurse01)..." required autocomplete="off">
+            <span style="font-size:11px; color:var(--text-muted); margin-top:2px; display:block;">ใช้ตัวอักษร a-z, 0-9 หรือขีดล่าง ความยาว 3-20 ตัวอักษร</span>
+          </div>
+          <div class="doc-form-group" style="margin-bottom: 12px;">
+            <label class="doc-form-label"><i class="fa-solid fa-user-tag"></i> ชื่อ-สกุล หรือชื่อแสดงในวอร์ด *</label>
+            <input type="text" id="regDisplayName" class="doc-form-input" placeholder="เช่น พว. สุดา (กะเช้า)..." required autocomplete="off">
+          </div>
+          <div class="doc-form-group" style="margin-bottom: 12px;">
+            <label class="doc-form-label"><i class="fa-solid fa-key"></i> กำหนดรหัสผ่าน *</label>
+            <input type="password" id="regPassword" class="doc-form-input" placeholder="อย่างน้อย 4 ตัวอักษร..." required autocomplete="new-password">
+          </div>
+          <div class="doc-form-group" style="margin-bottom: 10px;">
+            <label class="doc-form-label"><i class="fa-solid fa-shield-halved"></i> ยืนยันรหัสผ่านอีกครั้ง *</label>
+            <input type="password" id="regConfirmPassword" class="doc-form-input" placeholder="กรอกรหัสผ่านซ้ำ..." required autocomplete="new-password">
+          </div>
+          <div style="display:flex; align-items:center; gap:8px; margin-bottom: 14px; font-size:13px; color:var(--text-muted); cursor:pointer;">
+            <input type="checkbox" id="regShowPassword" style="cursor:pointer;">
+            <label for="regShowPassword" style="cursor:pointer;">แสดงรหัสผ่าน</label>
+          </div>
+          <div id="registerErrorMessage" class="alert-box-danger" style="display:none; margin-bottom: 14px;"></div>
+          <div style="display: flex; gap: 10px; margin-top: 10px;">
+            <button type="submit" class="btn btn-primary" id="btnRegisterSubmit" style="flex:1; justify-content:center; background:#10b981;">
+              <i class="fa-solid fa-user-plus"></i> ลงทะเบียนและเข้าใช้งานทันที
             </button>
           </div>
         </form>
@@ -716,6 +764,8 @@
                 <th>ชื่อแสดง (Display Name)</th>
                 <th>บทบาท (Role)</th>
                 <th>ชุดเตียง (Slot)</th>
+                <th>วิธีสมัคร</th>
+                <th>เข้าใช้ล่าสุด</th>
                 <th>สถานะ</th>
                 <th style="text-align: right;">จัดการ</th>
               </tr>
@@ -806,6 +856,6 @@
   <div class="toast-container" id="toastContainer"></div>
 
   <!-- Application Logic -->
-  <script src="app.js?v=1.8.0"></script>
+  <script src="app.js?v=1.9.0"></script>
 </body>
 </html>

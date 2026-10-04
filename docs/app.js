@@ -62,10 +62,11 @@ let usersCatalogCache = [
     id: "u_admin",
     username: "admin",
     display_name: "ผู้ดูแลระบบ (Admin)",
-    password_hash: "8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918",
+    password_hash: "9416a40b88fff19d0365e4c29fb2cd67fcd5022216708f1fa258b1513c56a41d",
     role: "admin",
     user_slot: 0,
     is_active: true,
+    registered_via: "system",
     created_at: new Date().toISOString(),
     last_login_at: null
   }
@@ -73,38 +74,61 @@ let usersCatalogCache = [
 
 function getCurrentUser() {
   try {
-    const stored = localStorage.getItem('ward_current_user');
+    let stored = sessionStorage.getItem('ward_current_user');
+    if (!stored) {
+      stored = localStorage.getItem('ward_current_user');
+    }
     if (stored) {
       const parsed = JSON.parse(stored);
-      if (parsed && parsed.username) return parsed;
+      if (parsed && parsed.username && parsed.is_active !== false) {
+        return parsed;
+      }
     }
   } catch {}
-  return {
-    id: "u_admin",
-    username: "admin",
-    display_name: "ผู้ดูแลระบบ (Admin)",
-    role: "admin",
-    user_slot: 0,
-    is_active: true
-  };
+  return null;
 }
 
-function setCurrentUser(user) {
+function setCurrentUser(user, rememberMe = true) {
+  const userData = {
+    id: user.id || user.username,
+    username: user.username,
+    display_name: user.display_name,
+    role: user.role,
+    user_slot: user.user_slot || 0,
+    is_active: user.is_active !== false,
+    registered_via: user.registered_via || 'system'
+  };
   try {
-    localStorage.setItem('ward_current_user', JSON.stringify({
-      id: user.id || user.username,
-      username: user.username,
-      display_name: user.display_name,
-      role: user.role,
-      user_slot: user.user_slot || 0,
-      is_active: user.is_active !== false
-    }));
+    if (rememberMe) {
+      localStorage.setItem('ward_current_user', JSON.stringify(userData));
+      sessionStorage.removeItem('ward_current_user');
+    } else {
+      sessionStorage.setItem('ward_current_user', JSON.stringify(userData));
+      localStorage.removeItem('ward_current_user');
+    }
   } catch {}
   updateUserUI();
 }
 
+function clearCurrentUser() {
+  try {
+    localStorage.removeItem('ward_current_user');
+    sessionStorage.removeItem('ward_current_user');
+    localStorage.removeItem('ward_admin_active_workspace');
+  } catch {}
+  if (pollTimer) {
+    clearInterval(pollTimer);
+    pollTimer = null;
+  }
+  updateUserUI();
+  initEmptyBeds();
+  renderBeds();
+  openLoginModal(true);
+}
+
 function getActiveWorkspaceUser() {
   const curUser = getCurrentUser();
+  if (!curUser) return 'admin';
   if (curUser.role !== 'admin') {
     return curUser.username;
   }
@@ -117,7 +141,7 @@ function getActiveWorkspaceUser() {
 
 function setActiveWorkspaceUser(username) {
   const curUser = getCurrentUser();
-  if (curUser.role !== 'admin') return;
+  if (!curUser || curUser.role !== 'admin') return;
   try {
     localStorage.setItem('ward_admin_active_workspace', username);
   } catch {}
@@ -206,7 +230,7 @@ async function saveUsersCatalogToCloud(usersList) {
       body: JSON.stringify({
         content: jsonStr,
         updated_at: nowIso,
-        updated_by: getCurrentUser().username || 'admin'
+        updated_by: getCurrentUser() ? (getCurrentUser().username || 'admin') : 'system'
       })
     });
   } catch (err) {
@@ -260,22 +284,33 @@ async function ensureUserSlotRowsExist(userSlot, username) {
 function updateUserUI() {
   const curUser = getCurrentUser();
   const badgeName = document.getElementById('userBadgeName');
+  const menuDisplayName = document.getElementById('menuUserDisplayName');
+  const menuRole = document.getElementById('menuUserRole');
+  const btnManageUsers = document.getElementById('btnOpenUserManagement');
+  const wsWrapper = document.getElementById('workspaceSelectWrapper');
+
+  if (!curUser) {
+    if (badgeName) badgeName.textContent = 'ยังไม่เข้าสู่ระบบ';
+    if (menuDisplayName) menuDisplayName.textContent = 'ยังไม่เข้าสู่ระบบ';
+    if (menuRole) menuRole.textContent = 'กรุณาเข้าสู่ระบบ';
+    if (btnManageUsers) btnManageUsers.style.display = 'none';
+    if (wsWrapper) wsWrapper.style.display = 'none';
+    const banner = document.getElementById('workspaceNoticeBanner');
+    if (banner) banner.style.display = 'none';
+    return;
+  }
+
   if (badgeName) {
     badgeName.textContent = curUser.display_name || curUser.username;
   }
 
-  const menuDisplayName = document.getElementById('menuUserDisplayName');
   if (menuDisplayName) {
     menuDisplayName.textContent = curUser.display_name || curUser.username;
   }
 
-  const menuRole = document.getElementById('menuUserRole');
   if (menuRole) {
     menuRole.textContent = curUser.role === 'admin' ? '👑 ผู้ดูแลระบบ (Admin)' : '👩‍⚕️ พยาบาล / ผู้ใช้ทั่วไป';
   }
-
-  const btnManageUsers = document.getElementById('btnOpenUserManagement');
-  const wsWrapper = document.getElementById('workspaceSelectWrapper');
 
   if (curUser.role === 'admin') {
     if (btnManageUsers) btnManageUsers.style.display = 'flex';
@@ -293,7 +328,7 @@ function updateWorkspaceSelectOptions() {
   const wsSelect = document.getElementById('workspaceSelect');
   if (!wsSelect) return;
   const curUser = getCurrentUser();
-  if (curUser.role !== 'admin') return;
+  if (!curUser || curUser.role !== 'admin') return;
 
   const currentVal = wsSelect.value || localStorage.getItem('ward_admin_active_workspace') || 'admin';
   wsSelect.innerHTML = '';
@@ -327,7 +362,7 @@ function updateWorkspaceNoticeBanner() {
   const curUser = getCurrentUser();
   const wsUser = getActiveWorkspaceUser();
 
-  if (curUser.role === 'admin' && wsUser !== 'admin') {
+  if (curUser && curUser.role === 'admin' && wsUser !== 'admin') {
     const targetUser = usersCatalogCache.find(u => u.username.toLowerCase() === wsUser.toLowerCase());
     const dName = targetUser ? `${targetUser.display_name} (${targetUser.username})` : wsUser;
     if (label) label.textContent = `กำลังดูและจัดการเตียงของ: ${dName} (โหมด Admin ควบคุม)`;
@@ -396,17 +431,24 @@ const toastContainer = document.getElementById('toastContainer');
 // ==========================================
 document.addEventListener('DOMContentLoaded', () => {
   initTheme();
-  initMultiUserSession();
-  initAuthorName();
-  initEmptyBeds();
-  loadCachedBeds();
   setupEventListeners();
-  
-  // Initial fetch and start polling every 3 seconds
-  fetchAllBeds();
   initClinicalTemplates();
   initIoTemplateSystem();
-  pollTimer = setInterval(fetchAllBeds, 3000);
+
+  const curUser = getCurrentUser();
+  if (!curUser) {
+    initMultiUserSession();
+    initEmptyBeds();
+    renderBeds();
+    openLoginModal(true);
+  } else {
+    initMultiUserSession();
+    initAuthorName();
+    initEmptyBeds();
+    loadCachedBeds();
+    fetchAllBeds();
+    pollTimer = setInterval(fetchAllBeds, 3000);
+  }
 });
 
 // Initialize 30 empty beds
@@ -479,14 +521,73 @@ function saveAuthorName(name) {
 // ==========================================
 // Multi-User UI & Modal Management
 // ==========================================
-function openLoginModal() {
+let isAuthModalMandatory = false;
+
+function switchAuthTab(tabName) {
+  const tabLogin = document.getElementById('tabBtnLogin');
+  const tabReg = document.getElementById('tabBtnRegister');
+  const formLogin = document.getElementById('loginForm');
+  const formReg = document.getElementById('registerForm');
+  const title = document.getElementById('authModalTitle');
+  const errLogin = document.getElementById('loginErrorMessage');
+  const errReg = document.getElementById('registerErrorMessage');
+
+  if (errLogin) errLogin.style.display = 'none';
+  if (errReg) errReg.style.display = 'none';
+
+  if (tabName === 'register') {
+    if (tabLogin) tabLogin.classList.remove('active');
+    if (tabReg) tabReg.classList.add('active');
+    if (formLogin) formLogin.style.display = 'none';
+    if (formReg) formReg.style.display = 'block';
+    if (title) title.innerHTML = '📝 ลงทะเบียนผู้ใช้งานใหม่';
+    const regUser = document.getElementById('regUsername');
+    if (regUser) setTimeout(() => regUser.focus(), 100);
+  } else {
+    if (tabReg) tabReg.classList.remove('active');
+    if (tabLogin) tabLogin.classList.add('active');
+    if (formReg) formReg.style.display = 'none';
+    if (formLogin) formLogin.style.display = 'block';
+    if (title) title.innerHTML = '🔐 เข้าสู่ระบบผู้ใช้งาน';
+    const logUser = document.getElementById('loginUsername');
+    if (logUser) setTimeout(() => logUser.focus(), 100);
+  }
+}
+
+function openLoginModal(isMandatory = false) {
+  isAuthModalMandatory = isMandatory;
   const modal = document.getElementById('loginModal');
+  const btnClose = document.getElementById('btnCloseLoginModal');
+  const btnCancel = document.getElementById('btnCancelLoginModal');
   const userInp = document.getElementById('loginUsername');
   const passInp = document.getElementById('loginPassword');
   const errMsg = document.getElementById('loginErrorMessage');
+  const regErr = document.getElementById('registerErrorMessage');
+
   if (errMsg) errMsg.style.display = 'none';
+  if (regErr) regErr.style.display = 'none';
   if (userInp) userInp.value = '';
   if (passInp) passInp.value = '';
+
+  const regUser = document.getElementById('regUsername');
+  const regDisplay = document.getElementById('regDisplayName');
+  const regPass = document.getElementById('regPassword');
+  const regConfirm = document.getElementById('regConfirmPassword');
+  if (regUser) regUser.value = '';
+  if (regDisplay) regDisplay.value = '';
+  if (regPass) regPass.value = '';
+  if (regConfirm) regConfirm.value = '';
+
+  if (isMandatory) {
+    if (btnClose) btnClose.style.display = 'none';
+    if (btnCancel) btnCancel.style.display = 'none';
+  } else {
+    if (btnClose) btnClose.style.display = 'inline-flex';
+    if (btnCancel) btnCancel.style.display = 'inline-flex';
+  }
+
+  switchAuthTab('login');
+
   if (modal) {
     modal.classList.add('open');
     modal.setAttribute('aria-hidden', 'false');
@@ -495,6 +596,9 @@ function openLoginModal() {
 }
 
 function closeLoginModal() {
+  if (isAuthModalMandatory && !getCurrentUser()) {
+    return;
+  }
   const modal = document.getElementById('loginModal');
   if (modal) {
     modal.classList.remove('open');
@@ -542,24 +646,50 @@ function renderUsersTable(filterText = '') {
       ? '<span style="font-weight:600; color:#0d9488;">เตียงหลัก (1-30)</span>'
       : `<span>Slot ${u.user_slot} (${(u.user_slot * 100) + 1} - ${(u.user_slot * 100) + 30})</span>`;
 
+    let regBadge = '<span class="badge-reg-type">ระบบเดิม</span>';
+    if (u.registered_via === 'app_self') {
+      regBadge = '<span class="badge-reg-type badge-reg-app"><i class="fa-solid fa-desktop"></i> ลงทะเบียน (App)</span>';
+    } else if (u.registered_via === 'web_self') {
+      regBadge = '<span class="badge-reg-type badge-reg-web"><i class="fa-solid fa-globe"></i> ลงทะเบียน (Web)</span>';
+    } else if (u.registered_via === 'admin_manual') {
+      regBadge = '<span class="badge-reg-type badge-reg-admin"><i class="fa-solid fa-user-shield"></i> แอดมินสร้าง</span>';
+    }
+
+    let lastLoginText = '<span style="color:var(--text-muted); font-size:12px;">ยังไม่เคยเข้าใช้</span>';
+    if (u.last_login_at) {
+      try {
+        const d = new Date(u.last_login_at);
+        const pad = (n) => String(n).padStart(2, '0');
+        const formattedDate = `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear() % 100} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+        lastLoginText = `<span style="font-size:12px;" title="${escapeHtml(u.last_login_at)}">${formattedDate}</span>`;
+      } catch {
+        lastLoginText = `<span style="font-size:12px;">${escapeHtml(u.last_login_at)}</span>`;
+      }
+    }
+
     const statusBadge = u.is_active !== false
       ? '<span class="badge-status-active"><i class="fa-solid fa-circle-check"></i> ใช้งาน</span>'
       : '<span class="badge-status-inactive"><i class="fa-solid fa-circle-xmark"></i> ปิดใช้งาน</span>';
 
     let actionBtns = '';
     // Switch to view bed
-    actionBtns += `<button type="button" class="btn btn-secondary btn-sm" onclick="handleAdminSwitchToUser('${escapeHtml(u.username)}')" title="สลับดูเตียงของผู้ใช้นี้" style="margin-right:6px; padding:3px 8px; font-size:12px;">
+    actionBtns += `<button type="button" class="btn btn-secondary btn-sm" onclick="handleAdminSwitchToUser('${escapeHtml(u.username)}')" title="สลับดูเตียงของผู้ใช้นี้" style="margin-right:4px; padding:3px 7px; font-size:12px;">
       <i class="fa-solid fa-eye"></i> ดูเตียง
     </button>`;
 
     // Edit button
-    actionBtns += `<button type="button" class="btn btn-secondary btn-sm" onclick="handleOpenEditUserModal('${escapeHtml(u.id || u.username)}')" title="แก้ไขข้อมูล" style="margin-right:6px; padding:3px 8px; font-size:12px;">
-      <i class="fa-solid fa-pen"></i> แก้ไข
+    actionBtns += `<button type="button" class="btn btn-secondary btn-sm" onclick="handleOpenEditUserModal('${escapeHtml(u.id || u.username)}')" title="แก้ไขข้อมูล" style="margin-right:4px; padding:3px 7px; font-size:12px;">
+      <i class="fa-solid fa-pen"></i>
     </button>`;
 
-    // Delete button (not for admin)
+    // Toggle active status & Delete button (not for admin)
     if (u.username.toLowerCase() !== 'admin') {
-      actionBtns += `<button type="button" class="btn btn-secondary btn-sm" onclick="handleDeleteUser('${escapeHtml(u.username)}')" title="ลบผู้ใช้" style="padding:3px 8px; font-size:12px; color:#ef4444;">
+      const isAct = u.is_active !== false;
+      actionBtns += `<button type="button" class="btn btn-secondary btn-sm" onclick="handleToggleUserActive('${escapeHtml(u.username)}')" title="${isAct ? 'ระงับการใช้งาน' : 'เปิดใช้งาน'}" style="margin-right:4px; padding:3px 7px; font-size:12px; color:${isAct ? '#f59e0b' : '#10b981'};">
+        <i class="fa-solid ${isAct ? 'fa-ban' : 'fa-check'}"></i>
+      </button>`;
+
+      actionBtns += `<button type="button" class="btn btn-secondary btn-sm" onclick="handleDeleteUser('${escapeHtml(u.username)}')" title="ลบผู้ใช้" style="padding:3px 7px; font-size:12px; color:#ef4444;">
         <i class="fa-solid fa-trash"></i>
       </button>`;
     }
@@ -569,6 +699,8 @@ function renderUsersTable(filterText = '') {
       <td>${escapeHtml(u.display_name || u.username)}</td>
       <td>${roleBadge}</td>
       <td>${slotText}</td>
+      <td>${regBadge}</td>
+      <td>${lastLoginText}</td>
       <td>${statusBadge}</td>
       <td style="text-align:right; white-space:nowrap;">${actionBtns}</td>
     `;
@@ -582,15 +714,51 @@ window.handleAdminSwitchToUser = function(username) {
   showToast(`👀 กำลังเปิดดูเตียงของ ${username}`, 'info');
 };
 
+window.handleToggleUserActive = async function(username) {
+  if (username.toLowerCase() === 'admin') {
+    alert('ไม่สามารถระงับบัญชีผู้ดูแลระบบหลัก (admin) ได้');
+    return;
+  }
+  const u = usersCatalogCache.find(x => x.username.toLowerCase() === username.toLowerCase());
+  if (!u) return;
+  u.is_active = (u.is_active === false) ? true : false;
+  await saveUsersCatalogToCloud(usersCatalogCache);
+  updateWorkspaceSelectOptions();
+  renderUsersTable(document.getElementById('userSearchInput')?.value || '');
+  showToast(`${u.is_active ? '✅ เปิดใช้งาน' : '⛔ ระงับการใช้งาน'} บัญชี [${username}] แล้ว`, 'info');
+};
+
 window.handleDeleteUser = async function(username) {
   if (username.toLowerCase() === 'admin') {
     alert('ไม่สามารถลบบัญชีผู้ดูแลระบบหลัก (admin) ได้');
     return;
   }
-  if (!confirm(`ต้องการลบบัญชีผู้ใช้ [${username}] ออกจากระบบใช่หรือไม่?\n\nหมายเหตุ: ข้อมูลเตียงของผู้ใช้นี้บน Cloud จะยังคงปลอดภัย`)) {
+  const u = usersCatalogCache.find(x => x.username.toLowerCase() === username.toLowerCase());
+  if (!u) return;
+
+  if (!confirm(`ต้องการลบบัญชีผู้ใช้ [${username}] ออกจากระบบใช่หรือไม่?`)) {
     return;
   }
-  usersCatalogCache = usersCatalogCache.filter(u => u.username.toLowerCase() !== username.toLowerCase());
+
+  const deleteBeds = confirm(`ต้องการล้างข้อมูลเตียง Slot ${u.user_slot} (${(u.user_slot * 100) + 1} - ${(u.user_slot * 100) + 30}) บน Cloud ด้วยหรือไม่?\n\nกด [OK / ตกลง] เพื่อล้างข้อมูลเตียงทั้งหมดของผู้ใช้นี้\nกด [Cancel / ยกเลิก] เพื่อลบเฉพาะบัญชีแต่เก็บประวัติเตียงไว้`);
+
+  if (deleteBeds && u.user_slot > 0) {
+    try {
+      const minBed = (u.user_slot * 100) + 1;
+      const maxBed = (u.user_slot * 100) + 30;
+      await fetch(`${SUPABASE_URL}/rest/v1/bed_notes?bed_number=gte.${minBed}&bed_number=lte.${maxBed}`, {
+        method: 'DELETE',
+        headers: {
+          'apikey': SUPABASE_KEY,
+          'Authorization': `Bearer ${SUPABASE_KEY}`
+        }
+      });
+    } catch (e) {
+      console.warn('Clear user beds error:', e);
+    }
+  }
+
+  usersCatalogCache = usersCatalogCache.filter(x => x.username.toLowerCase() !== username.toLowerCase());
   await saveUsersCatalogToCloud(usersCatalogCache);
   updateWorkspaceSelectOptions();
   renderUsersTable(document.getElementById('userSearchInput')?.value || '');
@@ -722,6 +890,7 @@ async function saveAddEditUserSubmit() {
         role: formRole,
         user_slot: newSlot,
         is_active: formActive,
+        registered_via: 'admin_manual',
         created_at: new Date().toISOString(),
         last_login_at: null
       };
@@ -949,7 +1118,7 @@ function setupEventListeners() {
     btnOpenLogin.addEventListener('click', () => {
       if (userDropdownMenu) userDropdownMenu.style.display = 'none';
       if (userBadgeBtn) userBadgeBtn.classList.remove('open');
-      openLoginModal();
+      openLoginModal(false);
     });
   }
 
@@ -957,20 +1126,14 @@ function setupEventListeners() {
   if (btnLogout) {
     btnLogout.addEventListener('click', () => {
       if (confirm('ต้องการออกจากระบบใช่หรือไม่?')) {
-        localStorage.removeItem('ward_current_user');
-        localStorage.removeItem('ward_admin_active_workspace');
         if (userDropdownMenu) userDropdownMenu.style.display = 'none';
         if (userBadgeBtn) userBadgeBtn.classList.remove('open');
-        updateUserUI();
-        initEmptyBeds();
-        loadCachedBeds();
-        fetchAllBeds();
-        openLoginModal();
+        clearCurrentUser();
       }
     });
   }
 
-  // Login Modal
+  // Login & Register Modal Controls
   const btnCloseLogin = document.getElementById('btnCloseLoginModal');
   const btnCancelLogin = document.getElementById('btnCancelLoginModal');
   if (btnCloseLogin) btnCloseLogin.addEventListener('click', closeLoginModal);
@@ -979,9 +1142,14 @@ function setupEventListeners() {
   const loginModal = document.getElementById('loginModal');
   if (loginModal) {
     loginModal.addEventListener('click', (e) => {
-      if (e.target === loginModal) closeLoginModal();
+      if (e.target === loginModal && (!isAuthModalMandatory || getCurrentUser())) closeLoginModal();
     });
   }
+
+  const tabLogin = document.getElementById('tabBtnLogin');
+  const tabReg = document.getElementById('tabBtnRegister');
+  if (tabLogin) tabLogin.addEventListener('click', () => switchAuthTab('login'));
+  if (tabReg) tabReg.addEventListener('click', () => switchAuthTab('register'));
 
   const loginShowPass = document.getElementById('loginShowPassword');
   if (loginShowPass) {
@@ -991,6 +1159,18 @@ function setupEventListeners() {
     });
   }
 
+  const regShowPass = document.getElementById('regShowPassword');
+  if (regShowPass) {
+    regShowPass.addEventListener('change', (e) => {
+      const p1 = document.getElementById('regPassword');
+      const p2 = document.getElementById('regConfirmPassword');
+      const t = e.target.checked ? 'text' : 'password';
+      if (p1) p1.type = t;
+      if (p2) p2.type = t;
+    });
+  }
+
+  // Login Form Submit
   const loginForm = document.getElementById('loginForm');
   if (loginForm) {
     loginForm.addEventListener('submit', async (e) => {
@@ -999,6 +1179,7 @@ function setupEventListeners() {
       const passInp = document.getElementById('loginPassword');
       const errMsg = document.getElementById('loginErrorMessage');
       const btnSubmit = document.getElementById('btnLoginSubmit');
+      const rememberMe = document.getElementById('loginRememberMe')?.checked ?? true;
 
       const username = userInp?.value.trim().toLowerCase();
       const password = passInp?.value || '';
@@ -1018,22 +1199,9 @@ function setupEventListeners() {
         const enteredHash = await sha256Hex(password);
         let matchedUser = usersCatalogCache.find(u => u.username.toLowerCase() === username);
 
-        if (username === 'admin' && (password === '9844' || password === 'admin' || (matchedUser && matchedUser.password_hash === enteredHash))) {
-          if (!matchedUser) {
-            matchedUser = {
-              id: 'u_admin',
-              username: 'admin',
-              display_name: 'ผู้ดูแลระบบ (Admin)',
-              role: 'admin',
-              user_slot: 0,
-              is_active: true
-            };
-          }
-        } else {
-          if (!matchedUser || matchedUser.password_hash !== enteredHash) {
-            if (errMsg) { errMsg.textContent = '❌ ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง'; errMsg.style.display = 'flex'; }
-            return;
-          }
+        if (!matchedUser || matchedUser.password_hash !== enteredHash) {
+          if (errMsg) { errMsg.textContent = '❌ ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง'; errMsg.style.display = 'flex'; }
+          return;
         }
 
         if (matchedUser.is_active === false) {
@@ -1044,7 +1212,7 @@ function setupEventListeners() {
         matchedUser.last_login_at = new Date().toISOString();
         saveUsersCatalogToCloud(usersCatalogCache);
 
-        setCurrentUser(matchedUser);
+        setCurrentUser(matchedUser, rememberMe);
         if (matchedUser.role === 'admin') {
           setActiveWorkspaceUser('admin');
         } else {
@@ -1057,6 +1225,9 @@ function setupEventListeners() {
         initEmptyBeds();
         loadCachedBeds();
         fetchAllBeds();
+        if (!pollTimer) {
+          pollTimer = setInterval(fetchAllBeds, 3000);
+        }
 
       } catch (err) {
         console.error('Login error:', err);
@@ -1065,6 +1236,105 @@ function setupEventListeners() {
         if (btnSubmit) {
           btnSubmit.disabled = false;
           btnSubmit.innerHTML = '<i class="fa-solid fa-arrow-right-to-bracket"></i> เข้าสู่ระบบ';
+        }
+      }
+    });
+  }
+
+  // Register Form Submit
+  const regForm = document.getElementById('registerForm');
+  if (regForm) {
+    regForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const regUserInp = document.getElementById('regUsername');
+      const regDisplayInp = document.getElementById('regDisplayName');
+      const regPassInp = document.getElementById('regPassword');
+      const regConfirmInp = document.getElementById('regConfirmPassword');
+      const regErrMsg = document.getElementById('registerErrorMessage');
+      const btnSubmit = document.getElementById('btnRegisterSubmit');
+
+      const username = regUserInp?.value.trim().toLowerCase();
+      const displayName = regDisplayInp?.value.trim();
+      const password = regPassInp?.value || '';
+      const confirmPass = regConfirmInp?.value || '';
+
+      if (!username || !displayName || !password || !confirmPass) {
+        if (regErrMsg) { regErrMsg.textContent = 'กรุณากรอกข้อมูลให้ครบทุกช่อง'; regErrMsg.style.display = 'flex'; }
+        return;
+      }
+
+      if (!/^[a-zA-Z0-9_]{3,20}$/.test(username)) {
+        if (regErrMsg) { regErrMsg.textContent = 'Username ต้องเป็นตัวอักษร a-z, 0-9 หรือ _ และมีความยาว 3-20 ตัวอักษร'; regErrMsg.style.display = 'flex'; }
+        return;
+      }
+
+      if (password.length < 4) {
+        if (regErrMsg) { regErrMsg.textContent = 'รหัสผ่านต้องมีความยาวอย่างน้อย 4 ตัวอักษร'; regErrMsg.style.display = 'flex'; }
+        return;
+      }
+
+      if (password !== confirmPass) {
+        if (regErrMsg) { regErrMsg.textContent = 'รหัสผ่านและการยืนยันรหัสผ่านไม่ตรงกัน'; regErrMsg.style.display = 'flex'; }
+        return;
+      }
+
+      if (btnSubmit) {
+        btnSubmit.disabled = true;
+        btnSubmit.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังลงทะเบียน...';
+      }
+
+      try {
+        await fetchUsersCatalogFromCloud();
+        const exists = usersCatalogCache.some(u => u.username.toLowerCase() === username);
+        if (exists) {
+          if (regErrMsg) { regErrMsg.textContent = `ชื่อผู้ใช้ "${username}" มีอยู่ในระบบแล้ว กรุณาใช้ชื่ออื่น`; regErrMsg.style.display = 'flex'; }
+          return;
+        }
+
+        let maxSlot = 1;
+        usersCatalogCache.forEach(u => {
+          if (u.user_slot && u.user_slot > maxSlot) maxSlot = u.user_slot;
+        });
+        const newSlot = Math.max(2, maxSlot + 1);
+        const passHash = await sha256Hex(password);
+
+        const newUser = {
+          id: 'u_' + Date.now().toString(36),
+          username: username,
+          display_name: displayName,
+          password_hash: passHash,
+          role: 'user',
+          user_slot: newSlot,
+          is_active: true,
+          registered_via: 'web_self',
+          created_at: new Date().toISOString(),
+          last_login_at: new Date().toISOString()
+        };
+
+        usersCatalogCache.push(newUser);
+        await saveUsersCatalogToCloud(usersCatalogCache);
+        await ensureUserSlotRowsExist(newSlot, username);
+
+        setCurrentUser(newUser, true);
+        localStorage.removeItem('ward_admin_active_workspace');
+
+        closeLoginModal();
+        showToast(`🎉 ยินดีต้อนรับ ${displayName}! ลงทะเบียนและเข้าใช้งานเรียบร้อย`, 'success');
+        initAuthorName();
+        initEmptyBeds();
+        loadCachedBeds();
+        fetchAllBeds();
+        if (!pollTimer) {
+          pollTimer = setInterval(fetchAllBeds, 3000);
+        }
+
+      } catch (err) {
+        console.error('Registration error:', err);
+        if (regErrMsg) { regErrMsg.textContent = 'เกิดข้อผิดพลาดในการลงทะเบียน กรุณาลองใหม่อีกครั้ง'; regErrMsg.style.display = 'flex'; }
+      } finally {
+        if (btnSubmit) {
+          btnSubmit.disabled = false;
+          btnSubmit.innerHTML = '<i class="fa-solid fa-user-plus"></i> ลงทะเบียนและเข้าใช้งานทันที';
         }
       }
     });
@@ -1128,7 +1398,9 @@ function setupEventListeners() {
       } else if (userMgmtModal && userMgmtModal.classList.contains('open')) {
         closeUserManagementModal();
       } else if (loginModal && loginModal.classList.contains('open')) {
-        closeLoginModal();
+        if (!isAuthModalMandatory || getCurrentUser()) {
+          closeLoginModal();
+        }
       } else if (templateModal && templateModal.classList.contains('open')) {
         closeTemplateModal();
       } else if (document.getElementById('docsModal') && document.getElementById('docsModal').classList.contains('open')) {
@@ -1434,15 +1706,21 @@ function hasUnsavedEditChanges() {
   return currentVal !== origVal;
 }
 
+function getDraftStorageKey(bedNum) {
+  const wsUser = getActiveWorkspaceUser() || 'admin';
+  return `ward_bed_draft_${wsUser.toLowerCase()}_${bedNum}`;
+}
+
 function saveEditDraft(bedNum) {
   const b = bedNum || activeBedNumber;
   if (!b) return;
   try {
+    const key = getDraftStorageKey(b);
     const val = noteTextarea.value;
     if (val !== originalEditContent && val.trim().length > 0) {
-      localStorage.setItem(`ward_bed_draft_${b}`, val);
+      localStorage.setItem(key, val);
     } else {
-      localStorage.removeItem(`ward_bed_draft_${b}`);
+      localStorage.removeItem(key);
     }
   } catch {}
 }
@@ -1451,7 +1729,7 @@ function clearEditDraft(bedNum) {
   const b = bedNum || activeBedNumber;
   if (!b) return;
   try {
-    localStorage.removeItem(`ward_bed_draft_${b}`);
+    localStorage.removeItem(getDraftStorageKey(b));
   } catch {}
 }
 
@@ -1493,7 +1771,7 @@ window.openEditModal = function(bedNum) {
   let initialContent = serverContent;
   let hasDraft = false;
   try {
-    const draft = localStorage.getItem(`ward_bed_draft_${bedNum}`);
+    const draft = localStorage.getItem(getDraftStorageKey(bedNum));
     if (draft !== null && draft !== serverContent && draft.trim().length > 0) {
       initialContent = draft;
       hasDraft = true;

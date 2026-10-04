@@ -197,7 +197,7 @@ namespace MedicalTextExpander {
     }
 
     public static class AppUpdater {
-        public const string CurrentVersion = "1.8.0";
+        public const string CurrentVersion = "1.9.0";
         public const string DefaultGitHubRepo = "oatzilla/Medical_Text_Expander";
 
         public static void CheckForUpdatesAsync(string repo, bool isManual, Form parent = null, string token = null) {
@@ -1376,6 +1376,19 @@ namespace MedicalTextExpander {
                     bedNotesForm.OnWorkspaceChanged();
                 }
             };
+
+            // Gate: ตรวจสอบการเข้าสู่ระบบ หากยังไม่มี session ที่จดจำไว้ ให้แสดงหน้าต่าง Login / Register บังคับ
+            if (userManager.CurrentUser == null) {
+                using (var loginDlg = new LoginRegisterDialog(this, isStartupGate: true)) {
+                    DialogResult dr = loginDlg.ShowDialog();
+                    if (dr != DialogResult.OK || userManager.CurrentUser == null) {
+                        // ปิดโปรแกรมหากไม่เข้าสู่ระบบหรือกดยกเลิก
+                        Environment.Exit(0);
+                        return;
+                    }
+                }
+            }
+
             if (userManager.CurrentUser != null) {
                 var u = userManager.ActiveWorkspaceUser;
                 bedNotesManager.SetActiveWorkspace(u.UserSlot, u.Username, u.DisplayName);
@@ -1469,7 +1482,8 @@ namespace MedicalTextExpander {
             trayMenu.Items.Add("-");
             trayMenu.Items.Add("🚀 ตรวจสอบการอัปเดต (Check for Updates)", null, (s, e) => AppUpdater.CheckForUpdatesAsync(GetGitHubRepo(), true, null));
             trayMenu.Items.Add("👥 จัดการบัญชีผู้ใช้และสิทธิ์ (User Accounts)", null, (s, e) => ShowUserManagement());
-            trayMenu.Items.Add("🔐 สลับผู้ใช้งาน (Switch / Login User)", null, (s, e) => ShowUserLogin());
+            trayMenu.Items.Add("🔀 สลับผู้ใช้งาน (Switch User / Login)", null, (s, e) => ShowUserLogin());
+            trayMenu.Items.Add("🚪 ออกจากระบบ (Logout)", null, (s, e) => Logout());
             trayMenu.Items.Add("🌐 เชื่อมต่อและซิงค์ข้อมูลในวอร์ด (Network Sync)", null, (s, e) => ShowSyncSettings());
             trayMenu.Items.Add("✏️ แก้ไขเทมเพลตข้อความ (Notepad)", null, (s, e) => EditTemplates());
             trayMenu.Items.Add("🔄 โหลดข้อมูลใหม่ทั้งหมดเดี๋ยวนี้", null, (s, e) => {
@@ -2001,8 +2015,33 @@ namespace MedicalTextExpander {
         }
 
         public void ShowUserLogin(IWin32Window owner = null) {
-            using (var dlg = new UserLoginDialog(this)) {
-                dlg.ShowDialog(owner);
+            using (var dlg = new LoginRegisterDialog(this, isStartupGate: false)) {
+                if (dlg.ShowDialog(owner) == DialogResult.OK) {
+                    if (bedNotesForm != null && !bedNotesForm.IsDisposed) {
+                        bedNotesForm.OnWorkspaceChanged();
+                        bedNotesForm.RefreshAllBedButtons();
+                    }
+                }
+            }
+        }
+
+        public void Logout() {
+            if (userManager != null) {
+                userManager.Logout();
+            }
+            if (bedNotesForm != null && !bedNotesForm.IsDisposed) bedNotesForm.Hide();
+            if (paletteForm != null && !paletteForm.IsDisposed) paletteForm.Hide();
+            if (calculatorForm != null && !calculatorForm.IsDisposed) calculatorForm.Hide();
+            if (stickyReminderForm != null && !stickyReminderForm.IsDisposed) stickyReminderForm.Hide();
+
+            using (var dlg = new LoginRegisterDialog(this, isStartupGate: true)) {
+                if (dlg.ShowDialog() == DialogResult.OK && userManager != null && userManager.CurrentUser != null) {
+                    var u = userManager.ActiveWorkspaceUser;
+                    bedNotesManager.SetActiveWorkspace(u.UserSlot, u.Username, u.DisplayName);
+                    ShowBedNotes();
+                } else {
+                    Exit();
+                }
             }
         }
 
@@ -3626,6 +3665,8 @@ namespace MedicalTextExpander {
         public int UserSlot { get; set; } // 0 = Admin (beds 1-30), 2..N = Other users
         public bool IsActive { get; set; }
         public string CreatedAt { get; set; }
+        public string LastLoginAt { get; set; }
+        public string RegisteredVia { get; set; } // "self" or "admin"
 
         public WardUserItem() {
             Id = "u_" + Guid.NewGuid().ToString("N").Substring(0, 8);
@@ -3636,6 +3677,8 @@ namespace MedicalTextExpander {
             UserSlot = 2;
             IsActive = true;
             CreatedAt = DateTime.UtcNow.ToString("o");
+            LastLoginAt = "";
+            RegisteredVia = "self";
         }
     }
 
@@ -3723,7 +3766,9 @@ namespace MedicalTextExpander {
                         Role = "admin",
                         UserSlot = 0,
                         IsActive = true,
-                        CreatedAt = DateTime.UtcNow.ToString("o")
+                        CreatedAt = DateTime.UtcNow.ToString("o"),
+                        LastLoginAt = "",
+                        RegisteredVia = "admin"
                     };
                     users.Add(admin);
                     SaveCatalogInternal();
@@ -3732,20 +3777,24 @@ namespace MedicalTextExpander {
         }
 
         private void RestoreSession() {
+            currentUser = null;
+            activeWorkspaceUser = null;
             string lastUser = "";
             if (File.Exists(sessionFilePath)) {
                 try {
                     lastUser = File.ReadAllText(sessionFilePath).Trim();
                 } catch {}
             }
-            lock (userLock) {
-                if (!string.IsNullOrEmpty(lastUser)) {
-                    currentUser = users.Find(u => string.Equals(u.Username, lastUser, StringComparison.OrdinalIgnoreCase) && u.IsActive);
+            if (!string.IsNullOrEmpty(lastUser)) {
+                lock (userLock) {
+                    var found = users.Find(u => string.Equals(u.Username, lastUser, StringComparison.OrdinalIgnoreCase));
+                    if (found != null && found.IsActive) {
+                        currentUser = found;
+                        activeWorkspaceUser = found;
+                    } else {
+                        ClearSession();
+                    }
                 }
-                if (currentUser == null) {
-                    currentUser = users.Find(u => u.Role == "admin") ?? users[0];
-                }
-                activeWorkspaceUser = currentUser;
             }
         }
 
@@ -3755,7 +3804,19 @@ namespace MedicalTextExpander {
             } catch {}
         }
 
+        public void ClearSession() {
+            try {
+                if (File.Exists(sessionFilePath)) {
+                    File.Delete(sessionFilePath);
+                }
+            } catch {}
+        }
+
         public bool Login(string username, string password, out string error) {
+            return Login(username, password, true, out error);
+        }
+
+        public bool Login(string username, string password, bool rememberMe, out string error) {
             error = "";
             if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(password)) {
                 error = "กรุณากรอกชื่อผู้ใช้และรหัสผ่าน";
@@ -3767,7 +3828,7 @@ namespace MedicalTextExpander {
                 match = users.Find(u => string.Equals(u.Username, uName, StringComparison.OrdinalIgnoreCase));
             }
             if (match == null) {
-                error = "ไม่พบบัญชีผู้ใช้นี้ในระบบ";
+                error = "ไม่พบบัญชีผู้ใช้นี้ในระบบ กรุณาตรวจสอบหรือลงทะเบียนใหม่";
                 return false;
             }
             if (!match.IsActive) {
@@ -3777,18 +3838,22 @@ namespace MedicalTextExpander {
 
             string hash = HashPassword(password);
             bool passValid = string.Equals(match.PasswordHash, hash, StringComparison.OrdinalIgnoreCase);
-            if (!passValid && match.Role == "admin" && (password == "admin" || password == "9844")) {
-                passValid = true;
-            }
 
             if (!passValid) {
                 error = "รหัสผ่านไม่ถูกต้อง";
                 return false;
             }
 
+            match.LastLoginAt = DateTime.UtcNow.ToString("o");
+            SaveCatalogInternal();
+
             currentUser = match;
             activeWorkspaceUser = match;
-            SaveSession(match.Username);
+            if (rememberMe) {
+                SaveSession(match.Username);
+            } else {
+                ClearSession();
+            }
 
             if (OnUserLoggedIn != null) {
                 try { OnUserLoggedIn(currentUser); } catch {}
@@ -3799,17 +3864,102 @@ namespace MedicalTextExpander {
             return true;
         }
 
-        public void Logout() {
-            lock (userLock) {
-                currentUser = users.Find(u => u.Role == "admin") ?? users[0];
-                activeWorkspaceUser = currentUser;
+        public bool Register(string username, string displayName, string password, bool rememberMe, out string error) {
+            error = "";
+            if (string.IsNullOrEmpty(username)) {
+                error = "กรุณาระบุชื่อผู้ใช้งาน (Username)";
+                return false;
             }
-            SaveSession(currentUser.Username);
+            string uName = username.Trim().ToLowerInvariant();
+            if (uName.Length < 3 || uName.Length > 20) {
+                error = "ชื่อผู้ใช้งานต้องมีความยาว 3 - 20 ตัวอักษร";
+                return false;
+            }
+            if (!Regex.IsMatch(uName, @"^[a-z0-9_\.\-]+$")) {
+                error = "ชื่อผู้ใช้งานต้องประกอบด้วยตัวอักษรภาษาอังกฤษ ตัวเลข หรือ _ . - เท่านั้น";
+                return false;
+            }
+            if (string.IsNullOrEmpty(password) || password.Length < 4) {
+                error = "รหัสผ่านต้องมีความยาวอย่างน้อย 4 ตัวอักษร";
+                return false;
+            }
+
+            string dName = (displayName ?? "").Trim();
+            if (string.IsNullOrEmpty(dName)) dName = uName;
+
+            // โหลดแคตตาล็อกล่าสุดเพื่อป้องกันการลงทะเบียนชื่อซ้ำ
+            LoadCatalog();
+
+            int newSlot;
+            WardUserItem newUser;
+            lock (userLock) {
+                var exists = users.Find(u => string.Equals(u.Username, uName, StringComparison.OrdinalIgnoreCase));
+                if (exists != null) {
+                    error = string.Format("ชื่อผู้ใช้ '{0}' มีอยู่ในระบบแล้ว กรุณาใช้ชื่ออื่น", uName);
+                    return false;
+                }
+
+                int maxSlot = 1;
+                foreach (var u in users) {
+                    if (u.UserSlot > maxSlot) maxSlot = u.UserSlot;
+                }
+                newSlot = Math.Max(2, maxSlot + 1);
+
+                newUser = new WardUserItem {
+                    Id = "u_" + Guid.NewGuid().ToString("N").Substring(0, 8),
+                    Username = uName,
+                    DisplayName = dName,
+                    PasswordHash = HashPassword(password),
+                    Role = "user",
+                    UserSlot = newSlot,
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow.ToString("o"),
+                    LastLoginAt = DateTime.UtcNow.ToString("o"),
+                    RegisteredVia = "self"
+                };
+                users.Add(newUser);
+            }
+
+            SaveCatalogInternal();
+
+            // เตรียมแถวเตียง 30 เตียงสำหรับผู้ใช้ใหม่บน Supabase
+            if (supabase != null && supabase.IsEnabled) {
+                ThreadPool.QueueUserWorkItem(_ => {
+                    try {
+                        supabase.EnsureUserSlotRowsExist(newSlot, uName);
+                    } catch {}
+                });
+            }
+
+            currentUser = newUser;
+            activeWorkspaceUser = newUser;
+            if (rememberMe) {
+                SaveSession(newUser.Username);
+            } else {
+                ClearSession();
+            }
+
             if (OnUserLoggedIn != null) {
                 try { OnUserLoggedIn(currentUser); } catch {}
             }
             if (OnWorkspaceChanged != null) {
                 try { OnWorkspaceChanged(activeWorkspaceUser.UserSlot, activeWorkspaceUser.Username, activeWorkspaceUser.DisplayName); } catch {}
+            }
+            if (OnUserListChanged != null) {
+                try { OnUserListChanged(); } catch {}
+            }
+
+            return true;
+        }
+
+        public void Logout() {
+            lock (userLock) {
+                currentUser = null;
+                activeWorkspaceUser = null;
+            }
+            ClearSession();
+            if (OnUserLoggedIn != null) {
+                try { OnUserLoggedIn(null); } catch {}
             }
         }
 
@@ -3871,6 +4021,7 @@ namespace MedicalTextExpander {
                         if (u.UserSlot > maxSlot) maxSlot = u.UserSlot;
                     }
                     user.UserSlot = Math.Max(2, maxSlot + 1);
+                    user.RegisteredVia = "admin";
                     users.Add(user);
                 }
             }
@@ -3893,12 +4044,41 @@ namespace MedicalTextExpander {
             return true;
         }
 
+        public bool ToggleUserActive(string username, out string error) {
+            error = "";
+            if (string.Equals(username, "admin", StringComparison.OrdinalIgnoreCase)) {
+                error = "ไม่สามารถระงับบัญชีผู้ดูแลระบบ (admin) ได้";
+                return false;
+            }
+            lock (userLock) {
+                var target = users.Find(u => string.Equals(u.Username, username, StringComparison.OrdinalIgnoreCase));
+                if (target == null) {
+                    error = "ไม่พบบัญชีผู้ใช้นี้";
+                    return false;
+                }
+                target.IsActive = !target.IsActive;
+                if (!target.IsActive && activeWorkspaceUser != null && string.Equals(activeWorkspaceUser.Username, username, StringComparison.OrdinalIgnoreCase)) {
+                    activeWorkspaceUser = currentUser;
+                }
+            }
+            SaveCatalogInternal();
+            if (OnUserListChanged != null) {
+                try { OnUserListChanged(); } catch {}
+            }
+            return true;
+        }
+
         public bool DeleteUser(string username, out string error) {
+            return DeleteUser(username, false, out error);
+        }
+
+        public bool DeleteUser(string username, bool clearCloudBeds, out string error) {
             error = "";
             if (string.Equals(username, "admin", StringComparison.OrdinalIgnoreCase)) {
                 error = "ไม่สามารถลบบัญชีผู้ดูแลระบบ (admin) ได้";
                 return false;
             }
+            int slotToClear = -1;
             lock (userLock) {
                 var target = users.Find(u => string.Equals(u.Username, username, StringComparison.OrdinalIgnoreCase));
                 if (target == null) {
@@ -3909,12 +4089,24 @@ namespace MedicalTextExpander {
                     error = "ไม่สามารถลบบัญชีที่ครอบครองพื้นที่หลักของวอร์ดได้";
                     return false;
                 }
+                slotToClear = target.UserSlot;
                 users.Remove(target);
                 if (activeWorkspaceUser != null && string.Equals(activeWorkspaceUser.Username, username, StringComparison.OrdinalIgnoreCase)) {
                     activeWorkspaceUser = currentUser;
                 }
             }
             SaveCatalogInternal();
+
+            if (clearCloudBeds && slotToClear > 0 && supabase != null && supabase.IsEnabled) {
+                ThreadPool.QueueUserWorkItem(_ => {
+                    try {
+                        for (int i = 1; i <= 30; i++) {
+                            supabase.SaveBed(i, "", slotToClear, "Admin (Deleted)");
+                        }
+                    } catch {}
+                });
+            }
+
             if (OnUserListChanged != null) {
                 try { OnUserListChanged(); } catch {}
             }
@@ -3956,6 +4148,9 @@ namespace MedicalTextExpander {
                 u.UserSlot = ExtractJsonInt(obj, "user_slot", 0);
                 u.IsActive = ExtractJsonBool(obj, "is_active", true);
                 u.CreatedAt = ExtractJsonProp(obj, "created_at");
+                u.LastLoginAt = ExtractJsonProp(obj, "last_login_at");
+                u.RegisteredVia = ExtractJsonProp(obj, "registered_via");
+                if (string.IsNullOrEmpty(u.RegisteredVia)) u.RegisteredVia = "self";
                 if (!string.IsNullOrEmpty(u.Username)) {
                     list.Add(u);
                 }
@@ -3977,7 +4172,9 @@ namespace MedicalTextExpander {
                 sb.AppendFormat("\"role\":\"{0}\",", SupabaseSyncClient.EscapeJson(u.Role ?? "user"));
                 sb.AppendFormat("\"user_slot\":{0},", u.UserSlot);
                 sb.AppendFormat("\"is_active\":{0},", u.IsActive ? "true" : "false");
-                sb.AppendFormat("\"created_at\":\"{0}\"", SupabaseSyncClient.EscapeJson(u.CreatedAt ?? ""));
+                sb.AppendFormat("\"created_at\":\"{0}\",", SupabaseSyncClient.EscapeJson(u.CreatedAt ?? ""));
+                sb.AppendFormat("\"last_login_at\":\"{0}\",", SupabaseSyncClient.EscapeJson(u.LastLoginAt ?? ""));
+                sb.AppendFormat("\"registered_via\":\"{0}\"", SupabaseSyncClient.EscapeJson(u.RegisteredVia ?? "self"));
                 sb.Append("}");
             }
             sb.Append("]}");
@@ -4015,156 +4212,421 @@ namespace MedicalTextExpander {
         }
     }
 
-    public class UserLoginDialog : Form {
+    public class LoginRegisterDialog : Form {
         private ExpanderContext context;
         private WardUserManager userManager;
-        private TextBox txtUsername;
-        private TextBox txtPassword;
-        private CheckBox chkShowPassword;
-        private Label lblError;
-        private Button btnLogin;
-        private Button btnCancel;
+        public bool IsStartupGate { get; private set; }
 
-        public UserLoginDialog(ExpanderContext ctx) {
+        // Tab Navigation
+        private Button btnTabLogin;
+        private Button btnTabRegister;
+        private Panel pnlLogin;
+        private Panel pnlRegister;
+
+        // Login Controls
+        private TextBox txtLoginUser;
+        private TextBox txtLoginPass;
+        private CheckBox chkLoginShowPass;
+        private CheckBox chkLoginRemember;
+        private Label lblLoginError;
+        private Button btnLoginSubmit;
+
+        // Register Controls
+        private TextBox txtRegUser;
+        private TextBox txtRegDisplay;
+        private TextBox txtRegPass;
+        private TextBox txtRegConfirm;
+        private CheckBox chkRegShowPass;
+        private CheckBox chkRegRemember;
+        private Label lblRegError;
+        private Button btnRegSubmit;
+
+        // Bottom Exit / Cancel Button
+        private Button btnBottomClose;
+
+        public LoginRegisterDialog(ExpanderContext ctx, bool isStartupGate = false) {
             context = ctx;
             userManager = ctx != null ? ctx.UserManager : null;
+            IsStartupGate = isStartupGate;
             InitializeUI();
         }
 
         private void InitializeUI() {
-            this.Text = "🔐 เข้าสู่ระบบผู้ใช้งาน (User Login)";
-            this.Size = new Size(420, 360);
-            this.StartPosition = FormStartPosition.CenterParent;
+            this.Text = "🔐 เข้าสู่ระบบ / ลงทะเบียนผู้ใช้งาน (Ward Authentication)";
+            this.Size = new Size(460, 520);
+            this.StartPosition = FormStartPosition.CenterScreen;
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
             this.MaximizeBox = false;
             this.MinimizeBox = false;
             this.BackColor = Color.White;
             this.Font = new Font("Leelawadee UI", 9.5f, FontStyle.Regular);
 
+            // Header Panel
             var pnlHeader = new Panel {
                 Dock = DockStyle.Top,
-                Height = 60,
+                Height = 65,
                 BackColor = Color.FromArgb(13, 148, 136)
             };
             var lblTitle = new Label {
-                Text = "🔐 เข้าสู่ระบบพยาบาล / วอร์ด",
+                Text = "🏥 Medical & Nursing Text Expander",
                 Font = new Font("Leelawadee UI", 12f, FontStyle.Bold),
                 ForeColor = Color.White,
-                Location = new Point(16, 10),
+                Location = new Point(16, 11),
                 AutoSize = true
             };
             var lblSub = new Label {
-                Text = "ระบบข้อมูลผู้ป่วยรายเตียง (Medical Text Expander)",
+                Text = "ระบบบันทึกและจัดการข้อมูลผู้ป่วยรายเตียง (Multi-User Ward System)",
                 Font = new Font("Leelawadee UI", 8.5f),
                 ForeColor = Color.FromArgb(204, 251, 241),
-                Location = new Point(18, 34),
+                Location = new Point(18, 36),
                 AutoSize = true
             };
             pnlHeader.Controls.Add(lblTitle);
             pnlHeader.Controls.Add(lblSub);
             this.Controls.Add(pnlHeader);
 
-            int y = 78;
-            var lblUser = new Label { Text = "ชื่อผู้ใช้งาน (Username):", Location = new Point(24, y), AutoSize = true, Font = new Font("Leelawadee UI", 9.5f, FontStyle.Bold) };
-            this.Controls.Add(lblUser);
-            y += 24;
+            // Tab Bar
+            var pnlTabBar = new Panel {
+                Dock = DockStyle.Top,
+                Height = 44,
+                BackColor = Color.FromArgb(241, 245, 249)
+            };
 
-            txtUsername = new TextBox {
+            btnTabLogin = new Button {
+                Text = "🔐 เข้าสู่ระบบ (Login)",
+                Size = new Size(210, 36),
+                Location = new Point(16, 4),
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Leelawadee UI", 9.5f, FontStyle.Bold),
+                Cursor = Cursors.Hand
+            };
+            btnTabLogin.FlatAppearance.BorderSize = 0;
+            btnTabLogin.Click += (s, e) => SwitchTab(true);
+
+            btnTabRegister = new Button {
+                Text = "📝 ลงทะเบียนใหม่ (Register)",
+                Size = new Size(210, 36),
+                Location = new Point(232, 4),
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Leelawadee UI", 9.5f, FontStyle.Bold),
+                Cursor = Cursors.Hand
+            };
+            btnTabRegister.FlatAppearance.BorderSize = 0;
+            btnTabRegister.Click += (s, e) => SwitchTab(false);
+
+            pnlTabBar.Controls.Add(btnTabLogin);
+            pnlTabBar.Controls.Add(btnTabRegister);
+            this.Controls.Add(pnlTabBar);
+
+            // Build Login Panel
+            pnlLogin = new Panel {
+                Dock = DockStyle.Fill,
+                BackColor = Color.White
+            };
+            BuildLoginControls();
+            this.Controls.Add(pnlLogin);
+
+            // Build Register Panel
+            pnlRegister = new Panel {
+                Dock = DockStyle.Fill,
+                BackColor = Color.White,
+                Visible = false
+            };
+            BuildRegisterControls();
+            this.Controls.Add(pnlRegister);
+
+            // Default to Login Tab
+            SwitchTab(true);
+        }
+
+        private void SwitchTab(bool isLogin) {
+            pnlLogin.Visible = isLogin;
+            pnlRegister.Visible = !isLogin;
+
+            if (isLogin) {
+                btnTabLogin.BackColor = Color.FromArgb(13, 148, 136);
+                btnTabLogin.ForeColor = Color.White;
+                btnTabRegister.BackColor = Color.FromArgb(241, 245, 249);
+                btnTabRegister.ForeColor = Color.FromArgb(71, 85, 105);
+                this.AcceptButton = btnLoginSubmit;
+                txtLoginUser.Focus();
+            } else {
+                btnTabRegister.BackColor = Color.FromArgb(13, 148, 136);
+                btnTabRegister.ForeColor = Color.White;
+                btnTabLogin.BackColor = Color.FromArgb(241, 245, 249);
+                btnTabLogin.ForeColor = Color.FromArgb(71, 85, 105);
+                this.AcceptButton = btnRegSubmit;
+                txtRegUser.Focus();
+            }
+        }
+
+        private void BuildLoginControls() {
+            int y = 16;
+            var lblUser = new Label { Text = "ชื่อผู้ใช้งาน (Username):", Location = new Point(24, y), AutoSize = true, Font = new Font("Leelawadee UI", 9f, FontStyle.Bold) };
+            pnlLogin.Controls.Add(lblUser);
+            y += 22;
+
+            txtLoginUser = new TextBox {
                 Location = new Point(24, y),
-                Size = new Size(355, 28),
+                Size = new Size(395, 28),
                 Font = new Font("Segoe UI", 10.5f)
             };
             if (userManager != null && userManager.CurrentUser != null) {
-                txtUsername.Text = userManager.CurrentUser.Username;
+                txtLoginUser.Text = userManager.CurrentUser.Username;
             } else {
-                txtUsername.Text = "admin";
+                txtLoginUser.Text = "admin";
             }
-            this.Controls.Add(txtUsername);
+            pnlLogin.Controls.Add(txtLoginUser);
             y += 36;
 
-            var lblPass = new Label { Text = "รหัสผ่าน (Password):", Location = new Point(24, y), AutoSize = true, Font = new Font("Leelawadee UI", 9.5f, FontStyle.Bold) };
-            this.Controls.Add(lblPass);
-            y += 24;
+            var lblPass = new Label { Text = "รหัสผ่าน (Password):", Location = new Point(24, y), AutoSize = true, Font = new Font("Leelawadee UI", 9f, FontStyle.Bold) };
+            pnlLogin.Controls.Add(lblPass);
+            y += 22;
 
-            txtPassword = new TextBox {
+            txtLoginPass = new TextBox {
                 Location = new Point(24, y),
-                Size = new Size(355, 28),
+                Size = new Size(395, 28),
                 Font = new Font("Segoe UI", 10.5f),
                 UseSystemPasswordChar = true
             };
-            this.Controls.Add(txtPassword);
+            pnlLogin.Controls.Add(txtLoginPass);
             y += 32;
 
-            chkShowPassword = new CheckBox {
+            chkLoginShowPass = new CheckBox {
                 Text = "แสดงรหัสผ่าน",
                 Location = new Point(26, y),
                 AutoSize = true,
                 Cursor = Cursors.Hand
             };
-            chkShowPassword.CheckedChanged += (s, e) => {
-                txtPassword.UseSystemPasswordChar = !chkShowPassword.Checked;
+            chkLoginShowPass.CheckedChanged += (s, e) => {
+                txtLoginPass.UseSystemPasswordChar = !chkLoginShowPass.Checked;
             };
-            this.Controls.Add(chkShowPassword);
-            y += 24;
+            pnlLogin.Controls.Add(chkLoginShowPass);
 
-            lblError = new Label {
+            chkLoginRemember = new CheckBox {
+                Text = "จดจำการเข้าสู่ระบบในเครื่องนี้ (Remember Me)",
+                Location = new Point(160, y),
+                AutoSize = true,
+                Checked = true,
+                Cursor = Cursors.Hand
+            };
+            pnlLogin.Controls.Add(chkLoginRemember);
+            y += 28;
+
+            lblLoginError = new Label {
                 Text = "",
                 ForeColor = Color.FromArgb(220, 38, 38),
                 Location = new Point(24, y),
-                Size = new Size(355, 20),
+                Size = new Size(395, 22),
                 Font = new Font("Leelawadee UI", 8.5f, FontStyle.Bold)
             };
-            this.Controls.Add(lblError);
-            y += 26;
+            pnlLogin.Controls.Add(lblLoginError);
+            y += 28;
 
-            btnLogin = new Button {
+            btnLoginSubmit = new Button {
                 Text = "เข้าสู่ระบบ (Login)",
-                DialogResult = DialogResult.None,
                 Location = new Point(24, y),
-                Size = new Size(245, 36),
+                Size = new Size(275, 38),
                 BackColor = Color.FromArgb(13, 148, 136),
                 ForeColor = Color.White,
                 FlatStyle = FlatStyle.Flat,
                 Font = new Font("Leelawadee UI", 10f, FontStyle.Bold),
                 Cursor = Cursors.Hand
             };
-            btnLogin.FlatAppearance.BorderSize = 0;
-            btnLogin.Click += (s, e) => DoLogin();
-            this.Controls.Add(btnLogin);
+            btnLoginSubmit.FlatAppearance.BorderSize = 0;
+            btnLoginSubmit.Click += (s, e) => DoLogin();
+            pnlLogin.Controls.Add(btnLoginSubmit);
 
-            btnCancel = new Button {
-                Text = "ยกเลิก",
+            btnBottomClose = new Button {
+                Text = IsStartupGate ? "ปิดโปรแกรม" : "ยกเลิก",
                 DialogResult = DialogResult.Cancel,
-                Location = new Point(280, y),
-                Size = new Size(99, 36),
+                Location = new Point(310, y),
+                Size = new Size(109, 38),
                 BackColor = Color.FromArgb(241, 245, 249),
                 ForeColor = Color.FromArgb(71, 85, 105),
                 FlatStyle = FlatStyle.Flat,
                 Cursor = Cursors.Hand
             };
-            btnCancel.FlatAppearance.BorderColor = Color.FromArgb(203, 213, 225);
-            this.Controls.Add(btnCancel);
+            btnBottomClose.FlatAppearance.BorderColor = Color.FromArgb(203, 213, 225);
+            pnlLogin.Controls.Add(btnBottomClose);
+            y += 50;
 
-            this.AcceptButton = btnLogin;
-            this.CancelButton = btnCancel;
+            var lnkGoRegister = new LinkLabel {
+                Text = "👉 ยังไม่มีบัญชีผู้ใช้งาน? กดที่นี่เพื่อลงทะเบียนและเข้าใช้งานได้เลย",
+                Location = new Point(24, y),
+                AutoSize = true,
+                LinkColor = Color.FromArgb(13, 148, 136),
+                Cursor = Cursors.Hand
+            };
+            lnkGoRegister.LinkClicked += (s, e) => SwitchTab(false);
+            pnlLogin.Controls.Add(lnkGoRegister);
+        }
+
+        private void BuildRegisterControls() {
+            int y = 10;
+            var lblU = new Label { Text = "ชื่อผู้ใช้งานภาษาอังกฤษ (Username):", Location = new Point(24, y), AutoSize = true, Font = new Font("Leelawadee UI", 9f, FontStyle.Bold) };
+            pnlRegister.Controls.Add(lblU);
+            y += 20;
+
+            txtRegUser = new TextBox {
+                Location = new Point(24, y),
+                Size = new Size(395, 26),
+                Font = new Font("Segoe UI", 10f)
+            };
+            pnlRegister.Controls.Add(txtRegUser);
+            y += 30;
+
+            var lblD = new Label { Text = "ชื่อแสดง / ชื่อเรียกพยาบาล (Display Name):", Location = new Point(24, y), AutoSize = true, Font = new Font("Leelawadee UI", 9f, FontStyle.Bold) };
+            pnlRegister.Controls.Add(lblD);
+            y += 20;
+
+            txtRegDisplay = new TextBox {
+                Location = new Point(24, y),
+                Size = new Size(395, 26),
+                Font = new Font("Segoe UI", 10f)
+            };
+            pnlRegister.Controls.Add(txtRegDisplay);
+            y += 30;
+
+            var lblP = new Label { Text = "รหัสผ่าน (Password, อย่างน้อย 4 ตัว):", Location = new Point(24, y), AutoSize = true, Font = new Font("Leelawadee UI", 9f, FontStyle.Bold) };
+            pnlRegister.Controls.Add(lblP);
+            y += 20;
+
+            txtRegPass = new TextBox {
+                Location = new Point(24, y),
+                Size = new Size(395, 26),
+                Font = new Font("Segoe UI", 10f),
+                UseSystemPasswordChar = true
+            };
+            pnlRegister.Controls.Add(txtRegPass);
+            y += 30;
+
+            var lblC = new Label { Text = "ยืนยันรหัสผ่าน (Confirm Password):", Location = new Point(24, y), AutoSize = true, Font = new Font("Leelawadee UI", 9f, FontStyle.Bold) };
+            pnlRegister.Controls.Add(lblC);
+            y += 20;
+
+            txtRegConfirm = new TextBox {
+                Location = new Point(24, y),
+                Size = new Size(395, 26),
+                Font = new Font("Segoe UI", 10f),
+                UseSystemPasswordChar = true
+            };
+            pnlRegister.Controls.Add(txtRegConfirm);
+            y += 28;
+
+            chkRegShowPass = new CheckBox {
+                Text = "แสดงรหัสผ่าน",
+                Location = new Point(26, y),
+                AutoSize = true,
+                Cursor = Cursors.Hand
+            };
+            chkRegShowPass.CheckedChanged += (s, e) => {
+                txtRegPass.UseSystemPasswordChar = !chkRegShowPass.Checked;
+                txtRegConfirm.UseSystemPasswordChar = !chkRegShowPass.Checked;
+            };
+            pnlRegister.Controls.Add(chkRegShowPass);
+
+            chkRegRemember = new CheckBox {
+                Text = "จดจำการเข้าสู่ระบบ",
+                Location = new Point(160, y),
+                AutoSize = true,
+                Checked = true,
+                Cursor = Cursors.Hand
+            };
+            pnlRegister.Controls.Add(chkRegRemember);
+            y += 24;
+
+            lblRegError = new Label {
+                Text = "",
+                ForeColor = Color.FromArgb(220, 38, 38),
+                Location = new Point(24, y),
+                Size = new Size(395, 20),
+                Font = new Font("Leelawadee UI", 8.5f, FontStyle.Bold)
+            };
+            pnlRegister.Controls.Add(lblRegError);
+            y += 24;
+
+            btnRegSubmit = new Button {
+                Text = "📝 ลงทะเบียนและเริ่มใช้งานทันที",
+                Location = new Point(24, y),
+                Size = new Size(275, 38),
+                BackColor = Color.FromArgb(16, 185, 129),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Leelawadee UI", 10f, FontStyle.Bold),
+                Cursor = Cursors.Hand
+            };
+            btnRegSubmit.FlatAppearance.BorderSize = 0;
+            btnRegSubmit.Click += (s, e) => DoRegister();
+            pnlRegister.Controls.Add(btnRegSubmit);
+
+            var btnRegCancel = new Button {
+                Text = IsStartupGate ? "ปิดโปรแกรม" : "ยกเลิก",
+                DialogResult = DialogResult.Cancel,
+                Location = new Point(310, y),
+                Size = new Size(109, 38),
+                BackColor = Color.FromArgb(241, 245, 249),
+                ForeColor = Color.FromArgb(71, 85, 105),
+                FlatStyle = FlatStyle.Flat,
+                Cursor = Cursors.Hand
+            };
+            btnRegCancel.FlatAppearance.BorderColor = Color.FromArgb(203, 213, 225);
+            pnlRegister.Controls.Add(btnRegCancel);
+            y += 48;
+
+            var lnkGoLogin = new LinkLabel {
+                Text = "👈 มีบัญชีผู้ใช้งานอยู่แล้ว? กดที่นี่เพื่อเข้าสู่ระบบ",
+                Location = new Point(24, y),
+                AutoSize = true,
+                LinkColor = Color.FromArgb(13, 148, 136),
+                Cursor = Cursors.Hand
+            };
+            lnkGoLogin.LinkClicked += (s, e) => SwitchTab(true);
+            pnlRegister.Controls.Add(lnkGoLogin);
         }
 
         private void DoLogin() {
-            lblError.Text = "";
+            lblLoginError.Text = "";
             if (userManager == null) {
                 this.DialogResult = DialogResult.Cancel;
                 return;
             }
             string err;
-            if (userManager.Login(txtUsername.Text, txtPassword.Text, out err)) {
+            if (userManager.Login(txtLoginUser.Text, txtLoginPass.Text, chkLoginRemember.Checked, out err)) {
                 this.DialogResult = DialogResult.OK;
                 this.Close();
             } else {
-                lblError.Text = err;
-                txtPassword.SelectAll();
-                txtPassword.Focus();
+                lblLoginError.Text = err;
+                txtLoginPass.SelectAll();
+                txtLoginPass.Focus();
             }
         }
+
+        private void DoRegister() {
+            lblRegError.Text = "";
+            if (userManager == null) {
+                this.DialogResult = DialogResult.Cancel;
+                return;
+            }
+            if (txtRegPass.Text != txtRegConfirm.Text) {
+                lblRegError.Text = "รหัสผ่านและการยืนยันรหัสผ่านไม่ตรงกัน";
+                txtRegConfirm.Focus();
+                return;
+            }
+            string err;
+            if (userManager.Register(txtRegUser.Text, txtRegDisplay.Text, txtRegPass.Text, chkRegRemember.Checked, out err)) {
+                MessageBox.Show(this, string.Format("ลงทะเบียนสำเร็จ!\nยินดีต้อนรับ {0} เข้าสู่ระบบ", userManager.CurrentUser.DisplayName), "ลงทะเบียนสำเร็จ", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                this.DialogResult = DialogResult.OK;
+                this.Close();
+            } else {
+                lblRegError.Text = err;
+                txtRegUser.Focus();
+            }
+        }
+    }
+
+    public class UserLoginDialog : LoginRegisterDialog {
+        public UserLoginDialog(ExpanderContext ctx) : base(ctx, false) { }
     }
 
     public class UserManagementDialog : Form {
@@ -4173,6 +4635,7 @@ namespace MedicalTextExpander {
         private ListView lvUsers;
         private Button btnAdd;
         private Button btnEdit;
+        private Button btnToggleActive;
         private Button btnDelete;
         private Button btnSwitchToUser;
         private Button btnClose;
@@ -4186,9 +4649,9 @@ namespace MedicalTextExpander {
 
         private void InitializeUI() {
             this.Text = "👥 จัดการบัญชีผู้ใช้งานและสิทธิ์ (User Accounts Management)";
-            this.Size = new Size(820, 520);
+            this.Size = new Size(880, 520);
             this.StartPosition = FormStartPosition.CenterParent;
-            this.MinimumSize = new Size(720, 420);
+            this.MinimumSize = new Size(760, 420);
             this.Font = new Font("Leelawadee UI", 9.5f);
             this.BackColor = Color.FromArgb(248, 250, 252);
 
@@ -4216,7 +4679,7 @@ namespace MedicalTextExpander {
 
             btnAdd = new Button {
                 Text = "➕ เพิ่มผู้ใช้ใหม่",
-                Size = new Size(130, 32),
+                Size = new Size(125, 32),
                 Location = new Point(12, 8),
                 BackColor = Color.FromArgb(16, 185, 129),
                 ForeColor = Color.White,
@@ -4229,9 +4692,9 @@ namespace MedicalTextExpander {
             pnlToolbar.Controls.Add(btnAdd);
 
             btnEdit = new Button {
-                Text = "✏️ แก้ไข / เปลี่ยนรหัส",
-                Size = new Size(150, 32),
-                Location = new Point(148, 8),
+                Text = "✏️ แก้ไข / รหัสผ่าน",
+                Size = new Size(135, 32),
+                Location = new Point(142, 8),
                 BackColor = Color.FromArgb(37, 99, 235),
                 ForeColor = Color.White,
                 FlatStyle = FlatStyle.Flat,
@@ -4242,10 +4705,24 @@ namespace MedicalTextExpander {
             btnEdit.Click += (s, e) => EditSelectedUser();
             pnlToolbar.Controls.Add(btnEdit);
 
+            btnToggleActive = new Button {
+                Text = "⛔ ระงับ / เปิดใช้งาน",
+                Size = new Size(140, 32),
+                Location = new Point(282, 8),
+                BackColor = Color.FromArgb(71, 85, 105),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Leelawadee UI", 9f, FontStyle.Bold),
+                Cursor = Cursors.Hand
+            };
+            btnToggleActive.FlatAppearance.BorderSize = 0;
+            btnToggleActive.Click += (s, e) => ToggleSelectedUserActive();
+            pnlToolbar.Controls.Add(btnToggleActive);
+
             btnDelete = new Button {
                 Text = "🗑️ ลบผู้ใช้",
-                Size = new Size(100, 32),
-                Location = new Point(304, 8),
+                Size = new Size(95, 32),
+                Location = new Point(427, 8),
                 BackColor = Color.FromArgb(239, 68, 68),
                 ForeColor = Color.White,
                 FlatStyle = FlatStyle.Flat,
@@ -4259,7 +4736,7 @@ namespace MedicalTextExpander {
             btnSwitchToUser = new Button {
                 Text = "👁️ สลับดูเตียงของผู้ใช้นี้",
                 Size = new Size(170, 32),
-                Location = new Point(410, 8),
+                Location = new Point(527, 8),
                 BackColor = Color.FromArgb(245, 158, 11),
                 ForeColor = Color.White,
                 FlatStyle = FlatStyle.Flat,
@@ -4280,11 +4757,13 @@ namespace MedicalTextExpander {
                 MultiSelect = false,
                 Font = new Font("Leelawadee UI", 9.5f)
             };
-            lvUsers.Columns.Add("Username", 120);
-            lvUsers.Columns.Add("ชื่อแสดง (Display Name)", 200);
-            lvUsers.Columns.Add("สิทธิ์ (Role)", 120);
-            lvUsers.Columns.Add("Slot ข้อมูลเตียง", 120);
-            lvUsers.Columns.Add("สถานะ", 100);
+            lvUsers.Columns.Add("Username", 110);
+            lvUsers.Columns.Add("ชื่อแสดง (Display Name)", 180);
+            lvUsers.Columns.Add("สิทธิ์ (Role)", 110);
+            lvUsers.Columns.Add("Slot ข้อมูลเตียง", 110);
+            lvUsers.Columns.Add("สถานะ", 95);
+            lvUsers.Columns.Add("วิธีสมัคร", 90);
+            lvUsers.Columns.Add("เข้าใช้ล่าสุด", 125);
             lvUsers.Columns.Add("วันที่สร้าง", 120);
             lvUsers.DoubleClick += (s, e) => EditSelectedUser();
             this.Controls.Add(lvUsers);
@@ -4304,7 +4783,7 @@ namespace MedicalTextExpander {
             btnClose = new Button {
                 Text = "ปิดหน้าต่าง",
                 Size = new Size(100, 32),
-                Location = new Point(690, 18),
+                Location = new Point(750, 18),
                 Anchor = AnchorStyles.Right | AnchorStyles.Bottom,
                 BackColor = Color.White,
                 FlatStyle = FlatStyle.Flat,
@@ -4327,6 +4806,13 @@ namespace MedicalTextExpander {
                 lvi.SubItems.Add(u.Role == "admin" ? "👑 ผู้ดูแลระบบ" : "👩‍⚕️ พยาบาล/ผู้ใช้");
                 lvi.SubItems.Add(u.UserSlot == 0 ? "เตียง 1-30 (หลัก)" : string.Format("ชุด {0} (เตียง 1-30)", u.UserSlot));
                 lvi.SubItems.Add(u.IsActive ? "🟢 ใช้งานได้" : "🔴 ปิดการใช้งาน");
+                lvi.SubItems.Add(u.RegisteredVia == "admin" ? "🛠️ แอดมินสร้าง" : "📝 ลงทะเบียนเอง");
+                string lastLogin = "-";
+                DateTime dtLogin;
+                if (!string.IsNullOrEmpty(u.LastLoginAt) && DateTime.TryParse(u.LastLoginAt, out dtLogin)) {
+                    lastLogin = dtLogin.ToLocalTime().ToString("dd/MM/yyyy HH:mm");
+                }
+                lvi.SubItems.Add(lastLogin);
                 string cDate = "";
                 DateTime dt;
                 if (DateTime.TryParse(u.CreatedAt, out dt)) cDate = dt.ToLocalTime().ToString("dd/MM/yyyy HH:mm");
@@ -4363,6 +4849,22 @@ namespace MedicalTextExpander {
             }
         }
 
+        private void ToggleSelectedUserActive() {
+            if (lvUsers.SelectedItems.Count == 0) return;
+            var user = lvUsers.SelectedItems[0].Tag as WardUserItem;
+            if (user == null) return;
+            if (user.Role == "admin" || user.Username == "admin") {
+                MessageBox.Show(this, "ไม่สามารถระงับบัญชีผู้ดูแลระบบ (admin) ได้", "คำเตือน", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+            string err;
+            if (!userManager.ToggleUserActive(user.Username, out err)) {
+                MessageBox.Show(this, "เกิดข้อผิดพลาด: " + err, "ข้อผิดพลาด", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            } else {
+                LoadUserList();
+            }
+        }
+
         private void DeleteSelectedUser() {
             if (lvUsers.SelectedItems.Count == 0) return;
             var user = lvUsers.SelectedItems[0].Tag as WardUserItem;
@@ -4371,9 +4873,11 @@ namespace MedicalTextExpander {
                 MessageBox.Show(this, "ไม่สามารถลบบัญชีผู้ดูแลระบบ (admin) ได้", "คำเตือน", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
-            if (MessageBox.Show(this, string.Format("คุณต้องการลบบัญชีผู้ใช้ \"{0}\" ({1}) หรือไม่?\n\n(ข้อมูลเตียงของผู้ใช้นี้จะถูกเก็บไว้เป็นประวัติ)", user.DisplayName, user.Username), "ยืนยันการลบ", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes) {
+            var confirmRes = MessageBox.Show(this, string.Format("คุณต้องการลบบัญชีผู้ใช้ \"{0}\" ({1}) หรือไม่?\n\nกด Yes: ลบบัญชีและล้างเตียงบน Cloud\nกด No: ลบบัญชีแต่เก็บข้อมูลเตียงไว้\nกด Cancel: ยกเลิก", user.DisplayName, user.Username), "ยืนยันการลบ", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
+            if (confirmRes == DialogResult.Yes || confirmRes == DialogResult.No) {
+                bool clearBeds = (confirmRes == DialogResult.Yes);
                 string err;
-                if (!userManager.DeleteUser(user.Username, out err)) {
+                if (!userManager.DeleteUser(user.Username, clearBeds, out err)) {
                     MessageBox.Show(this, "ไม่สามารถลบได้: " + err, "ข้อผิดพลาด", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 } else {
                     LoadUserList();
@@ -5572,8 +6076,10 @@ namespace MedicalTextExpander {
                 context.ShowUserLogin(this);
             });
             menu.Items.Add("🚪 ออกจากระบบ (Logout)", null, (s, e) => {
-                if (context != null && context.UserManager != null) {
-                    context.UserManager.Logout();
+                if (MessageBox.Show(this, "ต้องการออกจากระบบใช่หรือไม่?", "ยืนยันการออกจากระบบ", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes) {
+                    if (context != null) {
+                        context.Logout();
+                    }
                 }
             });
             menu.Show(btnUserAccount, new Point(0, btnUserAccount.Height));

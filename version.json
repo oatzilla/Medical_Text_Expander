@@ -1,8 +1,8 @@
 {
-  "version": "1.8.0",
+  "version": "1.9.0",
   "downloadUrl": "https://raw.githubusercontent.com/oatzilla/Medical_Text_Expander/main/Medical_Text_Expander.exe",
   "download_url": "https://raw.githubusercontent.com/oatzilla/Medical_Text_Expander/main/Medical_Text_Expander.exe",
-  "releaseDate": "2026-10-03",
-  "release_date": "2026-10-03",
-  "changelog": "- ระบบรองรับหลายผู้ใช้งาน (Multi-User & Workspace Isolation) พร้อมระบบจัดการสิทธิ์โดย Admin\r\n- ข้อมูลผู้ป่วยเตียง 1-30 เดิมคงอยู่ครบถ้วน 100% เป็นพื้นที่งานของผู้ดูแลระบบ (Admin)\r\n- ผู้ใช้/พยาบาลแต่ละคนมีชุดเตียง 1-30 แยกอิสระของตนเอง พร้อมซิงค์ Real-Time ขึ้น Supabase Cloud\r\n- ผู้ดูแลระบบ (Admin) สามารถสลับเข้าไปดู ตรวจสอบ และควบคุมชุดเตียงของทุกคนได้ผ่าน Workspace Switcher พร้อมแถบแจ้งเตือนสีส้มชัดเจน\r\n- หน้าต่างเข้าสู่ระบบ (Login) และหน้าต่างจัดการบัญชีผู้ใช้งาน (User Management) เพิ่ม/แก้ไข/ลบ/เปลี่ยนรหัสผ่าน พร้อมการเข้ารหัสความปลอดภัย SHA-256"
+  "releaseDate": "2026-10-04",
+  "release_date": "2026-10-04",
+  "changelog": "- ระบบหน้าต่างเข้าสู่ระบบบังคับก่อนใช้งาน (Mandatory Authentication Gate) ทั้งบน Windows App และ Web Portal\r\n- ระบบลงทะเบียนผู้ใช้งานใหม่ด้วยตนเอง (Self-Registration) สามารถสมัครแล้วเข้าใช้งานเตียงของตนเองได้ทันที\r\n- การแยกข้อมูลผู้ป่วย 1-30 ของแต่ละคนอย่างสมบูรณ์ (User Data Isolation) โดยข้อมูลเดิมของวอร์ดยังคงอยู่ครบถ้วนในบัญชี Admin\r\n- ระบบควบคุมและบริหารจัดการโดย Admin: ตรวจสอบเตียงของผู้ใช้ทุกคน, รีเซ็ตรหัสผ่าน, ระงับหรือเปิดใช้งานบัญชี, และลบบัญชีพร้อมตัวเลือกล้างข้อมูลเตียงบน Cloud\r\n- ตัวเลือกจำการเข้าสู่ระบบ (Remember Me) และเพิ่มความปลอดภัยมาตรฐาน SHA-256 ปราศจากรหัสผ่าน Hardcoded"
 }
