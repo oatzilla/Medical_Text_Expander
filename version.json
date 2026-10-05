@@ -1,8 +1,8 @@
 {
-  "version": "1.9.3",
+  "version": "1.9.4",
   "downloadUrl": "https://raw.githubusercontent.com/oatzilla/Medical_Text_Expander/main/Medical_Text_Expander.exe",
   "download_url": "https://raw.githubusercontent.com/oatzilla/Medical_Text_Expander/main/Medical_Text_Expander.exe",
   "releaseDate": "2026-10-05",
   "release_date": "2026-10-05",
-  "changelog": "- เพิ่มหมวดที่ 20: การพยาบาลผู้ป่วยมะเร็งกระดูกและรังสีรักษา (Bone Cancer & Radiotherapy) รวม 8 ข้อวินิจฉัยและกิจกรรมการพยาบาล Focus Charting (DAR) แยก 3 เวรชัดเจน (ยอดรวมคลังขยายเป็น 118 เทมเพลต)\r\n- ครอบคลุมการดูแลผู้ป่วยมะเร็งกระดูก (.boneca), ป้องกันกระดูกหักจากพยาธิสภาพ (.pathofx), ภาวะแคลเซียมในเลือดสูงฉุกเฉิน (.hypercamal), การดูแลนำส่งและรับกลับฉายแสง (.radiotherapy), การดูแลผิวหนังป้องกันรังสีอักเสบ (.radskin), การจัดการปวดกระดูกและปวดกำเริบหลังฉายแสง (.painflare), ภาวะกดทับไขสันหลังฉุกเฉิน MSCC (.mscc), และภาวะอ่อนเพลีย/ไขกระดูกกดจากรังสี (.radfatigue)\r\n- เพิ่มปุ่มตัวกรอง [มะเร็ง/ฉายแสง] Bone Ca / RT บน Desktop Palette (F8) และ Web Cloud Portal พร้อมไอคอนรังสีรักษา\r\n- ปรับปรุงตัวประมวลผล LoadTemplates ให้แม่นยำ ป้องกันแท็กเวรในเนื้อหาถูกเข้าใจผิดเป็นหมวดหมู่"
+  "changelog": "- อนุญาตให้แก้ไขชื่อผู้ใช้งาน (Username) ของผู้ดูแลระบบ (Admin) และผู้ใช้ทั่วไปได้ทั้งบน Desktop และ Web Portal โดยคงสิทธิ์การจัดการและเตียง Slot 0 ไว้อย่างสมบูรณ์\r\n- สามารถพิมพ์แก้ไขข้อความในกล่องเทมเพลต (Raw Text) ได้โดยตรงทันที ไม่ติด ReadOnly ทั้งบน Desktop (F8) และ Web Portal เพื่อแก้ไข/เติมข้อมูลผู้ป่วยก่อนคัดลอกหรือแทรกลงเตียง\r\n- เพิ่มปุ่ม [💾 บันทึกทับเทมเพลต] บนแถบเครื่องมือของ PaletteForm (F8) บันทึกการแก้ไขลงในไฟล์ medical_templates.txt ได้ทันทีโดยไม่ต้องเปิด Notepad\r\n- ซิงค์คลังเทมเพลตมะเร็งกระดูกและรังสีรักษา (Bone Cancer & RT) รวม 118 เทมเพลตขึ้น Cloud (GitHub & GitHub Pages) สมบูรณ์ 100%"
 }

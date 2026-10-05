@@ -2084,6 +2084,36 @@ namespace MedicalTextExpander {
             }
         }
 
+        public bool UpdateTemplateInFile(string shortcut, string newContent) {
+            if (string.IsNullOrEmpty(shortcut)) return false;
+            string targetFile = (!string.IsNullOrEmpty(sharedConfigPath) && File.Exists(sharedConfigPath)) 
+                ? sharedConfigPath 
+                : localConfigPath;
+            if (!File.Exists(targetFile)) return false;
+
+            try {
+                string text = File.ReadAllText(targetFile, Encoding.UTF8);
+                string escapedShortcut = Regex.Escape(shortcut.Trim());
+                string pattern = @"(?m)(^[ \t]*" + escapedShortcut + @"[ \t]*=[^\r\n]*\r?\n)([\s\S]*?)(?=^[ \t]*---)";
+                var match = Regex.Match(text, pattern);
+                if (match.Success) {
+                    string replacement = "${1}" + BedNotesManager.NormalizeNewlines(newContent).TrimEnd() + "\r\n";
+                    string updated = Regex.Replace(text, pattern, replacement);
+                    File.WriteAllText(targetFile, updated, BedNotesManager.SafeUtf8);
+                    if (targetFile != localConfigPath && File.Exists(localConfigPath)) {
+                        try { File.WriteAllText(localConfigPath, updated, BedNotesManager.SafeUtf8); } catch {}
+                    }
+                    if (!string.IsNullOrEmpty(sharedConfigPath) && targetFile != sharedConfigPath && Directory.Exists(Path.GetDirectoryName(sharedConfigPath))) {
+                        try { File.WriteAllText(sharedConfigPath, updated, BedNotesManager.SafeUtf8); } catch {}
+                    }
+                    var item = templates.Find(t => string.Equals(t.Shortcut, shortcut, StringComparison.OrdinalIgnoreCase));
+                    if (item != null) item.Content = BedNotesManager.NormalizeNewlines(newContent).TrimEnd();
+                    return true;
+                }
+            } catch {}
+            return false;
+        }
+
         public List<TemplateItem> GetTemplates() {
             return templates;
         }
@@ -4009,19 +4039,49 @@ namespace MedicalTextExpander {
 
             bool isNew = false;
             lock (userLock) {
-                var existing = users.Find(u => string.Equals(u.Username, user.Username, StringComparison.OrdinalIgnoreCase));
+                WardUserItem existing = null;
+                if (!string.IsNullOrEmpty(user.Id)) {
+                    existing = users.Find(u => u.Id == user.Id);
+                }
+                if (existing == null) {
+                    existing = users.Find(u => string.Equals(u.Username, user.Username, StringComparison.OrdinalIgnoreCase));
+                }
+
                 if (existing != null) {
-                    if (existing.Id != user.Id) {
-                        error = "ชื่อผู้ใช้นี้มีอยู่ในระบบแล้ว กรุณาใช้ชื่ออื่น";
+                    // Check if new username conflicts with another existing user
+                    var duplicate = users.Find(u => u.Id != existing.Id && string.Equals(u.Username, user.Username, StringComparison.OrdinalIgnoreCase));
+                    if (duplicate != null) {
+                        error = string.Format("ชื่อผู้ใช้ '{0}' มีอยู่ในระบบแล้ว กรุณาใช้ชื่ออื่น", user.Username);
                         return false;
                     }
+
+                    string oldUsername = existing.Username;
+                    existing.Username = user.Username;
                     existing.DisplayName = user.DisplayName;
                     existing.Role = user.Role;
                     existing.IsActive = user.IsActive;
                     if (!string.IsNullOrEmpty(newPassword)) {
                         existing.PasswordHash = HashPassword(newPassword);
                     }
+
+                    // Update active session if this was the current logged-in user
+                    if (currentUser != null && currentUser.Id == existing.Id) {
+                        currentUser.Username = existing.Username;
+                        currentUser.DisplayName = existing.DisplayName;
+                        SaveSession(existing.Username);
+                    }
+                    if (activeWorkspaceUser != null && activeWorkspaceUser.Id == existing.Id) {
+                        activeWorkspaceUser.Username = existing.Username;
+                        activeWorkspaceUser.DisplayName = existing.DisplayName;
+                    }
                 } else {
+                    // New user creation
+                    var duplicate = users.Find(u => string.Equals(u.Username, user.Username, StringComparison.OrdinalIgnoreCase));
+                    if (duplicate != null) {
+                        error = string.Format("ชื่อผู้ใช้ '{0}' มีอยู่ในระบบแล้ว กรุณาใช้ชื่ออื่น", user.Username);
+                        return false;
+                    }
+
                     isNew = true;
                     if (string.IsNullOrEmpty(newPassword)) {
                         error = "กรุณากำหนดรหัสผ่านสำหรับผู้ใช้ใหม่";
@@ -4034,6 +4094,9 @@ namespace MedicalTextExpander {
                     }
                     user.UserSlot = Math.Max(2, maxSlot + 1);
                     user.RegisteredVia = "admin";
+                    if (string.IsNullOrEmpty(user.Id)) {
+                        user.Id = "u_" + Guid.NewGuid().ToString("N").Substring(0, 8);
+                    }
                     users.Add(user);
                 }
             }
@@ -4058,14 +4121,14 @@ namespace MedicalTextExpander {
 
         public bool ToggleUserActive(string username, out string error) {
             error = "";
-            if (string.Equals(username, "admin", StringComparison.OrdinalIgnoreCase)) {
-                error = "ไม่สามารถระงับบัญชีผู้ดูแลระบบ (admin) ได้";
-                return false;
-            }
             lock (userLock) {
                 var target = users.Find(u => string.Equals(u.Username, username, StringComparison.OrdinalIgnoreCase));
                 if (target == null) {
                     error = "ไม่พบบัญชีผู้ใช้นี้";
+                    return false;
+                }
+                if (target.Role == "admin" || target.UserSlot == 0 || target.Id == "u_admin") {
+                    error = "ไม่สามารถระงับบัญชีผู้ดูแลระบบ (Admin) ได้";
                     return false;
                 }
                 target.IsActive = !target.IsActive;
@@ -4086,10 +4149,6 @@ namespace MedicalTextExpander {
 
         public bool DeleteUser(string username, bool clearCloudBeds, out string error) {
             error = "";
-            if (string.Equals(username, "admin", StringComparison.OrdinalIgnoreCase)) {
-                error = "ไม่สามารถลบบัญชีผู้ดูแลระบบ (admin) ได้";
-                return false;
-            }
             int slotToClear = -1;
             lock (userLock) {
                 var target = users.Find(u => string.Equals(u.Username, username, StringComparison.OrdinalIgnoreCase));
@@ -4097,8 +4156,8 @@ namespace MedicalTextExpander {
                     error = "ไม่พบบัญชีผู้ใช้นี้";
                     return false;
                 }
-                if (target.UserSlot == 0) {
-                    error = "ไม่สามารถลบบัญชีที่ครอบครองพื้นที่หลักของวอร์ดได้";
+                if (target.Role == "admin" || target.UserSlot == 0 || target.Id == "u_admin") {
+                    error = "ไม่สามารถลบบัญชีผู้ดูแลระบบ (Admin) ได้";
                     return false;
                 }
                 slotToClear = target.UserSlot;
@@ -4884,8 +4943,8 @@ namespace MedicalTextExpander {
             if (lvUsers.SelectedItems.Count == 0) return;
             var user = lvUsers.SelectedItems[0].Tag as WardUserItem;
             if (user == null) return;
-            if (user.Role == "admin" || user.Username == "admin") {
-                MessageBox.Show(this, "ไม่สามารถระงับบัญชีผู้ดูแลระบบ (admin) ได้", "คำเตือน", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            if (user.Role == "admin" || user.UserSlot == 0 || user.Id == "u_admin") {
+                MessageBox.Show(this, "ไม่สามารถระงับบัญชีผู้ดูแลระบบ (Admin) ได้", "คำเตือน", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
             string err;
@@ -4900,8 +4959,8 @@ namespace MedicalTextExpander {
             if (lvUsers.SelectedItems.Count == 0) return;
             var user = lvUsers.SelectedItems[0].Tag as WardUserItem;
             if (user == null) return;
-            if (user.Role == "admin" || user.Username == "admin") {
-                MessageBox.Show(this, "ไม่สามารถลบบัญชีผู้ดูแลระบบ (admin) ได้", "คำเตือน", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            if (user.Role == "admin" || user.UserSlot == 0 || user.Id == "u_admin") {
+                MessageBox.Show(this, "ไม่สามารถลบบัญชีผู้ดูแลระบบ (Admin) ได้", "คำเตือน", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
             var confirmRes = MessageBox.Show(this, string.Format("คุณต้องการลบบัญชีผู้ใช้ \"{0}\" ({1}) หรือไม่?\n\nกด Yes: ลบบัญชีและล้างเตียงบน Cloud\nกด No: ลบบัญชีแต่เก็บข้อมูลเตียงไว้\nกด Cancel: ยกเลิก", user.DisplayName, user.Username), "ยืนยันการลบ", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
@@ -4992,7 +5051,7 @@ namespace MedicalTextExpander {
                 Location = new Point(24, y),
                 Size = new Size(355, 26),
                 Text = UserItem.Username,
-                Enabled = !isEditMode
+                Enabled = true
             };
             this.Controls.Add(txtUsername);
             y += 34;
@@ -5021,7 +5080,7 @@ namespace MedicalTextExpander {
             cboRole.Items.Add("👩‍⚕️ พยาบาล / ผู้ใช้งานทั่วไป (User)");
             cboRole.Items.Add("👑 ผู้ดูแลระบบ (Admin)");
             cboRole.SelectedIndex = (UserItem.Role == "admin") ? 1 : 0;
-            if (isEditMode && UserItem.Username == "admin") cboRole.Enabled = false;
+            if (isEditMode && (UserItem.Role == "admin" || UserItem.UserSlot == 0 || UserItem.Id == "u_admin")) cboRole.Enabled = false;
             this.Controls.Add(cboRole);
             y += 34;
 
@@ -5060,7 +5119,7 @@ namespace MedicalTextExpander {
                 Checked = UserItem.IsActive,
                 Cursor = Cursors.Hand
             };
-            if (isEditMode && UserItem.Username == "admin") chkIsActive.Enabled = false;
+            if (isEditMode && (UserItem.Role == "admin" || UserItem.UserSlot == 0 || UserItem.Id == "u_admin")) chkIsActive.Enabled = false;
             this.Controls.Add(chkIsActive);
             y += 38;
 
@@ -7541,6 +7600,7 @@ public void RefreshAllBedButtons() {
         private Button btnInsertToBed;
         private Button btnReplaceBed;
         private Button btnPasteEPhis;
+        private Button btnSaveTemplate;
         
         // View Tabs & Shift Controls
         private Panel pnlViewTabs;
@@ -7930,6 +7990,17 @@ public void RefreshAllBedButtons() {
             btnCopy.Click += (s, e) => CopySelected();
             pnlActionToolbar.Controls.Add(btnCopy);
 
+            btnSaveTemplate = new Button();
+            btnSaveTemplate.Text = "💾 บันทึกทับเทมเพลต";
+            btnSaveTemplate.Size = new Size(140, 30);
+            btnSaveTemplate.BackColor = Color.FromArgb(79, 70, 229);
+            btnSaveTemplate.ForeColor = Color.White;
+            btnSaveTemplate.FlatStyle = FlatStyle.Flat;
+            btnSaveTemplate.Font = new Font("Segoe UI", 8.5f, FontStyle.Bold);
+            btnSaveTemplate.Cursor = Cursors.Hand;
+            btnSaveTemplate.Click += (s, e) => SaveCurrentTemplateEdit();
+            pnlActionToolbar.Controls.Add(btnSaveTemplate);
+
             pnlPreviewHeader.Controls.Add(pnlActionToolbar);
 
             // View Tabs & Shifts
@@ -7952,8 +8023,8 @@ public void RefreshAllBedButtons() {
             pnlViewTabs.Controls.Add(btnTabDar);
 
             btnTabRaw = new Button();
-            btnTabRaw.Text = "ข้อความเต็ม (Raw Text)";
-            btnTabRaw.Size = new Size(165, 27);
+            btnTabRaw.Text = "✏️ พิมพ์แก้ไข / ข้อความดิบ (Raw Text)";
+            btnTabRaw.Size = new Size(225, 27);
             btnTabRaw.Location = new Point(200, 3);
             btnTabRaw.BackColor = Color.FromArgb(241, 245, 249);
             btnTabRaw.ForeColor = Color.FromArgb(100, 116, 139);
@@ -8007,7 +8078,7 @@ public void RefreshAllBedButtons() {
             txtRaw = new TextBox();
             txtRaw.Dock = DockStyle.Fill;
             txtRaw.Multiline = true;
-            txtRaw.ReadOnly = true;
+            txtRaw.ReadOnly = false;
             txtRaw.ScrollBars = ScrollBars.Vertical;
             txtRaw.BackColor = Color.White;
             txtRaw.Visible = false;
@@ -8519,10 +8590,14 @@ public void RefreshAllBedButtons() {
             string textToCopy = selectedText;
 
             if (string.IsNullOrEmpty(textToCopy)) {
-                if (lstTemplates.SelectedItems.Count == 0) return;
-                TemplateItem item = lstTemplates.SelectedItems[0].Tag as TemplateItem;
-                if (item == null) return;
-                textToCopy = GetEffectiveContent(item);
+                if (txtRaw != null && txtRaw.Visible && !string.IsNullOrEmpty(txtRaw.Text)) {
+                    textToCopy = txtRaw.Text;
+                } else {
+                    if (lstTemplates.SelectedItems.Count == 0) return;
+                    TemplateItem item = lstTemplates.SelectedItems[0].Tag as TemplateItem;
+                    if (item == null) return;
+                    textToCopy = GetEffectiveContent(item);
+                }
             }
 
             if (string.IsNullOrEmpty(textToCopy)) return;
@@ -8558,7 +8633,14 @@ public void RefreshAllBedButtons() {
             if (item == null) return;
 
             string sel = GetSelectedPreviewText(false);
-            string contentToUse = !string.IsNullOrEmpty(sel) ? sel : GetEffectiveContent(item);
+            string contentToUse;
+            if (!string.IsNullOrEmpty(sel)) {
+                contentToUse = sel;
+            } else if (txtRaw != null && txtRaw.Visible && !string.IsNullOrEmpty(txtRaw.Text)) {
+                contentToUse = txtRaw.Text;
+            } else {
+                contentToUse = GetEffectiveContent(item);
+            }
 
             int bNum = GetSelectedBedNumber();
             context.InsertTemplateToBed(bNum, contentToUse, replace);
@@ -8571,7 +8653,14 @@ public void RefreshAllBedButtons() {
             if (item == null) return;
 
             string sel = GetSelectedPreviewText(false);
-            string content = !string.IsNullOrEmpty(sel) ? sel : GetEffectiveContent(item);
+            string content;
+            if (!string.IsNullOrEmpty(sel)) {
+                content = sel;
+            } else if (txtRaw != null && txtRaw.Visible && !string.IsNullOrEmpty(txtRaw.Text)) {
+                content = txtRaw.Text;
+            } else {
+                content = GetEffectiveContent(item);
+            }
             this.Hide();
 
             System.Threading.ThreadPool.QueueUserWorkItem(state => {
@@ -8582,6 +8671,34 @@ public void RefreshAllBedButtons() {
                 }
                 context.ExecutePaste(0, content);
             });
+        }
+
+        private void SaveCurrentTemplateEdit() {
+            if (lstTemplates.SelectedItems.Count == 0) return;
+            TemplateItem item = lstTemplates.SelectedItems[0].Tag as TemplateItem;
+            if (item == null) return;
+
+            string newContent = txtRaw != null ? txtRaw.Text : "";
+            if (string.IsNullOrEmpty(newContent) || string.IsNullOrEmpty(newContent.Trim())) {
+                MessageBox.Show(this, "เนื้อหาเทมเพลตต้องไม่ว่างเปล่า", "คำเตือน", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            if (!context.PromptAdminPassword(this)) return;
+
+            var confirm = MessageBox.Show(this,
+                string.Format("คุณต้องการบันทึกการแก้ไขนี้ทับลงในคลังเทมเพลต:\n\n[{0}] {1}\n\nอย่างถาวรในไฟล์ medical_templates.txt หรือไม่?", item.Shortcut, item.Title),
+                "ยืนยันการบันทึกเทมเพลต", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+
+            if (confirm != DialogResult.Yes) return;
+
+            if (context.UpdateTemplateInFile(item.Shortcut, newContent)) {
+                item.Content = newContent.TrimEnd();
+                RenderDarToRichTextBox(rtbDar, GetEffectiveContent(item), currentFontSize);
+                MessageBox.Show(this, string.Format("บันทึกเทมเพลต [{0}] เรียบร้อยแล้ว!", item.Shortcut), "สำเร็จ", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            } else {
+                MessageBox.Show(this, "เกิดข้อผิดพลาดในการบันทึกไฟล์เทมเพลต", "ข้อผิดพลาด", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
     }
 

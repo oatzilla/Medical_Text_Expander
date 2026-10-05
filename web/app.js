@@ -792,7 +792,7 @@ function openAddEditUserModal(user = null) {
     if (formId) formId.value = user.id || user.username;
     if (formUser) {
       formUser.value = user.username;
-      formUser.disabled = true;
+      formUser.disabled = false;
     }
     if (formDisplay) formDisplay.value = user.display_name || user.username;
     if (formRole) formRole.value = user.role || 'user';
@@ -909,12 +909,30 @@ async function saveAddEditUserSubmit() {
         return;
       }
 
+      // Check duplicate username across other users
+      const duplicate = usersCatalogCache.find(u => u.id !== targetUser.id && u.username.toLowerCase() === formUser.toLowerCase());
+      if (duplicate) {
+        if (errMsg) { errMsg.textContent = `Username "${formUser}" มีผู้ใช้อื่นใช้งานอยู่แล้ว`; errMsg.style.display = 'flex'; }
+        return;
+      }
+
+      const oldUsername = targetUser.username;
+      targetUser.username = formUser;
       targetUser.display_name = formDisplay;
       targetUser.role = formRole;
       targetUser.is_active = formActive;
 
       if (formPass) {
         targetUser.password_hash = await sha256Hex(formPass);
+      }
+
+      // If active current user was updated, update local session
+      const curUser = getCurrentUser();
+      if (curUser && (curUser.id === targetUser.id || curUser.username.toLowerCase() === oldUsername.toLowerCase())) {
+        curUser.username = targetUser.username;
+        curUser.display_name = targetUser.display_name;
+        curUser.role = targetUser.role;
+        localStorage.setItem('ward_current_user', JSON.stringify(curUser));
       }
 
       await saveUsersCatalogToCloud(usersCatalogCache);
@@ -3078,7 +3096,12 @@ function copySelectedTemplate() {
 
   const isPartial = textToCopy.length > 0;
   if (!isPartial) {
-    textToCopy = getEffectiveTemplateContent(selectedTemplate);
+    const rawTa = document.getElementById('templateRawText');
+    if (rawTa && currentPreviewViewMode === 'raw' && rawTa.value.trim().length > 0) {
+      textToCopy = rawTa.value;
+    } else {
+      textToCopy = getEffectiveTemplateContent(selectedTemplate);
+    }
   }
   textToCopy = normalizeToCRLF(textToCopy);
 
@@ -3120,7 +3143,12 @@ function applyTemplateToNote(replace = false) {
   }
 
   if (!contentToApply) {
-    contentToApply = getEffectiveTemplateContent(selectedTemplate);
+    const rawTa = document.getElementById('templateRawText');
+    if (rawTa && currentPreviewViewMode === 'raw' && rawTa.value.trim().length > 0) {
+      contentToApply = rawTa.value;
+    } else {
+      contentToApply = getEffectiveTemplateContent(selectedTemplate);
+    }
   }
 
   if (templateModalTriggerSource === 'editModal') {
