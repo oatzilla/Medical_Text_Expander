@@ -2366,7 +2366,9 @@ namespace MedicalTextExpander {
         }
 
         public void ShowSyncSettings(IWin32Window owner = null) {
-            if (!PromptAdminPassword(owner)) return;
+            using (AdminPasswordDialog dlg = new AdminPasswordDialog(AdminPassword)) {
+                if (dlg.ShowDialog(owner) != DialogResult.OK) return;
+            }
             SyncSettingsForm form = new SyncSettingsForm(this, sharedConfigPath, sharedBedNotesDir);
             if (owner != null) form.ShowDialog(owner);
             else form.ShowDialog();
@@ -3086,7 +3088,7 @@ namespace MedicalTextExpander {
             pnlAdminGate.Size = new Size(802, 218);
 
             Label lblGateDesc = new Label();
-            lblGateDesc.Text = "กรุณาใส่รหัสผ่านผู้ดูแลระบบ (Admin Password: 9844) เพื่อแก้ไขชื่อ, หมวดหมู่, ลบเอกสาร หรืออัปโหลดไฟล์ใหม่ขึ้น Cloud:";
+            lblGateDesc.Text = "กรุณาใส่รหัสผ่านผู้ดูแลระบบ เพื่อแก้ไขชื่อ, หมวดหมู่, ลบเอกสาร หรืออัปโหลดไฟล์ใหม่ขึ้น Cloud:";
             lblGateDesc.Location = new Point(6, 25);
             lblGateDesc.Size = new Size(780, 24);
             lblGateDesc.Font = new Font("Segoe UI", 9.5f);
@@ -3278,7 +3280,7 @@ namespace MedicalTextExpander {
 
         private void UnlockAdmin() {
             string pass = (txtAdminPass.Text ?? "").Trim();
-            if (pass == context.AdminPassword || pass == "9844") {
+            if (pass == context.AdminPassword) {
                 isAdminUnlocked = true;
                 pnlAdminGate.Visible = false;
                 pnlAdminUnlocked.Visible = true;
@@ -5891,12 +5893,13 @@ namespace MedicalTextExpander {
             pnlBottom.Controls.Add(btnClear);
 
             btnSyncSettings = new Button();
-            btnSyncSettings.Text = "🌐 ตั้งค่าแชร์ในวอร์ด";
-            btnSyncSettings.Size = new Size(125, 34);
+            btnSyncSettings.Text = "⚙️ ตั้งค่าระบบ Cloud";
+            btnSyncSettings.Size = new Size(135, 34);
             btnSyncSettings.BackColor = Color.FromArgb(225, 228, 238);
             btnSyncSettings.FlatStyle = FlatStyle.Flat;
             btnSyncSettings.Font = new Font("Segoe UI", 9f);
             btnSyncSettings.Cursor = Cursors.Hand;
+            btnSyncSettings.Visible = (context != null && context.UserManager != null && context.UserManager.IsAdminLoggedIn);
             btnSyncSettings.Click += (s, e) => context.ShowSyncSettings(this);
             pnlBottom.Controls.Add(btnSyncSettings);
 
@@ -6553,7 +6556,7 @@ namespace MedicalTextExpander {
                 btnSwapBed.Size = new Size(36, 34);
                 btnClear.Text = "🗑️";
                 btnClear.Size = new Size(36, 34);
-                btnSyncSettings.Text = "🌐";
+                btnSyncSettings.Text = "⚙️";
                 btnSyncSettings.Size = new Size(36, 34);
                 if (btnManageUsers != null) {
                     btnManageUsers.Text = "👥";
@@ -6572,8 +6575,8 @@ namespace MedicalTextExpander {
                 btnSwapBed.Size = new Size(88, 34);
                 btnClear.Text = "🗑️ ล้าง";
                 btnClear.Size = new Size(60, 34);
-                btnSyncSettings.Text = "🌐 แชร์วอร์ด";
-                btnSyncSettings.Size = new Size(80, 34);
+                btnSyncSettings.Text = "⚙️ Cloud";
+                btnSyncSettings.Size = new Size(75, 34);
                 if (btnManageUsers != null) {
                     btnManageUsers.Text = "👥 ผู้ใช้";
                     btnManageUsers.Size = new Size(70, 34);
@@ -6591,8 +6594,8 @@ namespace MedicalTextExpander {
                 btnSwapBed.Size = new Size(125, 34);
                 btnClear.Text = "🗑️ ล้างข้อมูลเตียงนี้";
                 btnClear.Size = new Size(125, 34);
-                btnSyncSettings.Text = "🌐 ตั้งค่าแชร์ในวอร์ด";
-                btnSyncSettings.Size = new Size(125, 34);
+                btnSyncSettings.Text = "⚙️ ตั้งค่าระบบ Cloud";
+                btnSyncSettings.Size = new Size(135, 34);
                 if (btnManageUsers != null) {
                     btnManageUsers.Text = "👥 จัดการผู้ใช้";
                     btnManageUsers.Size = new Size(100, 34);
@@ -6617,11 +6620,14 @@ namespace MedicalTextExpander {
             btnClear.Location = new Point(lx, 9);
             lx += btnClear.Width + 5;
 
-            btnSyncSettings.Location = new Point(lx, 9);
-            lx += btnSyncSettings.Width + 5;
+            if (btnSyncSettings != null && btnSyncSettings.Visible) {
+                btnSyncSettings.Location = new Point(lx, 9);
+                lx += btnSyncSettings.Width + 5;
+            }
 
             if (btnManageUsers != null && btnManageUsers.Visible) {
                 btnManageUsers.Location = new Point(lx, 9);
+                lx += btnManageUsers.Width + 5;
             }
 
             btnClose.Location = new System.Drawing.Point(w - btnClose.Width - 10, 9);
@@ -6679,6 +6685,7 @@ namespace MedicalTextExpander {
             menu.Font = new Font("Leelawadee UI", 9.5f);
             if (context != null && context.UserManager != null && context.UserManager.IsAdminLoggedIn) {
                 menu.Items.Add("👥 จัดการบัญชีผู้ใช้และสิทธิ์ (Admin)", null, (s, e) => context.ShowUserManagement(this));
+                menu.Items.Add("⚙️ ตั้งค่าระบบ Cloud & ความปลอดภัย (Admin)", null, (s, e) => context.ShowSyncSettings(this));
                 menu.Items.Add("-");
             }
             menu.Items.Add("🔀 เปลี่ยนผู้ใช้งาน (Switch User / Login)", null, (s, e) => {
@@ -6753,6 +6760,9 @@ namespace MedicalTextExpander {
                 pnlWorkspaceNotice.Visible = false;
             }
 
+            if (btnSyncSettings != null) {
+                btnSyncSettings.Visible = (context != null && context.UserManager != null && context.UserManager.IsAdminLoggedIn);
+            }
             if (btnManageUsers != null) {
                 btnManageUsers.Visible = (context != null && context.UserManager != null && context.UserManager.IsAdminLoggedIn);
             }
@@ -8333,13 +8343,14 @@ public void RefreshAllBedButtons() {
             pnlBottom.Controls.Add(btnEdit);
 
             btnSync = new Button();
-            btnSync.Text = "ซิงค์วอร์ด";
+            btnSync.Text = "⚙️ Cloud Sync";
             btnSync.Location = new Point(632, 8);
-            btnSync.Size = new Size(95, 36);
+            btnSync.Size = new Size(110, 36);
             btnSync.BackColor = Color.FromArgb(225, 228, 238);
             btnSync.FlatStyle = FlatStyle.Flat;
             btnSync.Font = new Font("Segoe UI", 9.5f);
             btnSync.Cursor = Cursors.Hand;
+            btnSync.Visible = (context != null && context.UserManager != null && context.UserManager.IsAdminLoggedIn);
             btnSync.Click += (s, e) => context.ShowSyncSettings(this);
             pnlBottom.Controls.Add(btnSync);
 
@@ -8852,6 +8863,9 @@ public void RefreshAllBedButtons() {
             UpdatePalShiftSelection();
             RefreshList(txtSearch.Text);
             SwitchPreviewView(true);
+            if (btnSync != null) {
+                btnSync.Visible = (context != null && context.UserManager != null && context.UserManager.IsAdminLoggedIn);
+            }
 
             this.Show();
             this.WindowState = FormWindowState.Normal;
@@ -9408,10 +9422,22 @@ public void RefreshAllBedButtons() {
 
             txtSupabaseKey = new TextBox();
             txtSupabaseKey.Location = new Point(16, 136);
-            txtSupabaseKey.Size = new Size(570, 27);
+            txtSupabaseKey.Size = new Size(490, 27);
             txtSupabaseKey.Font = new Font("Segoe UI", 9.5f);
+            txtSupabaseKey.PasswordChar = '●';
             txtSupabaseKey.Text = context.GetSupabaseKey();
             grpSupabase.Controls.Add(txtSupabaseKey);
+
+            Button btnToggleSupaKey = new Button();
+            btnToggleSupaKey.Text = "👁️ แสดง";
+            btnToggleSupaKey.Location = new Point(512, 135);
+            btnToggleSupaKey.Size = new Size(74, 29);
+            btnToggleSupaKey.Font = new Font("Segoe UI", 8.5f);
+            btnToggleSupaKey.Cursor = Cursors.Hand;
+            btnToggleSupaKey.Click += (s, e) => {
+                txtSupabaseKey.PasswordChar = (txtSupabaseKey.PasswordChar == '●') ? '\0' : '●';
+            };
+            grpSupabase.Controls.Add(btnToggleSupaKey);
 
             btnTestSupabase = new Button();
             btnTestSupabase.Text = "⚡ ทดสอบการเชื่อมต่อ Cloud";
@@ -9560,7 +9586,7 @@ public void RefreshAllBedButtons() {
 
             // 4. Admin Security Password
             Label lblAdminPass = new Label();
-            lblAdminPass.Text = "4. 🔒 รหัสผ่านผู้ดูแลระบบ (Admin Password สำหรับเข้าตั้งค่า):";
+            lblAdminPass.Text = "4. 🔒 ตั้งรหัสผ่าน Admin ใหม่ (เว้นว่างไว้หากไม่เปลี่ยน):";
             lblAdminPass.Location = new Point(16, 472);
             lblAdminPass.AutoSize = true;
             lblAdminPass.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
@@ -9572,11 +9598,11 @@ public void RefreshAllBedButtons() {
             txtAdminPassword.Size = new Size(200, 29);
             txtAdminPassword.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
             txtAdminPassword.PasswordChar = '●';
-            txtAdminPassword.Text = context.AdminPassword;
+            txtAdminPassword.Text = "";
             this.Controls.Add(txtAdminPassword);
 
             Button btnTogglePass = new Button();
-            btnTogglePass.Text = "👁️ ดูรหัส";
+            btnTogglePass.Text = "👁️ แสดง";
             btnTogglePass.Location = new Point(225, 496);
             btnTogglePass.Size = new Size(80, 30);
             btnTogglePass.Font = new Font("Segoe UI", 8.5f);
