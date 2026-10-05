@@ -4784,13 +4784,9 @@ namespace MedicalTextExpander {
             txtLoginUser = new TextBox {
                 Location = new Point(24, y),
                 Size = new Size(412, 28),
-                Font = new Font("Segoe UI", 10.5f)
+                Font = new Font("Segoe UI", 10.5f),
+                Text = ""
             };
-            if (userManager != null && userManager.CurrentUser != null) {
-                txtLoginUser.Text = userManager.CurrentUser.Username;
-            } else {
-                txtLoginUser.Text = "admin";
-            }
             pnlLogin.Controls.Add(txtLoginUser);
             y += 38;
 
