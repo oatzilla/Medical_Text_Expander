@@ -14203,8 +14203,10 @@ if (diff.TotalSeconds <= 0) {
                 }
             };
 
-            splitMain.Panel1.Controls.Add(lvDiagnoses);
             splitMain.Panel1.Controls.Add(pnlLeftTop);
+            splitMain.Panel1.Controls.Add(lvDiagnoses);
+            lvDiagnoses.SendToBack();
+            pnlLeftTop.BringToFront();
 
             // --- RIGHT PANEL: Interactive Builder ---
             // Banner Top
@@ -14422,8 +14424,10 @@ if (diff.TotalSeconds <= 0) {
 
             splitRight.Panel2.Controls.Add(pnlPreview);
 
-            splitMain.Panel2.Controls.Add(splitRight);
             splitMain.Panel2.Controls.Add(pnlBanner);
+            splitMain.Panel2.Controls.Add(splitRight);
+            splitRight.SendToBack();
+            pnlBanner.BringToFront();
 
             this.Controls.Add(splitMain);
 

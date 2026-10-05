@@ -4427,13 +4427,79 @@ body.modal-open {
   text-overflow: ellipsis;
 }
 
+#nicNocModal .nicnoc-modal-card {
+  width: min(1260px, 96vw) !important;
+  max-width: 1260px !important;
+  height: min(94vh, 940px) !important;
+  max-height: 94vh !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+}
+
+#nicNocModal .nicnoc-content-split {
+  flex: 1 !important;
+  min-height: 0 !important;
+  display: flex !important;
+  gap: 16px !important;
+  padding: 12px 18px !important;
+  overflow: hidden !important;
+  background: var(--bg-app);
+}
+
+#nicNocModal .nicnoc-list-pane {
+  width: 340px !important;
+  min-width: 300px !important;
+  flex-shrink: 0 !important;
+  height: 100% !important;
+  max-height: 100% !important;
+  overflow-y: auto !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 8px !important;
+  padding-right: 6px !important;
+  scrollbar-width: thin !important;
+  scrollbar-color: #94a3b8 #f1f5f9 !important;
+}
+
+#nicNocModal .nicnoc-builder-pane,
 .nicnoc-builder-pane {
-  padding: 16px;
-  overflow-y: auto;
-  max-height: calc(85vh - 140px);
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+  flex: 1 !important;
+  min-width: 0 !important;
+  height: 100% !important;
+  max-height: 100% !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  -webkit-overflow-scrolling: touch !important;
+  padding: 14px 18px 24px 18px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 14px !important;
+  scrollbar-width: thin !important;
+  scrollbar-color: #4f46e5 #e0e7ff !important;
+}
+
+#nicNocModal .nicnoc-builder-pane::-webkit-scrollbar,
+.nicnoc-builder-pane::-webkit-scrollbar {
+  width: 8px !important;
+  display: block !important;
+}
+
+#nicNocModal .nicnoc-builder-pane::-webkit-scrollbar-track,
+.nicnoc-builder-pane::-webkit-scrollbar-track {
+  background: #f1f5f9 !important;
+  border-radius: 9999px !important;
+}
+
+#nicNocModal .nicnoc-builder-pane::-webkit-scrollbar-thumb,
+.nicnoc-builder-pane::-webkit-scrollbar-thumb {
+  background: #6366f1 !important;
+  border-radius: 9999px !important;
+}
+
+#nicNocModal .nicnoc-builder-pane::-webkit-scrollbar-thumb:hover,
+.nicnoc-builder-pane::-webkit-scrollbar-thumb:hover {
+  background: #4f46e5 !important;
 }
 .nicnoc-banner {
   background: linear-gradient(135deg, rgba(79, 70, 229, 0.08), rgba(99, 102, 241, 0.04));
@@ -4604,13 +4670,20 @@ body.modal-open {
   line-height: 1.5;
 }
 .nicnoc-footer-bar {
+  position: sticky !important;
+  bottom: 0 !important;
+  margin-top: 10px !important;
+  padding: 12px 16px !important;
+  background: var(--bg-surface, #ffffff) !important;
+  border-top: 2px solid #e0e7ff !important;
+  border-radius: 8px !important;
+  box-shadow: 0 -4px 16px rgba(79, 70, 229, 0.1) !important;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding-top: 8px;
-  border-top: 1px solid var(--border-subtle);
   flex-wrap: wrap;
   gap: 10px;
+  z-index: 20 !important;
 }
 .nicnoc-bed-picker {
   display: flex;
@@ -4663,4 +4736,24 @@ body.modal-open {
 }
 .btn-nicnoc-insert:hover {
   background: #0f766e;
+}
+
+@media (max-width: 880px) {
+  #nicNocModal .nicnoc-modal-card {
+    width: 98vw !important;
+    height: 96vh !important;
+  }
+  #nicNocModal .nicnoc-content-split {
+    flex-direction: column !important;
+    overflow-y: auto !important;
+    padding: 8px 10px !important;
+  }
+  #nicNocModal .nicnoc-list-pane {
+    width: 100% !important;
+    max-height: 220px !important;
+  }
+  #nicNocModal .nicnoc-builder-pane {
+    max-height: none !important;
+    padding: 10px 8px !important;
+  }
 }
