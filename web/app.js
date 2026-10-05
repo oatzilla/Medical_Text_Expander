@@ -2782,7 +2782,8 @@ const friendlyCategoryNames = [
   { icon: "fa-dove", label: "ระยะสุดท้าย (Palliative)" },
   { icon: "fa-brain", label: "ระบบประสาท (Neuro)" },
   { icon: "fa-lungs", label: "เครื่องช่วยหายใจ (Ventilator)" },
-  { icon: "fa-kit-medical", label: "วิกฤต & ช่วยชีวิต (Critical Care)" }
+  { icon: "fa-kit-medical", label: "วิกฤต & ช่วยชีวิต (Critical Care)" },
+  { icon: "fa-radiation", label: "มะเร็งกระดูก & ฉายแสง (Bone Ca & RT)" }
 ];
 
 // Render Category Pills with Mouse-Wheel Horizontal Scroll

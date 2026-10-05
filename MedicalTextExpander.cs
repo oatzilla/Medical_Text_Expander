@@ -1669,8 +1669,20 @@ namespace MedicalTextExpander {
             if (!string.IsNullOrEmpty(sharedConfigPath)) {
                 try {
                     if (File.Exists(sharedConfigPath)) {
-                        File.Copy(sharedConfigPath, localConfigPath, true);
-                        activeFile = sharedConfigPath;
+                        if (!File.Exists(localConfigPath)) {
+                            File.Copy(sharedConfigPath, localConfigPath, true);
+                            activeFile = sharedConfigPath;
+                        } else {
+                            FileInfo fiShared = new FileInfo(sharedConfigPath);
+                            FileInfo fiLocal = new FileInfo(localConfigPath);
+                            if (fiShared.LastWriteTimeUtc > fiLocal.LastWriteTimeUtc && fiShared.Length >= fiLocal.Length) {
+                                File.Copy(sharedConfigPath, localConfigPath, true);
+                                activeFile = sharedConfigPath;
+                            } else if (fiLocal.LastWriteTimeUtc > fiShared.LastWriteTimeUtc || fiLocal.Length > fiShared.Length) {
+                                try { File.Copy(localConfigPath, sharedConfigPath, true); } catch {}
+                                activeFile = localConfigPath;
+                            }
+                        }
                     }
                 } catch {
                     activeFile = localConfigPath;
@@ -1693,7 +1705,7 @@ namespace MedicalTextExpander {
                     if (trimmed.StartsWith("#") || string.IsNullOrEmpty(trimmed)) {
                         continue;
                     }
-                    if (trimmed.StartsWith("[") && trimmed.EndsWith("]")) {
+                    if (trimmed.StartsWith("[") && trimmed.EndsWith("]") && string.IsNullOrEmpty(curShortcut)) {
                         curCategory = trimmed.Substring(1, trimmed.Length - 2);
                         continue;
                     }
@@ -1737,7 +1749,7 @@ namespace MedicalTextExpander {
                                 foreach (string l in upLines) {
                                     string tr = l.Trim();
                                     if (tr.StartsWith("#") || string.IsNullOrEmpty(tr)) continue;
-                                    if (tr.StartsWith("[") && tr.EndsWith("]")) { uCategory = tr.Substring(1, tr.Length - 2); continue; }
+                                    if (tr.StartsWith("[") && tr.EndsWith("]") && string.IsNullOrEmpty(uShortcut)) { uCategory = tr.Substring(1, tr.Length - 2); continue; }
                                     if (tr.StartsWith("---")) {
                                         if (!string.IsNullOrEmpty(uShortcut) && uContent.Length > 0) {
                                             templates.Add(new TemplateItem(uShortcut, uTitle, uCategory, uContent.ToString().TrimEnd()));
@@ -5661,7 +5673,7 @@ namespace MedicalTextExpander {
             pnlQuickButtons.Controls.Add(lblQuick);
 
             Button btnDarCatalog = new Button();
-            btnDarCatalog.Text = "📋 คลังข้อวินิจฉัย/DAR (110 เทมเพลต)";
+            btnDarCatalog.Text = "📋 คลังข้อวินิจฉัย/DAR (118 เทมเพลต)";
             btnDarCatalog.Font = new Font("Segoe UI", 8.5f, FontStyle.Bold);
             btnDarCatalog.BackColor = Color.FromArgb(13, 148, 136);
             btnDarCatalog.ForeColor = Color.White;
@@ -7612,7 +7624,7 @@ public void RefreshAllBedButtons() {
             pnlTop.Controls.Add(txtSearch);
 
             lblSearchCount = new Label();
-            lblSearchCount.Text = "110 เทมเพลต";
+            lblSearchCount.Text = "118 เทมเพลต";
             lblSearchCount.ForeColor = Color.FromArgb(204, 251, 241);
             lblSearchCount.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
             lblSearchCount.AutoSize = true;
@@ -7676,7 +7688,8 @@ public void RefreshAllBedButtons() {
             pnlCategories.BackColor = Color.FromArgb(241, 245, 249);
             pnlCategories.Padding = new Padding(10, 5, 10, 5);
 
-            AddCategoryButton("all", "ทั้งหมด (110)");
+            AddCategoryButton("all", "ทั้งหมด (118)");
+            AddCategoryButton("boneca", "[มะเร็ง/ฉายแสง] Bone Ca / RT");
             AddCategoryButton("palliative", "[ระยะสุดท้าย] Palliative / Comfort");
             AddCategoryButton("neuro", "[ระบบประสาท] Stroke / ICP / Seizure");
             AddCategoryButton("vent", "[เครื่องช่วยหายใจ] ETT / Tracheo / Wean");
@@ -8281,6 +8294,7 @@ public void RefreshAllBedButtons() {
             string c = item.Category.ToLower();
             string s = item.Shortcut.ToLower();
 
+            if (catKey == "boneca") return c.Contains("20.") || c.Contains("bone cancer") || c.Contains("มะเร็งกระดูก") || c.Contains("ฉายแสง") || c.Contains("radiotherapy") || s == ".boneca" || s == ".pathofx" || s == ".hypercamal" || s == ".radiotherapy" || s == ".radskin" || s == ".painflare" || s == ".mscc" || s == ".radfatigue";
             if (catKey == "palliative") return c.Contains("16.") || c.Contains("palliative") || c.Contains("ระยะสุดท้าย") || c.Contains("ประคับประคอง") || s == ".palliative" || s == ".terminalpain" || s == ".deathrattle" || s == ".terminaldyspnea" || s == ".deliriumpalliative" || s == ".postmortem";
             if (catKey == "neuro") return c.Contains("17.") || c.Contains("neuro") || c.Contains("ระบบประสาท") || c.Contains("สมอง") || s == ".icp" || s == ".seizure" || s == ".gcsdrop" || s == ".tbi" || s == ".sci" || s == ".delirium" || s == ".stroke";
             if (catKey == "vent") return c.Contains("18.") || c.Contains("ventilator") || c.Contains("เครื่องช่วยหายใจ") || c.Contains("ทางเดินหายใจ") || s == ".vent" || s == ".suction" || s == ".ettcare" || s == ".tracheo" || s == ".wean" || s == ".extubate";
