@@ -756,10 +756,11 @@ function insertNicNocToActiveBed() {
   const targetBed = activeNicNocTargetBed || 1;
 
   // If patient note modal is currently open for this bed, append to textarea
-  const noteArea = document.getElementById('patientNote');
+  const noteArea = document.getElementById('noteTextarea') || document.getElementById('patientNote');
   if (typeof activeBedNumber !== 'undefined' && activeBedNumber === targetBed && noteArea) {
     const curVal = noteArea.value || '';
     noteArea.value = curVal ? (curVal.trim() + "\r\n\r\n" + text) : text;
+    noteArea.dispatchEvent(new Event('input', { bubbles: true }));
     if (typeof handleNoteInput === 'function') handleNoteInput();
     closeNicNocModal();
     showToast(`🛏️ แทรกลงบันทึกเตียง ${String(targetBed).padStart(2, '0')} สำเร็จ`);
@@ -771,10 +772,11 @@ function insertNicNocToActiveBed() {
     closeNicNocModal();
     openBedModal(targetBed);
     setTimeout(() => {
-      const area = document.getElementById('patientNote');
+      const area = document.getElementById('noteTextarea') || document.getElementById('patientNote');
       if (area) {
         const curVal = area.value || '';
         area.value = curVal ? (curVal.trim() + "\r\n\r\n" + text) : text;
+        area.dispatchEvent(new Event('input', { bubbles: true }));
         if (typeof handleNoteInput === 'function') handleNoteInput();
         showToast(`🛏️ แทรกลงบันทึกเตียง ${String(targetBed).padStart(2, '0')} เรียบร้อยแล้ว`);
       }
@@ -784,9 +786,15 @@ function insertNicNocToActiveBed() {
   }
 }
 
+// Export functions globally
+window.openNicNocModal = openNicNocModal;
+window.closeNicNocModal = closeNicNocModal;
+window.initNicNocModule = initNicNocModule;
+
 // Auto-initialize when DOM is ready
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', initNicNocModule);
 } else {
   initNicNocModule();
 }
+
