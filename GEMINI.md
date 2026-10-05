@@ -4,12 +4,12 @@
 
 ---
 
-## 1. ที่ตั้งโปรเจกต์และข้อกำหนดไดเรกทอรีคู่ (Dual-Directory Rule)
-1. **Primary Workspace (Git Repository Root)**: `E:\App\Medical_Text_Expander`
-   - โค้ดต้นฉบับทั้งหมด การคอมไพล์ และการจัดการ Git (`main`, `gh-pages`) ต้องทำที่โฟลเดอร์นี้เสมอ
-2. **User Runtime Directory**: `C:\Users\GORW01\Desktop\Medical_Text_Expander_Setup`
-   - ผู้ใช้จะเรียกใช้งานและรันโปรแกรมจริงจากไดเรกทอรีนี้
-   - **กฎเหล็ก (CRITICAL RULE)**: ทุกครั้งที่มีการคอมไพล์ `.exe`, อัปเดต `medical_templates.txt`, หรือแก้ไข `version.json` **ต้องคัดลอก (Sync) ไฟล์ดังกล่าวไปยัง `C:\Users\GORW01\Desktop\Medical_Text_Expander_Setup` เสมอ** มิฉะนั้นผู้ใช้จะไม่เห็นการเปลี่ยนแปลง
+## 1. ที่ตั้งโปรเจกต์แบบรวมศูนย์เดี่ยว (Unified Single-Directory Architecture)
+1. **Primary Workspace & Runtime Directory (Git Repository Root)**: `D:\Medical_Text_Expander`
+   - โค้ดต้นฉบับทั้งหมด การคอมไพล์ การจัดการ Git (`main`, `gh-pages`), ข้อมูลเตียงผู้ป่วย (`bed_notes`), คลังเทมเพลต, บัญชีผู้ใช้, และการรันโปรแกรมจริง รวมศูนย์ไว้ที่ไดเรกทอรีนี้เพียงแห่งเดียว 100%
+   - ยกเลิกโฟลเดอร์ซ้ำซ้อน (`Desktop\Medical_Text_Expander_Setup`) เพื่อป้องกันปัญหาข้อมูลเตียงแยกสองที่หรือความสับสนเรื่องเวอร์ชัน
+2. **Desktop Shortcut**:
+   - ผู้ใช้งานเรียกเปิดโปรแกรมผ่าน Shortcut บนหน้าจอเดสก์ท็อป (`C:\Users\GORW01\Desktop\Medical Text Expander.lnk`) ซึ่งชี้เป้าหมายตรงมายัง `D:\Medical_Text_Expander\Medical_Text_Expander.exe` โดยตรงเสมอ
 
 ---
 
