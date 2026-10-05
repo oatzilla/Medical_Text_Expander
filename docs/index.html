@@ -15,7 +15,7 @@
   <!-- FontAwesome Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   
-  <link rel="stylesheet" href="style.css?v=1.9.5">
+  <link rel="stylesheet" href="style.css?v=1.9.6">
 </head>
 <body>
   <!-- Top Navigation Bar -->
@@ -94,6 +94,10 @@
         <button class="nav-templates-btn" id="openTemplateLibraryBtn" title="เปิดคลังข้อวินิจฉัยและกิจกรรมพยาบาล (Templates)">
           <i class="fa-solid fa-book-medical"></i>
           <span class="nav-btn-text">คลังเทมเพลต (DAR)</span>
+        </button>
+        <button class="nav-templates-btn nav-nicnoc-btn" id="openNicNocModalBtn" title="เปิดระบบแผนการพยาบาลมาตรฐานสากล NANDA-I, NIC, NOC">
+          <i class="fa-solid fa-stethoscope"></i>
+          <span class="nav-btn-text">แผนการพยาบาล NIC/NOC</span>
         </button>
         <button class="icon-btn" id="themeToggleBtn" title="สลับโหมดมืด / โหมดสว่าง" aria-label="Toggle theme">
           <i class="fa-solid fa-moon"></i>
@@ -226,6 +230,9 @@
         <div class="quick-templates-bar">
           <button type="button" class="btn-picker-trigger" id="btnOpenTemplatePicker" title="เปิดคลังเลือกข้อวินิจฉัยและกิจกรรมการพยาบาล">
             <i class="fa-solid fa-book-medical"></i> เลือกข้อวินิจฉัย/DAR (118 เทมเพลต)
+          </button>
+          <button type="button" class="btn-picker-trigger" id="btnOpenNicNocPicker" style="background: rgba(79, 70, 229, 0.12); color: #4338ca; border-color: rgba(79, 70, 229, 0.3);" title="เปิดระบบแผนการพยาบาลมาตรฐานสากล NANDA-I, NIC, NOC">
+            <i class="fa-solid fa-stethoscope"></i> แผนการพยาบาล NIC/NOC
           </button>
           <span class="quick-divider">|</span>
           <span class="quick-label"><i class="fa-solid fa-bolt"></i> แทรกด่วน:</span>
@@ -498,6 +505,123 @@
           <span>บนคอมพิวเตอร์สามารถพิมพ์คำย่อ เช่น <code>.tka</code> <code>.tha</code> <code>.plif</code> ใน e-PHIS หรือกด <strong>F8</strong> เพื่อเปิดคลังเทมเพลต</span>
         </div>
         <button type="button" class="btn btn-secondary btn-sm" id="btnCloseTemplateModal">ปิดหน้าต่าง</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- NANDA-I, NIC, NOC Nursing Care Plan Modal -->
+  <div class="modal-overlay" id="nicNocModal" aria-hidden="true">
+    <div class="modal-card modal-xl nicnoc-modal-card">
+      <!-- Modal Header -->
+      <div class="modal-header nicnoc-modal-hdr">
+        <div class="modal-title-group">
+          <div class="modal-bed-badge nicnoc-header-badge"><i class="fa-solid fa-stethoscope"></i> NIC/NOC</div>
+          <div class="modal-title-row">
+            <h2 class="modal-title">ระบบแผนการพยาบาลมาตรฐานสากล NANDA-I, NIC, NOC</h2>
+            <span class="template-count-badge" id="nicNocCountBadge">20 ข้อวินิจฉัย</span>
+          </div>
+        </div>
+        <button class="modal-close-btn" id="nicNocModalCloseBtn" aria-label="Close NIC/NOC modal"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <!-- Search & Category Filters Bar -->
+      <div class="template-filter-section">
+        <div class="template-search-box">
+          <i class="fa-solid fa-magnifying-glass search-icon"></i>
+          <input type="text" id="nicNocSearchInput" placeholder="พิมพ์ค้นหา เช่น ปวด, แผล, ล้ม, หายใจ, acute pain, 00132..." autocomplete="off">
+          <button class="clear-search-btn" id="clearNicNocSearchBtn" aria-label="ล้างคำค้น"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="template-category-pills" id="nicNocCategoryPills">
+          <!-- Rendered by JS -->
+        </div>
+      </div>
+
+      <!-- Main Content Split (List & Details) -->
+      <div class="template-content-split nicnoc-content-split">
+        <!-- Left: Diagnosis Cards List -->
+        <div class="template-list-pane nicnoc-list-pane" id="nicNocListPane">
+          <!-- Rendered by JS -->
+        </div>
+
+        <!-- Right: Interactive NIC/NOC Builder Canvas -->
+        <div class="template-preview-pane nicnoc-builder-pane">
+          <!-- Diagnosis Banner -->
+          <div class="nicnoc-banner">
+            <div class="nicnoc-banner-top">
+              <span class="nicnoc-banner-code" id="nicNocActiveCode">NANDA-I: 00132</span>
+              <span class="nicnoc-banner-domain" id="nicNocActiveDomain">12. Comfort</span>
+            </div>
+            <h3 class="nicnoc-banner-title" id="nicNocActiveTitle">ปวดเฉียบพลัน (Acute Pain)</h3>
+            <div class="nicnoc-banner-related" id="nicNocActiveRelated">ปัจจัยที่เกี่ยวข้อง: การบาดเจ็บของเนื้อเยื่อจากการผ่าตัด</div>
+          </div>
+
+          <!-- Section 1: Data (Subjective & Objective) -->
+          <div class="nicnoc-section">
+            <div class="nicnoc-section-title"><i class="fa-solid fa-clipboard-question"></i> [D] ข้อมูลสนับสนุน (Supporting Data)</div>
+            <div class="nicnoc-field-group">
+              <label class="nicnoc-label">ข้อมูลจากการบอกเล่าของผู้ป่วย (Subjective Data):</label>
+              <textarea id="nicNocTxtSubj" class="nicnoc-textarea-sm" rows="2"></textarea>
+            </div>
+            <div class="nicnoc-field-group">
+              <label class="nicnoc-label">ข้อมูลจากการตรวจพบ / สัญญาณชีพ (Objective Data):</label>
+              <textarea id="nicNocTxtObj" class="nicnoc-textarea-sm" rows="2"></textarea>
+            </div>
+          </div>
+
+          <!-- Section 2: Goal / NOC -->
+          <div class="nicnoc-section">
+            <div class="nicnoc-section-title"><i class="fa-solid fa-bullseye"></i> [G] ผลลัพธ์และเป้าหมาย (NOC / Expected Outcomes)</div>
+            <textarea id="nicNocTxtGoal" class="nicnoc-textarea-sm" rows="2"></textarea>
+          </div>
+
+          <!-- Section 3: Action / NIC -->
+          <div class="nicnoc-section">
+            <div class="nicnoc-section-header">
+              <div class="nicnoc-section-title"><i class="fa-solid fa-user-nurse"></i> [A] กิจกรรมการพยาบาล (NIC / Nursing Interventions)</div>
+              <div class="nicnoc-shift-selector">
+                <button type="button" class="nicnoc-shift-btn active" data-shift="all">ทั้งหมด</button>
+                <button type="button" class="nicnoc-shift-btn" data-shift="morning">☀️ เช้า</button>
+                <button type="button" class="nicnoc-shift-btn" data-shift="afternoon">⛅ บ่าย</button>
+                <button type="button" class="nicnoc-shift-btn" data-shift="night">🌙 ดึก</button>
+              </div>
+            </div>
+            <div style="display:flex; justify-content:flex-end; gap:8px; margin-bottom:8px;">
+              <button type="button" class="nicnoc-quick-btn" id="btnNicNocSelectAll"><i class="fa-solid fa-check-double"></i> ติ๊กทั้งหมด</button>
+              <button type="button" class="nicnoc-quick-btn" id="btnNicNocClearAll"><i class="fa-solid fa-xmark"></i> ล้างการเลือก</button>
+            </div>
+            <div class="nicnoc-activities-list" id="nicNocActivitiesList">
+              <!-- Rendered by JS -->
+            </div>
+          </div>
+
+          <!-- Section 4: Response / NOC Evaluation -->
+          <div class="nicnoc-section">
+            <div class="nicnoc-section-title"><i class="fa-solid fa-square-poll-vertical"></i> [R] การประเมินผลลัพธ์ (NOC Evaluation / Response)</div>
+            <textarea id="nicNocTxtResp" class="nicnoc-textarea-sm" rows="2"></textarea>
+          </div>
+
+          <!-- Section 5: Real-time DAR Preview -->
+          <div class="nicnoc-section">
+            <div class="nicnoc-section-title"><i class="fa-solid fa-file-lines"></i> ตัวอย่างบันทึก Focus Charting (DAR) ที่จะนำไปใช้</div>
+            <textarea id="nicNocDarPreview" class="nicnoc-preview-box" readonly rows="7"></textarea>
+          </div>
+
+          <!-- Bottom Action Bar inside Preview -->
+          <div class="nicnoc-footer-bar">
+            <div class="nicnoc-bed-picker">
+              <label for="nicNocBedSelect"><i class="fa-solid fa-bed"></i> บันทึกลง:</label>
+              <select id="nicNocBedSelect" class="nicnoc-select"></select>
+            </div>
+            <div class="nicnoc-btn-group">
+              <button type="button" class="btn-nicnoc-copy" id="btnCopyNicNocDar">
+                <i class="fa-solid fa-copy"></i> คัดลอก DAR
+              </button>
+              <button type="button" class="btn-nicnoc-insert" id="btnInsertNicNocToBed">
+                <i class="fa-solid fa-bed"></i> แทรกลงเตียง
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -881,6 +1005,7 @@
   <div class="toast-container" id="toastContainer"></div>
 
   <!-- Application Logic -->
-  <script src="app.js?v=1.9.5"></script>
+  <script src="app.js?v=1.9.6"></script>
+  <script src="nic_noc.js?v=1.9.6"></script>
 </body>
 </html>
