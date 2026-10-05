@@ -1,8 +1,8 @@
 {
-  "version": "1.9.4",
+  "version": "1.9.5",
   "downloadUrl": "https://raw.githubusercontent.com/oatzilla/Medical_Text_Expander/main/Medical_Text_Expander.exe",
   "download_url": "https://raw.githubusercontent.com/oatzilla/Medical_Text_Expander/main/Medical_Text_Expander.exe",
   "releaseDate": "2026-10-05",
   "release_date": "2026-10-05",
-  "changelog": "- อนุญาตให้แก้ไขชื่อผู้ใช้งาน (Username) ของผู้ดูแลระบบ (Admin) และผู้ใช้ทั่วไปได้ทั้งบน Desktop และ Web Portal โดยคงสิทธิ์การจัดการและเตียง Slot 0 ไว้อย่างสมบูรณ์\r\n- สามารถพิมพ์แก้ไขข้อความในกล่องเทมเพลต (Raw Text) ได้โดยตรงทันที ไม่ติด ReadOnly ทั้งบน Desktop (F8) และ Web Portal เพื่อแก้ไข/เติมข้อมูลผู้ป่วยก่อนคัดลอกหรือแทรกลงเตียง\r\n- เพิ่มปุ่ม [💾 บันทึกทับเทมเพลต] บนแถบเครื่องมือของ PaletteForm (F8) บันทึกการแก้ไขลงในไฟล์ medical_templates.txt ได้ทันทีโดยไม่ต้องเปิด Notepad\r\n- ซิงค์คลังเทมเพลตมะเร็งกระดูกและรังสีรักษา (Bone Cancer & RT) รวม 118 เทมเพลตขึ้น Cloud (GitHub & GitHub Pages) สมบูรณ์ 100%"
+  "changelog": "- ยกเลิกการแชร์และเชื่อมต่อไฟล์ผ่าน SMB LAN (\\\\192.168.134.1\\Users\\Public\\share) อย่างสมบูรณ์ 100% เพื่อตัดปัญหาการอ่านเทมเพลตเก่าหรือความหน่วงในเครือข่ายโรงพยาบาล\r\n- ย้ายระบบจัดเก็บและซิงค์คลัง 118 เทมเพลตขึ้น Supabase Cloud (Row 102) ทำงานร่วมกับ GitHub Raw แบบเรียลไทม์ โหลดและอัปเดตตรงถึงกันทุกเครื่องทันทีทั้ง Desktop และ Web Portal\r\n- เพิ่มปุ่ม [☁️ ซิงค์คลัง 118 เทมเพลตจาก Cloud ทันที] และ [⬆️ อัปโหลดขึ้น Cloud (Row 102)] ในหน้าต่างตั้งค่า Cloud Sync\r\n- เชื่อมต่อระบบบันทึกเทมเพลต [💾 บันทึกทับเทมเพลต] บน PaletteForm (F8) ให้ซิงค์ขึ้น Supabase Cloud Row 102 อัตโนมัติในเบื้องหลังทันทีที่บันทึก\r\n- อัปเดต Web & Mobile Cloud Portal ให้ดึงคลัง 118 เทมเพลตตรงจาก Supabase Cloud Row 102 แบบเรียลไทม์ พร้อม Fallback อัตโนมัติ"
 }

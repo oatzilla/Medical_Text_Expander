@@ -2585,25 +2585,75 @@ function refreshTemplatePreview() {
   if (previewFormattedView) previewFormattedView.innerHTML = formatDARHtml(effective);
 }
 
-// Fetch and initialize templates
+// Fetch and initialize templates from Supabase Cloud (Row 102) with fallback to templates.json
 async function initClinicalTemplates() {
+  let loaded = false;
+
+  // 1. Try Supabase Cloud Row 102 first (Realtime Cloud Sync)
   try {
-    const res = await fetch('templates.json');
-    if (!res.ok) throw new Error('Cannot load templates.json');
-    templateCategories = await res.json();
-    
+    const cloudRes = await fetch(`${SUPABASE_URL}/rest/v1/bed_notes?bed_number=eq.102&select=content,updated_at,updated_by`, {
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`
+      }
+    });
+    if (cloudRes.ok) {
+      const data = await cloudRes.json();
+      if (data && data.length > 0 && data[0].content) {
+        let contentRaw = data[0].content;
+        let parsed = null;
+        if (typeof contentRaw === 'string') {
+          try { parsed = JSON.parse(contentRaw); } catch (e) { console.warn('Cloud row 102 JSON parse failed', e); }
+        } else {
+          parsed = contentRaw;
+        }
+
+        if (parsed) {
+          if (Array.isArray(parsed.categories) && parsed.categories.length > 0) {
+            templateCategories = parsed.categories;
+            loaded = true;
+          } else if (Array.isArray(parsed) && parsed.length > 0) {
+            templateCategories = parsed;
+            loaded = true;
+          }
+        }
+        if (loaded) {
+          console.log(`[Templates] Loaded ${templateCategories.length} categories directly from Supabase Cloud (Row 102)`);
+        }
+      }
+    }
+  } catch (cloudErr) {
+    console.warn('[Templates] Could not fetch from Supabase Cloud Row 102, falling back to static templates.json:', cloudErr);
+  }
+
+  // 2. Fallback to templates.json if cloud fetch was not possible
+  if (!loaded) {
+    try {
+      const res = await fetch('templates.json?v=1.9.5');
+      if (!res.ok) throw new Error('Cannot load templates.json');
+      templateCategories = await res.json();
+      loaded = true;
+      console.log(`[Templates] Loaded ${templateCategories.length} categories from templates.json fallback`);
+    } catch (err) {
+      console.warn('Failed to fetch templates.json', err);
+    }
+  }
+
+  if (loaded && templateCategories) {
     // Flatten templates into searchable array
     allTemplates = [];
     templateCategories.forEach((cat, catIdx) => {
-      cat.items.forEach(item => {
-        allTemplates.push({
-          shortcut: item.shortcut,
-          title: item.title,
-          content: item.content,
-          category: cat.category,
-          catIndex: catIdx
+      if (cat.items && Array.isArray(cat.items)) {
+        cat.items.forEach(item => {
+          allTemplates.push({
+            shortcut: item.shortcut,
+            title: item.title,
+            content: item.content,
+            category: cat.category,
+            catIndex: catIdx
+          });
         });
-      });
+      }
     });
 
     renderTemplateCategoryPills();
@@ -2611,8 +2661,6 @@ async function initClinicalTemplates() {
     if (allTemplates.length > 0) {
       selectTemplate(allTemplates[0], false);
     }
-  } catch (err) {
-    console.warn('Failed to fetch templates.json', err);
   }
 
   setupTemplateEventListeners();

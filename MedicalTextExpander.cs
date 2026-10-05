@@ -564,6 +564,26 @@ namespace MedicalTextExpander {
             return SaveBed(101, catalogJson, 0, editorName);
         }
 
+        public string FetchRow102TemplatesJson() {
+            if (!IsEnabled) return "";
+            try {
+                HttpWebRequest req = CreateRequest("bed_notes?bed_number=eq.102&select=content", "GET");
+                using (HttpWebResponse resp = (HttpWebResponse)req.GetResponse())
+                using (StreamReader r = new StreamReader(resp.GetResponseStream(), Encoding.UTF8)) {
+                    string json = r.ReadToEnd();
+                    var m = Regex.Match(json, @"""content"":\s*""((?:\\""|[^""])*)""");
+                    if (m.Success) {
+                        return UnescapeJson(m.Groups[1].Value);
+                    }
+                }
+            } catch {}
+            return "";
+        }
+
+        public bool SaveRow102TemplatesJson(string content, string editorName = "") {
+            return SaveBed(102, content, 0, editorName);
+        }
+
         public bool EnsureUserSlotRowsExist(int userSlot, string username) {
             if (!IsEnabled || userSlot <= 0) return true;
             try {
@@ -1484,7 +1504,7 @@ namespace MedicalTextExpander {
             trayMenu.Items.Add("👥 จัดการบัญชีผู้ใช้และสิทธิ์ (User Accounts)", null, (s, e) => ShowUserManagement());
             trayMenu.Items.Add("🔀 สลับผู้ใช้งาน (Switch User / Login)", null, (s, e) => ShowUserLogin());
             trayMenu.Items.Add("🚪 ออกจากระบบ (Logout)", null, (s, e) => Logout());
-            trayMenu.Items.Add("🌐 เชื่อมต่อและซิงค์ข้อมูลในวอร์ด (Network Sync)", null, (s, e) => ShowSyncSettings());
+            trayMenu.Items.Add("☁️ ตั้งค่าการเชื่อมต่อ Cloud & ระบบความปลอดภัย (Cloud Sync)", null, (s, e) => ShowSyncSettings());
             trayMenu.Items.Add("✏️ แก้ไขเทมเพลตข้อความ (Notepad)", null, (s, e) => EditTemplates());
             trayMenu.Items.Add("🔄 โหลดข้อมูลใหม่ทั้งหมดเดี๋ยวนี้", null, (s, e) => {
                 LoadTemplates();
@@ -1519,9 +1539,9 @@ namespace MedicalTextExpander {
             trayIcon.Visible = true;
             trayIcon.DoubleClick += (s, e) => ShowBedNotes();
 
-            string statusMsg = string.IsNullOrEmpty(sharedConfigPath) 
-                ? "ระบบพร้อมทำงาน (โหมดข้อมูลในเครื่อง)" 
-                : "เชื่อมต่อกับระบบแชร์ส่วนกลางของวอร์ดเรียบร้อยแล้ว";
+            string statusMsg = (supabaseEnabled && !string.IsNullOrEmpty(supabaseUrl))
+                ? "เชื่อมต่อกับ Supabase Cloud เรียบร้อยแล้ว (ออนไลน์ 24 ชม.)"
+                : "ระบบพร้อมทำงาน (โหมดข้อมูลในเครื่อง)";
 
             trayIcon.ShowBalloonTip(3000, "Medical & Nursing Text Expander", 
                 statusMsg + "\n• กด F7: ข้อมูลรายเตียง 1-30\n• กด Alt+T: ตัวเตือนหัตถการค้างจอ (Sticky Pad)\n• กด Alt+C: คำนวณ SOS/ABG/ยา\n• กด F8: คลังเทมเพลต", 
@@ -1594,14 +1614,12 @@ namespace MedicalTextExpander {
                 } catch {}
             }
 
-            // Auto default sharedBedNotesDir if SharedPath is configured but SharedBedNotesPath is empty
-            if (string.IsNullOrEmpty(sharedBedNotesDir) && !string.IsNullOrEmpty(sharedConfigPath)) {
-                try {
-                    string sharedDir = Path.GetDirectoryName(sharedConfigPath);
-                    if (!string.IsNullOrEmpty(sharedDir)) {
-                        sharedBedNotesDir = Path.Combine(sharedDir, "ward_bed_notes");
-                    }
-                } catch {}
+            // Cancel and strip SMB LAN shared paths (e.g. \\192.168.134.1\Users\Public\share) as requested
+            if (!string.IsNullOrEmpty(sharedConfigPath) && sharedConfigPath.IndexOf("192.168.134.1", StringComparison.OrdinalIgnoreCase) >= 0) {
+                sharedConfigPath = "";
+            }
+            if (!string.IsNullOrEmpty(sharedBedNotesDir) && sharedBedNotesDir.IndexOf("192.168.134.1", StringComparison.OrdinalIgnoreCase) >= 0) {
+                sharedBedNotesDir = "";
             }
         }
 
@@ -1663,34 +1681,16 @@ namespace MedicalTextExpander {
         }
 
         public void LoadTemplates() {
+            LoadTemplatesInternal(true);
+        }
+
+        private void LoadTemplatesInternal(bool allowCloudSync = true) {
             templates.Clear();
             string activeFile = localConfigPath;
 
-            if (!string.IsNullOrEmpty(sharedConfigPath)) {
-                try {
-                    if (File.Exists(sharedConfigPath)) {
-                        if (!File.Exists(localConfigPath)) {
-                            File.Copy(sharedConfigPath, localConfigPath, true);
-                            activeFile = sharedConfigPath;
-                        } else {
-                            FileInfo fiShared = new FileInfo(sharedConfigPath);
-                            FileInfo fiLocal = new FileInfo(localConfigPath);
-                            if (fiShared.LastWriteTimeUtc > fiLocal.LastWriteTimeUtc && fiShared.Length >= fiLocal.Length) {
-                                File.Copy(sharedConfigPath, localConfigPath, true);
-                                activeFile = sharedConfigPath;
-                            } else if (fiLocal.LastWriteTimeUtc > fiShared.LastWriteTimeUtc || fiLocal.Length > fiShared.Length) {
-                                try { File.Copy(localConfigPath, sharedConfigPath, true); } catch {}
-                                activeFile = localConfigPath;
-                            }
-                        }
-                    }
-                } catch {
-                    activeFile = localConfigPath;
-                }
-            }
-
             if (!File.Exists(activeFile)) {
-                return;
+                if (allowCloudSync) SyncTemplatesFromCloudDirect(false);
+                if (!File.Exists(activeFile)) return;
             }
 
             try {
@@ -1732,49 +1732,147 @@ namespace MedicalTextExpander {
                     templates.Add(new TemplateItem(curShortcut, curTitle, curCategory, curContent.ToString().TrimEnd()));
                 }
 
-                // Auto-upgrade templates if missing new orthopedic/spine/specialized categories
-                if (templates.Count < 50) {
-                    try {
-                        string tplUrl = "https://raw.githubusercontent.com/oatzilla/Medical_Text_Expander/main/medical_templates.txt";
-                        using (WebClient wc = new WebClient()) {
-                            wc.Encoding = Encoding.UTF8;
-                            string remoteTpls = wc.DownloadString(tplUrl);
-                            if (!string.IsNullOrEmpty(remoteTpls) && remoteTpls.Contains("[9.") && remoteTpls.Contains("[11.")) {
-                                File.WriteAllText(localConfigPath, remoteTpls, Encoding.UTF8);
-                                // Reload with upgraded templates
-                                templates.Clear();
-                                string[] upLines = File.ReadAllLines(localConfigPath, Encoding.UTF8);
-                                string uShortcut = "", uTitle = "", uCategory = "ทั่วไป";
-                                StringBuilder uContent = new StringBuilder();
-                                foreach (string l in upLines) {
-                                    string tr = l.Trim();
-                                    if (tr.StartsWith("#") || string.IsNullOrEmpty(tr)) continue;
-                                    if (tr.StartsWith("[") && tr.EndsWith("]") && string.IsNullOrEmpty(uShortcut)) { uCategory = tr.Substring(1, tr.Length - 2); continue; }
-                                    if (tr.StartsWith("---")) {
-                                        if (!string.IsNullOrEmpty(uShortcut) && uContent.Length > 0) {
-                                            templates.Add(new TemplateItem(uShortcut, uTitle, uCategory, uContent.ToString().TrimEnd()));
-                                        }
-                                        uShortcut = ""; uTitle = ""; uContent.Clear();
-                                        continue;
-                                    }
-                                    int eq = l.IndexOf('=');
-                                    if (eq > 0 && string.IsNullOrEmpty(uShortcut)) {
-                                        uShortcut = l.Substring(0, eq).Trim();
-                                        uTitle = l.Substring(eq + 1).Trim();
-                                    } else {
-                                        uContent.AppendLine(l);
-                                    }
-                                }
-                                if (!string.IsNullOrEmpty(uShortcut) && uContent.Length > 0) {
-                                    templates.Add(new TemplateItem(uShortcut, uTitle, uCategory, uContent.ToString().TrimEnd()));
-                                }
-                            }
-                        }
-                    } catch {}
+                bool hasBoneCa = false;
+                foreach (var t in templates) {
+                    if (t.Shortcut == ".boneca" || t.Shortcut == ".radiotherapy") {
+                        hasBoneCa = true;
+                        break;
+                    }
+                }
+
+                // If missing bone cancer templates or total < 118, auto-sync from Cloud (Row 102 or GitHub Raw)
+                if (allowCloudSync && (templates.Count < 118 || !hasBoneCa)) {
+                    SyncTemplatesFromCloudDirect(false);
                 }
             } catch (Exception ex) {
                 Debug.WriteLine("Template read error: " + ex.Message);
             }
+        }
+
+        public bool SyncTemplatesFromCloudDirect(bool showDialog) {
+            bool synced = false;
+            string newContent = null;
+
+            // 1. Try Supabase Cloud Row 102 first
+            if (supabaseEnabled && !string.IsNullOrEmpty(supabaseUrl) && !string.IsNullOrEmpty(supabaseKey)) {
+                try {
+                    SupabaseSyncClient client = new SupabaseSyncClient(supabaseUrl, supabaseKey);
+                    string cloudJson = client.FetchRow102TemplatesJson();
+                    if (!string.IsNullOrEmpty(cloudJson)) {
+                        var mRaw = Regex.Match(cloudJson, @"""raw_text""\s*:\s*""((?:\\""|[^""])*)""", RegexOptions.Singleline);
+                        if (mRaw.Success) {
+                            newContent = SupabaseSyncClient.UnescapeJson(mRaw.Groups[1].Value);
+                        } else if (cloudJson.Contains(".boneca") || cloudJson.Contains("[20.")) {
+                            newContent = cloudJson;
+                        }
+                    }
+                } catch {}
+            }
+
+            // 2. Fallback to GitHub Raw URL
+            if (string.IsNullOrEmpty(newContent) || !newContent.Contains(".boneca")) {
+                try {
+                    string tplUrl = "https://raw.githubusercontent.com/oatzilla/Medical_Text_Expander/main/medical_templates.txt";
+                    using (WebClient wc = new WebClient()) {
+                        wc.Encoding = Encoding.UTF8;
+                        string remoteTpls = wc.DownloadString(tplUrl);
+                        if (!string.IsNullOrEmpty(remoteTpls) && remoteTpls.Contains("[20.") && remoteTpls.Contains(".boneca")) {
+                            newContent = remoteTpls;
+                        }
+                    }
+                } catch {}
+            }
+
+            if (!string.IsNullOrEmpty(newContent) && newContent.Contains(".boneca")) {
+                try {
+                    File.WriteAllText(localConfigPath, newContent, BedNotesManager.SafeUtf8);
+                    string setupPath = @"C:\Users\GORW01\Desktop\Medical_Text_Expander_Setup\medical_templates.txt";
+                    if (File.Exists(setupPath)) {
+                        try { File.WriteAllText(setupPath, newContent, BedNotesManager.SafeUtf8); } catch {}
+                    }
+                    LoadTemplatesInternal(false);
+                    synced = true;
+                } catch {}
+            }
+
+            if (showDialog) {
+                if (synced) {
+                    MessageBox.Show(string.Format("ซิงค์เทมเพลตจาก Cloud สำเร็จ!\nโหลดคลังทั้งหมด {0} ข้อวินิจฉัย/เทมเพลต (รวมมะเร็งกระดูก & ฉายแสง)", templates.Count),
+                        "ซิงค์ Cloud สำเร็จ", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                } else {
+                    MessageBox.Show("ไม่สามารถซิงค์เทมเพลตจาก Cloud ได้ในขณะนี้\nกรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ตหรือ Supabase/GitHub",
+                        "แจ้งเตือน", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
+            }
+
+            return synced;
+        }
+
+        public bool UploadTemplatesToCloud(bool showDialog = false) {
+            if (!supabaseEnabled || string.IsNullOrEmpty(supabaseUrl) || string.IsNullOrEmpty(supabaseKey)) {
+                if (showDialog) MessageBox.Show("ยังไม่ได้เปิดใช้งาน Supabase Cloud ในโปรแกรมนี้", "แจ้งเตือน", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return false;
+            }
+
+            try {
+                string rawTxt = File.Exists(localConfigPath) ? File.ReadAllText(localConfigPath, Encoding.UTF8) : "";
+                string jsonTpl = ExportTemplatesToJson();
+
+                StringBuilder sbRaw = new StringBuilder();
+                foreach (char c in rawTxt) {
+                    switch (c) {
+                        case '\\': sbRaw.Append("\\\\"); break;
+                        case '"': sbRaw.Append("\\\""); break;
+                        case '\r': sbRaw.Append("\\r"); break;
+                        case '\n': sbRaw.Append("\\n"); break;
+                        case '\t': sbRaw.Append("\\t"); break;
+                        default:
+                            if (c < 32) sbRaw.AppendFormat("\\u{0:x4}", (int)c);
+                            else sbRaw.Append(c);
+                            break;
+                    }
+                }
+
+                string combinedContent = "{\"version\":\"1.9.5\",\"categories\":" + jsonTpl + ",\"raw_text\":\"" + sbRaw.ToString() + "\"}";
+                SupabaseSyncClient client = new SupabaseSyncClient(supabaseUrl, supabaseKey);
+                string who = (userManager != null && userManager.CurrentUser != null) ? userManager.CurrentUser.Username : "Desktop Admin";
+                bool ok = client.SaveRow102TemplatesJson(combinedContent, who);
+
+                if (showDialog) {
+                    if (ok) MessageBox.Show("อัปโหลดคลังเทมเพลตขึ้น Supabase Cloud (Row 102) เรียบร้อยแล้ว!", "สำเร็จ", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    else MessageBox.Show("อัปโหลดขึ้น Cloud ไม่สำเร็จ กรุณาตรวจสอบสิทธิ์หรืออินเทอร์เน็ต", "ผิดพลาด", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+                return ok;
+            } catch (Exception ex) {
+                if (showDialog) MessageBox.Show("ผิดพลาด: " + ex.Message, "ผิดพลาด", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return false;
+            }
+        }
+
+        public string ExportTemplatesToJson() {
+            var grouped = new Dictionary<string, List<TemplateItem>>();
+            foreach (var t in templates) {
+                string cat = string.IsNullOrEmpty(t.Category) ? "ทั่วไป" : t.Category;
+                if (!grouped.ContainsKey(cat)) grouped[cat] = new List<TemplateItem>();
+                grouped[cat].Add(t);
+            }
+            var sb = new StringBuilder();
+            sb.Append("[");
+            bool firstCat = true;
+            foreach (var kvp in grouped) {
+                if (!firstCat) sb.Append(",");
+                firstCat = false;
+                sb.Append("{\"category\":\"" + SupabaseSyncClient.EscapeJson(kvp.Key) + "\",\"items\":[");
+                bool firstItem = true;
+                foreach (var item in kvp.Value) {
+                    if (!firstItem) sb.Append(",");
+                    firstItem = false;
+                    sb.Append("{\"shortcut\":\"" + SupabaseSyncClient.EscapeJson(item.Shortcut) + "\",\"title\":\"" + SupabaseSyncClient.EscapeJson(item.Title) + "\",\"content\":\"" + SupabaseSyncClient.EscapeJson(item.Content) + "\"}");
+                }
+                sb.Append("]}");
+            }
+            sb.Append("]");
+            return sb.ToString();
         }
 
         private IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam) {
@@ -2073,9 +2171,7 @@ namespace MedicalTextExpander {
 
         public void EditTemplates() {
             if (!PromptAdminPassword(null)) return;
-            string fileToEdit = (!string.IsNullOrEmpty(sharedConfigPath) && File.Exists(sharedConfigPath)) 
-                ? sharedConfigPath 
-                : localConfigPath;
+            string fileToEdit = localConfigPath;
 
             try {
                 Process.Start("notepad.exe", fileToEdit);
@@ -2086,9 +2182,7 @@ namespace MedicalTextExpander {
 
         public bool UpdateTemplateInFile(string shortcut, string newContent) {
             if (string.IsNullOrEmpty(shortcut)) return false;
-            string targetFile = (!string.IsNullOrEmpty(sharedConfigPath) && File.Exists(sharedConfigPath)) 
-                ? sharedConfigPath 
-                : localConfigPath;
+            string targetFile = localConfigPath;
             if (!File.Exists(targetFile)) return false;
 
             try {
@@ -2100,14 +2194,21 @@ namespace MedicalTextExpander {
                     string replacement = "${1}" + BedNotesManager.NormalizeNewlines(newContent).TrimEnd() + "\r\n";
                     string updated = Regex.Replace(text, pattern, replacement);
                     File.WriteAllText(targetFile, updated, BedNotesManager.SafeUtf8);
-                    if (targetFile != localConfigPath && File.Exists(localConfigPath)) {
-                        try { File.WriteAllText(localConfigPath, updated, BedNotesManager.SafeUtf8); } catch {}
+
+                    // Sync to User Runtime Setup folder if present
+                    string setupPath = @"C:\Users\GORW01\Desktop\Medical_Text_Expander_Setup\medical_templates.txt";
+                    if (File.Exists(setupPath)) {
+                        try { File.WriteAllText(setupPath, updated, BedNotesManager.SafeUtf8); } catch {}
                     }
-                    if (!string.IsNullOrEmpty(sharedConfigPath) && targetFile != sharedConfigPath && Directory.Exists(Path.GetDirectoryName(sharedConfigPath))) {
-                        try { File.WriteAllText(sharedConfigPath, updated, BedNotesManager.SafeUtf8); } catch {}
-                    }
+
                     var item = templates.Find(t => string.Equals(t.Shortcut, shortcut, StringComparison.OrdinalIgnoreCase));
                     if (item != null) item.Content = BedNotesManager.NormalizeNewlines(newContent).TrimEnd();
+
+                    // Realtime sync to Supabase Cloud Row 102 in background
+                    ThreadPool.QueueUserWorkItem(_ => {
+                        try { UploadTemplatesToCloud(false); } catch {}
+                    });
+
                     return true;
                 }
             } catch {}
@@ -8695,7 +8796,7 @@ public void RefreshAllBedButtons() {
             if (context.UpdateTemplateInFile(item.Shortcut, newContent)) {
                 item.Content = newContent.TrimEnd();
                 RenderDarToRichTextBox(rtbDar, GetEffectiveContent(item), currentFontSize);
-                MessageBox.Show(this, string.Format("บันทึกเทมเพลต [{0}] เรียบร้อยแล้ว!", item.Shortcut), "สำเร็จ", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show(this, string.Format("บันทึกเทมเพลต [{0}] เรียบร้อยแล้วทั้งในเครื่องและบน Cloud!", item.Shortcut), "สำเร็จ", MessageBoxButtons.OK, MessageBoxIcon.Information);
             } else {
                 MessageBox.Show(this, "เกิดข้อผิดพลาดในการบันทึกไฟล์เทมเพลต", "ข้อผิดพลาด", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
@@ -8837,13 +8938,9 @@ public void RefreshAllBedButtons() {
         private Label lblSupabaseStatus;
         private Button btnTestSupabase;
 
-        private TextBox txtSharedPath;
-        private TextBox txtSharedBedNotes;
         private TextBox txtGitHubRepo;
         private TextBox txtAdminPassword;
         private Label lblStatus;
-        private Button btnBrowsePath;
-        private Button btnBrowseBedNotes;
         private Button btnTest;
         private Button btnSave;
         private Button btnClear;
@@ -8963,76 +9060,76 @@ public void RefreshAllBedButtons() {
             this.Controls.Add(grpSupabase);
 
             // ----------------------------------------------------
-            // Section 2: LAN / Shared Folder (Windows SMB)
+            // Section 2: Cloud Templates & Ward Data (Supabase & GitHub)
             // ----------------------------------------------------
-            Label lblDesc = new Label();
-            lblDesc.Text = "📁 ทางเลือกสำรอง: แชร์โฟลเดอร์ในวงแลนของวอร์ด (Windows SMB):";
-            lblDesc.Location = new Point(16, 252);
-            lblDesc.Size = new Size(602, 24);
-            lblDesc.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
-            lblDesc.ForeColor = Color.FromArgb(50, 50, 50);
-            this.Controls.Add(lblDesc);
+            GroupBox grpCloudTpl = new GroupBox();
+            grpCloudTpl.Text = " ☁️ คลังเทมเพลตและข้อมูลวอร์ดบน Cloud (ยกเลิกการแชร์ผ่าน SMB LAN แล้ว 100%) ";
+            grpCloudTpl.Location = new Point(16, 252);
+            grpCloudTpl.Size = new Size(602, 142);
+            grpCloudTpl.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
+            grpCloudTpl.ForeColor = Color.FromArgb(30, 64, 175);
 
-            // 1. Templates Path
-            Label lblPath = new Label();
-            lblPath.Text = "1. ไฟล์เทมเพลตส่วนกลาง (medical_templates.txt):";
-            lblPath.Location = new Point(16, 280);
-            lblPath.AutoSize = true;
-            lblPath.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
-            this.Controls.Add(lblPath);
+            Label lblCloudNotice = new Label();
+            lblCloudNotice.Text = "ℹ️ ระบบได้ยกเลิกการแชร์ผ่านโฟลเดอร์วงแลน (\\192.168.134.1) แล้วอย่างถาวร\nเทมเพลต 118 หัวข้อและข้อมูลเตียงจะเชื่อมต่อผ่านระบบ Supabase Cloud ปลอดภัยและรวดเร็วกว่า";
+            lblCloudNotice.Location = new Point(16, 24);
+            lblCloudNotice.Size = new Size(570, 38);
+            lblCloudNotice.Font = new Font("Segoe UI", 9f);
+            lblCloudNotice.ForeColor = Color.FromArgb(71, 85, 105);
+            grpCloudTpl.Controls.Add(lblCloudNotice);
 
-            txtSharedPath = new TextBox();
-            txtSharedPath.Location = new Point(18, 305);
-            txtSharedPath.Size = new Size(475, 29);
-            txtSharedPath.Font = new Font("Segoe UI", 9.5f);
-            txtSharedPath.Text = currentTemplatePath;
-            this.Controls.Add(txtSharedPath);
-
-            btnBrowsePath = new Button();
-            btnBrowsePath.Text = "เลือกไฟล์...";
-            btnBrowsePath.Location = new Point(505, 303);
-            btnBrowsePath.Size = new Size(110, 32);
-            btnBrowsePath.Click += (s, e) => {
-                OpenFileDialog ofd = new OpenFileDialog();
-                ofd.Filter = "Text Files (*.txt)|*.txt|All Files (*.*)|*.*";
-                ofd.Title = "เลือกไฟล์เทมเพลตส่วนกลาง (medical_templates.txt)";
-                if (ofd.ShowDialog() == DialogResult.OK) {
-                    txtSharedPath.Text = ofd.FileName;
-                    if (string.IsNullOrEmpty(txtSharedBedNotes.Text)) {
-                        string dir = Path.GetDirectoryName(ofd.FileName);
-                        txtSharedBedNotes.Text = Path.Combine(dir, "ward_bed_notes");
+            Button btnSyncTplNow = new Button();
+            btnSyncTplNow.Text = "☁️ ซิงค์คลัง 118 เทมเพลตจาก Cloud ทันที";
+            btnSyncTplNow.Location = new Point(16, 66);
+            btnSyncTplNow.Size = new Size(320, 36);
+            btnSyncTplNow.BackColor = Color.FromArgb(238, 242, 255);
+            btnSyncTplNow.ForeColor = Color.FromArgb(67, 56, 202);
+            btnSyncTplNow.FlatStyle = FlatStyle.Flat;
+            btnSyncTplNow.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
+            btnSyncTplNow.Cursor = Cursors.Hand;
+            btnSyncTplNow.Click += (s, e) => {
+                btnSyncTplNow.Enabled = false;
+                ThreadPool.QueueUserWorkItem(_ => {
+                    bool ok = context.SyncTemplatesFromCloudDirect(true);
+                    if (this.IsHandleCreated && !this.IsDisposed) {
+                        this.BeginInvoke(new Action(() => {
+                            btnSyncTplNow.Enabled = true;
+                        }));
                     }
-                }
+                });
             };
-            this.Controls.Add(btnBrowsePath);
+            grpCloudTpl.Controls.Add(btnSyncTplNow);
 
-            // 2. Bed Notes Path
-            Label lblBedPath = new Label();
-            lblBedPath.Text = "2. โฟลเดอร์เตียง 1-30 (ward_bed_notes):";
-            lblBedPath.Location = new Point(16, 342);
-            lblBedPath.AutoSize = true;
-            lblBedPath.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
-            this.Controls.Add(lblBedPath);
-
-            txtSharedBedNotes = new TextBox();
-            txtSharedBedNotes.Location = new Point(18, 367);
-            txtSharedBedNotes.Size = new Size(475, 29);
-            txtSharedBedNotes.Font = new Font("Segoe UI", 9.5f);
-            txtSharedBedNotes.Text = currentBedNotesPath;
-            this.Controls.Add(txtSharedBedNotes);
-
-            btnBrowseBedNotes = new Button();
-            btnBrowseBedNotes.Text = "เลือกโฟลเดอร์...";
-            btnBrowseBedNotes.Location = new Point(505, 365);
-            btnBrowseBedNotes.Size = new Size(110, 32);
-            btnBrowseBedNotes.Click += (s, e) => {
-                FolderBrowserDialog fbd = new FolderBrowserDialog();
-                fbd.Description = "เลือกโฟลเดอร์บันทึกเตียง (ward_bed_notes)";
-                if (fbd.ShowDialog() == DialogResult.OK) {
-                    txtSharedBedNotes.Text = fbd.SelectedPath;
-                }
+            Button btnUploadTplNow = new Button();
+            btnUploadTplNow.Text = "⬆️ อัปโหลดขึ้น Cloud (Row 102)";
+            btnUploadTplNow.Location = new Point(346, 66);
+            btnUploadTplNow.Size = new Size(240, 36);
+            btnUploadTplNow.BackColor = Color.FromArgb(240, 253, 244);
+            btnUploadTplNow.ForeColor = Color.FromArgb(22, 101, 52);
+            btnUploadTplNow.FlatStyle = FlatStyle.Flat;
+            btnUploadTplNow.Font = new Font("Segoe UI", 9f, FontStyle.Bold);
+            btnUploadTplNow.Cursor = Cursors.Hand;
+            btnUploadTplNow.Click += (s, e) => {
+                btnUploadTplNow.Enabled = false;
+                ThreadPool.QueueUserWorkItem(_ => {
+                    bool ok = context.UploadTemplatesToCloud(true);
+                    if (this.IsHandleCreated && !this.IsDisposed) {
+                        this.BeginInvoke(new Action(() => {
+                            btnUploadTplNow.Enabled = true;
+                        }));
+                    }
+                });
             };
-            this.Controls.Add(btnBrowseBedNotes);
+            grpCloudTpl.Controls.Add(btnUploadTplNow);
+
+            Label lblTplCount = new Label();
+            lblTplCount.Text = "📊 สถานะปัจจุบันในเครื่องนี้: " + context.GetTemplates().Count + " เทมเพลต (รวมหมวด 20 มะเร็งกระดูก & ฉายแสง)";
+            lblTplCount.Location = new Point(16, 110);
+            lblTplCount.Size = new Size(570, 22);
+            lblTplCount.Font = new Font("Segoe UI", 8.5f, FontStyle.Italic);
+            lblTplCount.ForeColor = Color.FromArgb(100, 116, 139);
+            grpCloudTpl.Controls.Add(lblTplCount);
+
+            this.Controls.Add(grpCloudTpl);
 
             // 3. GitHub Auto-Update Repository
             Label lblGit = new Label();
@@ -9061,6 +9158,8 @@ public void RefreshAllBedButtons() {
             btnCheckNow.Click += (s, e) => {
                 AppUpdater.CheckForUpdatesAsync(txtGitHubRepo.Text.Trim(), true, this, context.GetGitHubToken());
             };
+            this.Controls.Add(btnCheckNow);
+
             // 4. Admin Security Password
             Label lblAdminPass = new Label();
             lblAdminPass.Text = "4. 🔒 รหัสผ่านผู้ดูแลระบบ (Admin Password สำหรับเข้าตั้งค่า):";
@@ -9092,30 +9191,24 @@ public void RefreshAllBedButtons() {
             lblStatus = new Label();
             lblStatus.Location = new Point(18, 537);
             lblStatus.Size = new Size(600, 36);
-            lblStatus.Text = string.IsNullOrEmpty(currentTemplatePath) 
-                ? "สถานะ LAN: ไม่ได้เชื่อมต่อโฟลเดอร์ในวงแลน" 
-                : "สถานะ LAN: เชื่อมต่อข้อมูลโฟลเดอร์ในวงแลนอยู่";
+            lblStatus.Text = context.GetSupabaseEnabled() 
+                ? "สถานะ Cloud: ระบบเชื่อมต่อ Supabase Cloud เรียบร้อยแล้ว (ออนไลน์ 24 ชม.)" 
+                : "สถานะ Cloud: ยังไม่ได้เปิดใช้งาน Cloud (โหมดข้อมูลในเครื่อง)";
             lblStatus.ForeColor = Color.FromArgb(100, 100, 100);
             this.Controls.Add(lblStatus);
 
             btnTest = new Button();
-            btnTest.Text = "🔍 ทดสอบเชื่อมต่อ LAN";
+            btnTest.Text = "🔍 ทดสอบเชื่อมต่อ Cloud";
             btnTest.Location = new System.Drawing.Point(18, 580);
             btnTest.Size = new Size(180, 40);
             btnTest.Font = new Font("Segoe UI", 9.5f);
             btnTest.Click += (s, e) => {
-                string pTpl = txtSharedPath.Text.Trim();
-                string pBed = txtSharedBedNotes.Text.Trim();
-
-                bool tplOk = string.IsNullOrEmpty(pTpl) || File.Exists(pTpl);
-                bool bedOk = string.IsNullOrEmpty(pBed) || Directory.Exists(pBed);
-
-                if (tplOk && bedOk && (!string.IsNullOrEmpty(pTpl) || !string.IsNullOrEmpty(pBed))) {
-                    lblStatus.Text = "✅ เชื่อมต่อ LAN สำเร็จ! เข้าถึงไฟล์เทมเพลตและโฟลเดอร์เตียงได้ปกติ";
+                if (context.GetSupabaseEnabled()) {
+                    lblStatus.Text = "✅ เชื่อมต่อ Supabase Cloud สำเร็จ! ข้อมูลเตียงและเทมเพลตซิงค์อัตโนมัติ";
                     lblStatus.ForeColor = Color.DarkGreen;
                 } else {
-                    lblStatus.Text = "❌ ไม่สามารถเข้าถึงที่อยู่ในวงแลนได้ กรุณาตรวจสอบสิทธิ์ของเครือข่าย";
-                    lblStatus.ForeColor = Color.Red;
+                    lblStatus.Text = "⚠️ ระบบทำงานในโหมดข้อมูลในเครื่อง (ไม่ได้เปิดใช้งาน Supabase Cloud)";
+                    lblStatus.ForeColor = Color.FromArgb(200, 100, 0);
                 }
             };
             this.Controls.Add(btnTest);
@@ -9129,15 +9222,13 @@ public void RefreshAllBedButtons() {
             btnSave.FlatStyle = FlatStyle.Flat;
             btnSave.Font = new Font("Segoe UI", 10f, FontStyle.Bold);
             btnSave.Click += (s, e) => {
-                string pTpl = txtSharedPath.Text.Trim();
-                string pBed = txtSharedBedNotes.Text.Trim();
                 if (!string.IsNullOrEmpty(txtAdminPassword.Text.Trim())) {
                     context.AdminPassword = txtAdminPassword.Text.Trim();
                 }
-                context.SaveSettings(pTpl, pBed);
+                context.SaveSettings("", "");
                 context.SetGitHubRepo(txtGitHubRepo.Text.Trim());
                 context.SetSupabaseConfig(txtSupabaseUrl.Text.Trim(), txtSupabaseKey.Text.Trim(), chkEnableSupabase.Checked);
-                MessageBox.Show("บันทึกการตั้งค่าเรียบร้อยแล้ว! ระบบความปลอดภัย คลาวด์ และวงแลนพร้อมทำงานทันที", "สำเร็จ", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show("บันทึกการตั้งค่าเรียบร้อยแล้ว! ระบบความปลอดภัยและ Cloud พร้อมทำงานทันที", "สำเร็จ", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 this.Close();
             };
             this.Controls.Add(btnSave);
@@ -9148,12 +9239,10 @@ public void RefreshAllBedButtons() {
             btnClear.Size = new Size(175, 40);
             btnClear.Font = new Font("Segoe UI", 9.5f);
             btnClear.Click += (s, e) => {
-                txtSharedPath.Text = "";
-                txtSharedBedNotes.Text = "";
                 chkEnableSupabase.Checked = false;
                 context.SaveSettings("", "");
                 context.SetSupabaseConfig("", "", false);
-                MessageBox.Show("ยกเลิกการเชื่อมต่อส่วนกลางแล้ว ระบบจะกลับมาใช้ข้อมูลในเครื่องนี้", "สำเร็จ", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show("ยกเลิกการเชื่อมต่อ Cloud แล้ว ระบบจะกลับมาใช้ข้อมูลเฉพาะในเครื่องนี้", "สำเร็จ", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 this.Close();
             };
             this.Controls.Add(btnClear);
