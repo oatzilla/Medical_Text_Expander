@@ -52,6 +52,25 @@ namespace MedicalTextExpander {
             }
 
             Process current = Process.GetCurrentProcess();
+            // กำจัดโปรเซสเก่า/ค้างจากไดเรกทอรีอื่น หรือชื่อ .bak ทันที เพื่อป้องกันไม่ให้เวอร์ชันเก่าเปิดขึ้นมา
+            try {
+                string currentExePath = "";
+                try { currentExePath = current.MainModule.FileName; } catch {}
+                foreach (Process p in Process.GetProcesses()) {
+                    try {
+                        if (p.Id != current.Id && p.ProcessName.StartsWith("Medical_Text_Expander", StringComparison.OrdinalIgnoreCase)) {
+                            string pPath = "";
+                            try { pPath = p.MainModule.FileName; } catch {}
+                            if (!string.IsNullOrEmpty(pPath) && !string.IsNullOrEmpty(currentExePath) &&
+                                !string.Equals(pPath, currentExePath, StringComparison.OrdinalIgnoreCase)) {
+                                p.Kill();
+                                p.WaitForExit(1000);
+                            }
+                        }
+                    } catch {}
+                }
+            } catch {}
+
             Process[] existingProcesses = Process.GetProcessesByName(current.ProcessName);
 
             if (forceRestart) {
@@ -162,14 +181,13 @@ namespace MedicalTextExpander {
 
         private static void KillOtherInstances(int currentPid) {
             try {
-                string procName = Process.GetCurrentProcess().ProcessName;
-                foreach (Process p in Process.GetProcessesByName(procName)) {
-                    if (p.Id != currentPid) {
-                        try {
+                foreach (Process p in Process.GetProcesses()) {
+                    try {
+                        if (p.Id != currentPid && p.ProcessName.StartsWith("Medical_Text_Expander", StringComparison.OrdinalIgnoreCase)) {
                             p.Kill();
                             p.WaitForExit(1000);
-                        } catch {}
-                    }
+                        }
+                    } catch {}
                 }
             } catch {}
         }
