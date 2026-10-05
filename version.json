@@ -1,8 +1,8 @@
 {
   "version": "1.9.5",
-  "downloadUrl": "https://raw.githubusercontent.com/oatzilla/Medical_Text_Expander/main/Medical_Text_Expander.exe",
-  "download_url": "https://raw.githubusercontent.com/oatzilla/Medical_Text_Expander/main/Medical_Text_Expander.exe",
+  "downloadUrl": "https://github.com/oatzilla/Medical_Text_Expander/releases/latest/download/Medical_Text_Expander.exe",
+  "download_url": "https://github.com/oatzilla/Medical_Text_Expander/releases/latest/download/Medical_Text_Expander.exe",
   "releaseDate": "2026-10-05",
   "release_date": "2026-10-05",
-  "changelog": "- ยกเลิกการแชร์และเชื่อมต่อไฟล์ผ่าน SMB LAN (\\\\192.168.134.1\\Users\\Public\\share) อย่างสมบูรณ์ 100% เพื่อตัดปัญหาการอ่านเทมเพลตเก่าหรือความหน่วงในเครือข่ายโรงพยาบาล\r\n- ย้ายระบบจัดเก็บและซิงค์คลัง 118 เทมเพลตขึ้น Supabase Cloud (Row 102) ทำงานร่วมกับ GitHub Raw แบบเรียลไทม์ โหลดและอัปเดตตรงถึงกันทุกเครื่องทันทีทั้ง Desktop และ Web Portal\r\n- เพิ่มปุ่ม [☁️ ซิงค์คลัง 118 เทมเพลตจาก Cloud ทันที] และ [⬆️ อัปโหลดขึ้น Cloud (Row 102)] ในหน้าต่างตั้งค่า Cloud Sync\r\n- เชื่อมต่อระบบบันทึกเทมเพลต [💾 บันทึกทับเทมเพลต] บน PaletteForm (F8) ให้ซิงค์ขึ้น Supabase Cloud Row 102 อัตโนมัติในเบื้องหลังทันทีที่บันทึก\r\n- อัปเดต Web & Mobile Cloud Portal ให้ดึงคลัง 118 เทมเพลตตรงจาก Supabase Cloud Row 102 แบบเรียลไทม์ พร้อม Fallback อัตโนมัติ"
+  "changelog": "- ระบบตรวจสอบและอัปเดตอัตโนมัติอัจฉริยะ (Dynamic Auto-Updater & Downgrade Prevention): ตรวจจับเวอร์ชันจาก version.json และ AssemblyFileVersion แก้ปัญหาโปรแกรมแจ้งเตือนให้อัปเดตซ้ำซากและป้องกันการดาวน์เกรดทับเวอร์ชันใหม่ พร้อมแสดงป้ายเวอร์ชันชัดเจนทุกหน้าต่าง\r\n- ยกเลิกการแชร์และเชื่อมต่อไฟล์ผ่าน SMB LAN (\\\\192.168.134.1\\Users\\Public\\share) อย่างสมบูรณ์ 100% เพื่อตัดปัญหาการอ่านเทมเพลตเก่าหรือความหน่วงในเครือข่ายโรงพยาบาล\r\n- ย้ายระบบจัดเก็บและซิงค์คลัง 118 เทมเพลตขึ้น Supabase Cloud (Row 102) ทำงานร่วมกับ GitHub Raw แบบเรียลไทม์ โหลดและอัปเดตตรงถึงกันทุกเครื่องทันทีทั้ง Desktop และ Web Portal\r\n- เพิ่มคลังข้อวินิจฉัยและกิจกรรมการพยาบาลมะเร็งกระดูกและรังสีรักษา (Bone Cancer & Radiotherapy) 8 หัวข้อ (รวมเป็น 118 เทมเพลต)\r\n- อนุญาตให้แก้ไขชื่อผู้ใช้งาน Admin และปลดล็อกให้พิมพ์แก้ไขข้อความในกล่องเทมเพลต (Raw Text) ได้โดยตรงทันที\r\n- ระบบพักหน้าจอและออกจากระบบอัตโนมัติเมื่อไม่มีการใช้งาน (Idle Session Timeout) พร้อมตรวจจับความเคลื่อนไหวอัจฉริยะ (Smart Activity Tracking)"
 }

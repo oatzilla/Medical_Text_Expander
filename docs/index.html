@@ -58,6 +58,20 @@
               <div class="user-header-role" id="menuUserRole">👑 ผู้ดูแลระบบ</div>
             </div>
             <div class="user-dropdown-divider"></div>
+            <div class="user-dropdown-setting">
+              <label for="selectIdleTimeout" class="timeout-setting-label">
+                <i class="fa-solid fa-stopwatch"></i> พักหน้าจอนาน:
+              </label>
+              <select id="selectIdleTimeout" class="timeout-setting-select">
+                <option value="5">5 นาที</option>
+                <option value="10">10 นาที</option>
+                <option value="15" selected>15 นาที (แนะนำ)</option>
+                <option value="30">30 นาที</option>
+                <option value="60">60 นาที</option>
+                <option value="0">ปิดการใช้งาน</option>
+              </select>
+            </div>
+            <div class="user-dropdown-divider"></div>
             <button class="user-dropdown-item" id="btnOpenUserManagement" style="display:none;">
               <i class="fa-solid fa-users-gear"></i>
               <span>จัดการบัญชีผู้ใช้และสิทธิ์</span>
@@ -99,6 +113,17 @@
     </div>
     <button class="btn-back-my-workspace" id="btnBackToMyAdminWorkspace">
       <i class="fa-solid fa-arrow-rotate-left"></i> กลับไปเตียงของฉัน
+    </button>
+  </div>
+
+  <!-- Idle Timeout Warning Banner -->
+  <div class="idle-timeout-banner" id="idleTimeoutBanner" style="display:none;">
+    <div class="idle-timeout-text">
+      <i class="fa-solid fa-clock-rotate-left idle-icon"></i>
+      <span id="idleTimeoutLabel">⏳ ไม่มีการใช้งาน ระบบจะออกจากระบบอัตโนมัติในอีก 60 วินาทีเพื่อความปลอดภัย</span>
+    </div>
+    <button type="button" class="btn-stay-logged-in" id="btnStayLoggedIn">
+      <i class="fa-solid fa-arrows-rotate"></i> ใช้งานต่อ (Stay Logged In)
     </button>
   </div>
 

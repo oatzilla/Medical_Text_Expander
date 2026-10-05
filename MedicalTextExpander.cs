@@ -11,6 +11,12 @@ using System.Diagnostics;
 using System.Threading;
 using Microsoft.Win32;
 using System.Security.Cryptography;
+[assembly: System.Reflection.AssemblyTitle("Medical Text Expander")]
+[assembly: System.Reflection.AssemblyDescription("Medical Text Expander for Hospital Ward")]
+[assembly: System.Reflection.AssemblyProduct("Medical Text Expander")]
+[assembly: System.Reflection.AssemblyVersion("1.9.5.0")]
+[assembly: System.Reflection.AssemblyFileVersion("1.9.5.0")]
+[assembly: System.Reflection.AssemblyInformationalVersion("1.9.5")]
 
 namespace MedicalTextExpander {
     public class TemplateItem {
@@ -167,6 +173,38 @@ namespace MedicalTextExpander {
                 }
             } catch {}
         }
+
+        private static Icon cachedAppIcon = null;
+        public static Icon GetAppIcon() {
+            if (cachedAppIcon != null) return cachedAppIcon;
+            try {
+                string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+                string icoPath = Path.Combine(baseDir, "medical_expander_icon.ico");
+                if (File.Exists(icoPath)) {
+                    cachedAppIcon = new Icon(icoPath);
+                    return cachedAppIcon;
+                }
+                string exePath = Application.ExecutablePath;
+                if (File.Exists(exePath)) {
+                    Icon ext = Icon.ExtractAssociatedIcon(exePath);
+                    if (ext != null) {
+                        cachedAppIcon = ext;
+                        return cachedAppIcon;
+                    }
+                }
+                string p1 = @"C:\PhisApp\Medical_Text_Expander\medical_expander_icon.ico";
+                if (File.Exists(p1)) {
+                    cachedAppIcon = new Icon(p1);
+                    return cachedAppIcon;
+                }
+                string p2 = @"C:\PhisApp\medical_expander_icon.ico";
+                if (File.Exists(p2)) {
+                    cachedAppIcon = new Icon(p2);
+                    return cachedAppIcon;
+                }
+            } catch {}
+            return SystemIcons.Application;
+        }
     }
 
     public class BedHistoryItem {
@@ -197,7 +235,40 @@ namespace MedicalTextExpander {
     }
 
     public static class AppUpdater {
-        public const string CurrentVersion = "1.9.2";
+        public const string DefaultVersion = "1.9.5";
+        private static string _resolvedVersion = null;
+
+        public static string CurrentVersion {
+            get {
+                if (_resolvedVersion != null) return _resolvedVersion;
+                try {
+                    string appDir = AppDomain.CurrentDomain.BaseDirectory;
+                    string vPath = Path.Combine(appDir, "version.json");
+                    if (File.Exists(vPath)) {
+                        string vJson = File.ReadAllText(vPath, Encoding.UTF8);
+                        string v = ExtractJsonValue(vJson, "version");
+                        if (!string.IsNullOrEmpty(v)) {
+                            _resolvedVersion = v.Trim().TrimStart('v', 'V');
+                            return _resolvedVersion;
+                        }
+                    }
+                } catch { }
+
+                try {
+                    string exePath = Application.ExecutablePath;
+                    if (File.Exists(exePath)) {
+                        var fvi = System.Diagnostics.FileVersionInfo.GetVersionInfo(exePath);
+                        if (fvi != null && !string.IsNullOrEmpty(fvi.ProductVersion) && fvi.ProductVersion != "0.0.0.0") {
+                            _resolvedVersion = fvi.ProductVersion.Trim().TrimStart('v', 'V');
+                            return _resolvedVersion;
+                        }
+                    }
+                } catch { }
+
+                _resolvedVersion = DefaultVersion;
+                return _resolvedVersion;
+            }
+        }
         public const string DefaultGitHubRepo = "oatzilla/Medical_Text_Expander";
 
         public static void CheckForUpdatesAsync(string repo, bool isManual, Form parent = null, string token = null) {
@@ -220,6 +291,8 @@ namespace MedicalTextExpander {
                 using (WebClient client = new WebClient()) {
                     client.Encoding = Encoding.UTF8;
                     client.Headers["User-Agent"] = "MedicalTextExpander-AutoUpdater";
+                    client.Headers["Cache-Control"] = "no-cache, no-store, must-revalidate";
+                    client.Headers["Pragma"] = "no-cache";
                     if (!string.IsNullOrEmpty(token)) {
                         client.Headers["Authorization"] = "token " + token.Trim();
                     }
@@ -244,6 +317,28 @@ namespace MedicalTextExpander {
                 }
 
                 UpdateInfo info = ParseVersionJson(json, repo);
+
+                // If not newer or info is null, try querying GitHub Releases API (releases/latest) directly to bypass CDN cache lag
+                if (info == null || !IsNewerVersion(info.Version, CurrentVersion)) {
+                    try {
+                        using (WebClient relClient = new WebClient()) {
+                            relClient.Encoding = Encoding.UTF8;
+                            relClient.Headers["User-Agent"] = "MedicalTextExpander-AutoUpdater";
+                            relClient.Headers["Accept"] = "application/vnd.github.v3+json";
+                            relClient.Headers["Cache-Control"] = "no-cache, no-store, must-revalidate";
+                            relClient.Headers["Pragma"] = "no-cache";
+                            if (!string.IsNullOrEmpty(token)) {
+                                relClient.Headers["Authorization"] = "token " + token.Trim();
+                            }
+                            string relUrl = string.Format("https://api.github.com/repos/{0}/releases/latest", repo.Trim());
+                            string relJson = relClient.DownloadString(relUrl);
+                            UpdateInfo relInfo = ParseReleaseJson(relJson, repo);
+                            if (relInfo != null && IsNewerVersion(relInfo.Version, CurrentVersion)) {
+                                info = relInfo;
+                            }
+                        }
+                    } catch { }
+                }
                 if (info == null || string.IsNullOrEmpty(info.Version)) {
                     if (isManual) {
                         ShowMessage(parent, "ไม่สามารถอ่านข้อมูลเวอร์ชันจาก GitHub ได้ กรุณาตรวจสอบชื่อ Repository ในการตั้งค่า", "ตรวจสอบการอัปเดต", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -262,7 +357,7 @@ namespace MedicalTextExpander {
                         
                         DialogResult dr = MessageBox.Show(parent, msg, "มีเวอร์ชันใหม่พร้อมให้อัปเดต", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
                         if (dr == DialogResult.Yes) {
-                            DownloadAndApplyUpdate(info.DownloadUrl, parent, token);
+                            DownloadAndApplyUpdate(info.DownloadUrl, info.Version, parent, token, repo);
                         }
                     };
 
@@ -321,6 +416,29 @@ namespace MedicalTextExpander {
             }
         }
 
+        private static UpdateInfo ParseReleaseJson(string json, string repo) {
+            try {
+                if (string.IsNullOrEmpty(json)) return null;
+                UpdateInfo info = new UpdateInfo();
+                info.Version = ExtractJsonValue(json, "tag_name").TrimStart('v', 'V').Trim();
+                info.ReleaseDate = ExtractJsonValue(json, "published_at");
+                if (!string.IsNullOrEmpty(info.ReleaseDate) && info.ReleaseDate.Length >= 10) {
+                    info.ReleaseDate = info.ReleaseDate.Substring(0, 10);
+                }
+                info.Changelog = ExtractJsonValue(json, "body");
+
+                Match m = Regex.Match(json, "\"browser_download_url\"\\s*:\\s*\"([^\"]*Medical_Text_Expander\\.exe[^\"]*)\"");
+                if (m.Success) {
+                    info.DownloadUrl = m.Groups[1].Value;
+                } else {
+                    info.DownloadUrl = string.Format("https://github.com/{0}/releases/latest/download/Medical_Text_Expander.exe", repo);
+                }
+                return info;
+            } catch {
+                return null;
+            }
+        }
+
         private static string ExtractJsonValue(string json, string key) {
             if (string.IsNullOrEmpty(json)) return "";
             if (json.Contains("\"encoding\"") && json.Contains("\"base64\"")) {
@@ -367,9 +485,14 @@ namespace MedicalTextExpander {
             return "";
         }
 
-        private static void DownloadAndApplyUpdate(string downloadUrl, Form parent, string token) {
+        private static void DownloadAndApplyUpdate(string downloadUrl, string targetVersion, Form parent, string token, string repo) {
             if (string.IsNullOrEmpty(downloadUrl)) {
                 ShowMessage(parent, "ไม่พบที่อยู่ดาวน์โหลดของไฟล์อัปเดต", "ข้อผิดพลาด", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            if (!IsNewerVersion(targetVersion, CurrentVersion)) {
+                ShowMessage(parent, string.Format("เวอร์ชันที่พบ (v{0}) ไม่ได้ใหม่กว่าเวอร์ชันที่กำลังใช้งานอยู่ (v{1})\nระบบยกเลิกการดาวน์โหลดเพื่อป้องกันการย้อนเวอร์ชัน (Anti-Downgrade Guard)", targetVersion, CurrentVersion), "ระบบเป็นเวอร์ชันล่าสุดแล้ว", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
 
@@ -384,7 +507,7 @@ namespace MedicalTextExpander {
             progressForm.TopMost = true;
 
             Label lbl = new Label() {
-                Text = "กำลังดาวน์โหลดไฟล์อัปเดตจาก GitHub กรุณารอสักครู่...",
+                Text = string.Format("กำลังดาวน์โหลด v{0} จาก GitHub กรุณารอสักครู่...", targetVersion),
                 Location = new System.Drawing.Point(20, 20),
                 AutoSize = true,
                 Font = new System.Drawing.Font("Segoe UI", 9f)
@@ -414,14 +537,47 @@ namespace MedicalTextExpander {
 
                     FileInfo fi = new FileInfo(tempExePath);
                     if (fi.Length < 50000) {
+                        try { File.Delete(tempExePath); } catch {}
                         throw new Exception("ไฟล์ที่ดาวน์โหลดมามีขนาดเล็กเกินไป (" + fi.Length + " bytes) อาจเป็นหน้าเว็บ Error ของ GitHub");
                     }
+
+                    // Anti-Downgrade Guard: inspect downloaded binary assembly version
+                    try {
+                        var downloadedVer = System.Diagnostics.FileVersionInfo.GetVersionInfo(tempExePath);
+                        if (downloadedVer != null && !string.IsNullOrEmpty(downloadedVer.ProductVersion) && downloadedVer.ProductVersion != "0.0.0.0") {
+                            if (!IsNewerVersion(downloadedVer.ProductVersion, CurrentVersion)) {
+                                try { File.Delete(tempExePath); } catch {}
+                                throw new Exception(string.Format("ไฟล์ที่ดาวน์โหลดมา (v{0}) ไม่ได้ใหม่กว่าเวอร์ชันปัจจุบัน (v{1})\nยกเลิกการติดตั้งเพื่อป้องกันการลดเวอร์ชัน (Anti-Downgrade Guard)", downloadedVer.ProductVersion, CurrentVersion));
+                            }
+                        }
+                    } catch (Exception exVer) {
+                        if (exVer.Message.Contains("Anti-Downgrade Guard")) throw exVer;
+                    }
+
+                    // Also download updated version.json if present
+                    string tempVersionPath = Path.Combine(currentDir, "version_new.json");
+                    string targetVersionPath = Path.Combine(currentDir, "version.json");
+                    bool hasNewVersionJson = false;
+                    try {
+                        using (WebClient vClient = new WebClient()) {
+                            vClient.Headers["User-Agent"] = "MedicalTextExpander-AutoUpdater";
+                            string vUrl = string.Format("https://raw.githubusercontent.com/{0}/main/version.json?t={1}", repo.Trim(), DateTime.UtcNow.Ticks);
+                            vClient.DownloadFile(vUrl, tempVersionPath);
+                            if (File.Exists(tempVersionPath) && new FileInfo(tempVersionPath).Length > 20) {
+                                hasNewVersionJson = true;
+                            }
+                        }
+                    } catch {}
 
                     StringBuilder bat = new StringBuilder();
                     bat.AppendLine("@echo off");
                     bat.AppendLine("timeout /t 1 /nobreak >nul");
                     bat.AppendLine(string.Format("copy /y \"{0}\" \"{1}\" >nul", tempExePath, currentExePath));
                     bat.AppendLine(string.Format("del \"{0}\" >nul 2>&1", tempExePath));
+                    if (hasNewVersionJson) {
+                        bat.AppendLine(string.Format("copy /y \"{0}\" \"{1}\" >nul", tempVersionPath, targetVersionPath));
+                        bat.AppendLine(string.Format("del \"{0}\" >nul 2>&1", tempVersionPath));
+                    }
                     bat.AppendLine(string.Format("start \"\" \"{0}\"", currentExePath));
                     bat.AppendLine("(goto) 2>nul & del \"%~f0\"");
                     File.WriteAllText(updaterBatPath, bat.ToString(), Encoding.Default);
@@ -761,7 +917,19 @@ namespace MedicalTextExpander {
         public string StatusText {
             get {
                 if (IsSupabaseActive) {
-                    return "🟢 ☁️ เชื่อมต่อฐานข้อมูล Supabase Cloud เรียบร้อย (ออนไลน์)";
+                    return "🟢 ☁️ Cloud ออนไลน์";
+                } else if (IsSharedActive) {
+                    return "🟢 🌐 LAN วอร์ด";
+                } else {
+                    return "🔴 💻 ออฟไลน์";
+                }
+            }
+        }
+
+        public string FullStatusText {
+            get {
+                if (IsSupabaseActive) {
+                    return "🟢 ☁️ เชื่อมต่อฐานข้อมูล Supabase Cloud เรียบร้อย (ออนไลน์ ซิงค์ข้อมูลอัตโนมัติ)";
                 } else if (IsSharedActive) {
                     return "🟢 🌐 เชื่อมต่อกับโฟลเดอร์ส่วนกลางของวอร์ดเรียบร้อย (LAN ออนไลน์)";
                 } else {
@@ -1330,6 +1498,12 @@ namespace MedicalTextExpander {
             get { return string.IsNullOrEmpty(adminPassword) ? "9844" : adminPassword; }
             set { adminPassword = value; SaveConfigFile(); }
         }
+
+        private int idleTimeoutMinutes = 15;
+        public int IdleTimeoutMinutes {
+            get { return idleTimeoutMinutes; }
+            set { idleTimeoutMinutes = value; SaveConfigFile(); }
+        }
         private FileSystemWatcher watcher = null;
         private string iconPath;
         private bool isEnabled = true;
@@ -1422,6 +1596,7 @@ namespace MedicalTextExpander {
             System.Threading.Timer updateCheckTimer = new System.Threading.Timer(_ => {
                 AppUpdater.CheckForUpdatesAsync(GetGitHubRepo(), false, null, GetGitHubToken());
             }, null, 8000, Timeout.Infinite);
+
             InitializeTray();
 
             paletteForm = new PaletteForm(this);
@@ -1524,13 +1699,7 @@ namespace MedicalTextExpander {
             trayMenu.Items.Add("-");
             trayMenu.Items.Add("❌ ปิดโปรแกรม", null, (s, e) => Exit());
 
-            Icon appIcon = null;
-            if (File.Exists(iconPath)) {
-                try { appIcon = new Icon(iconPath); } catch {}
-            }
-            if (appIcon == null) {
-                appIcon = SystemIcons.Application;
-            }
+            Icon appIcon = Program.GetAppIcon();
 
             trayIcon = new NotifyIcon();
             trayIcon.Text = "Medical: F7 เตียง | Alt+T เตือน | Alt+C คำนวณ | F8";
@@ -1609,6 +1778,11 @@ namespace MedicalTextExpander {
                         } else if (t.StartsWith("AdminPassword=", StringComparison.OrdinalIgnoreCase)) {
                             string ap = t.Substring("AdminPassword=".Length).Trim();
                             if (!string.IsNullOrEmpty(ap)) adminPassword = ap;
+                        } else if (t.StartsWith("IdleTimeoutMinutes=", StringComparison.OrdinalIgnoreCase)) {
+                            int to;
+                            if (int.TryParse(t.Substring("IdleTimeoutMinutes=".Length).Trim(), out to) && to >= 0 && to <= 1440) {
+                                idleTimeoutMinutes = to;
+                            }
                         }
                     }
                 } catch {}
@@ -1651,6 +1825,7 @@ namespace MedicalTextExpander {
                 sb.AppendLine("SupabaseKey=" + supabaseKey);
                 sb.AppendLine("SupabaseEnabled=" + supabaseEnabled.ToString().ToLower());
                 sb.AppendLine("AdminPassword=" + (string.IsNullOrEmpty(adminPassword) ? "9844" : adminPassword));
+                sb.AppendLine("IdleTimeoutMinutes=" + idleTimeoutMinutes);
                 File.WriteAllText(settingsIniPath, sb.ToString(), Encoding.UTF8);
             } catch {}
         }
@@ -1908,6 +2083,10 @@ namespace MedicalTextExpander {
                     return (IntPtr)1;
                 }
 
+                if (bedNotesForm != null && !bedNotesForm.IsDisposed) {
+                    bedNotesForm.ResetActivityTimer();
+                }
+
                 if (isEnabled) {
                     ProcessKeystroke(key);
                 }
@@ -2135,16 +2314,22 @@ namespace MedicalTextExpander {
             }
         }
 
-        public void Logout() {
+        public void Logout(string timeoutNotice = null) {
+            if (bedNotesForm != null && !bedNotesForm.IsDisposed) {
+                try {
+                    bedNotesForm.FlushSave();
+                    bedNotesForm.Hide();
+                } catch {}
+            }
             if (userManager != null) {
                 userManager.Logout();
             }
-            if (bedNotesForm != null && !bedNotesForm.IsDisposed) bedNotesForm.Hide();
             if (paletteForm != null && !paletteForm.IsDisposed) paletteForm.Hide();
             if (calculatorForm != null && !calculatorForm.IsDisposed) calculatorForm.Hide();
             if (stickyReminderForm != null && !stickyReminderForm.IsDisposed) stickyReminderForm.Hide();
+            if (historyViewerForm != null && !historyViewerForm.IsDisposed) historyViewerForm.Hide();
 
-            using (var dlg = new LoginRegisterDialog(this, isStartupGate: true)) {
+            using (var dlg = new LoginRegisterDialog(this, isStartupGate: true, alertNotice: timeoutNotice)) {
                 if (dlg.ShowDialog() == DialogResult.OK && userManager != null && userManager.CurrentUser != null) {
                     var u = userManager.ActiveWorkspaceUser;
                     bedNotesManager.SetActiveWorkspace(u.UserSlot, u.Username, u.DisplayName);
@@ -2419,6 +2604,7 @@ namespace MedicalTextExpander {
     // ==========================================
     public class MobilePortalDialog : Form {
         public MobilePortalDialog() {
+            try { this.Icon = Program.GetAppIcon(); } catch {}
             this.Text = "📱 ใช้งานบนมือถือ & แท็บเล็ต (Mobile & Web Portal)";
             this.Size = new Size(460, 520);
             this.StartPosition = FormStartPosition.CenterParent;
@@ -2547,6 +2733,7 @@ namespace MedicalTextExpander {
         private TextBox txtUploader;
 
         public EditWardDocDialog(WardDocItem item, string defaultUploader) {
+            try { this.Icon = Program.GetAppIcon(); } catch {}
             this.Text = "✏️ แก้ไขชื่อและหมวดหมู่เอกสาร - Medical Text Expander";
             this.Size = new Size(540, 310);
             this.StartPosition = FormStartPosition.CenterParent;
@@ -2699,6 +2886,7 @@ namespace MedicalTextExpander {
         }
 
         private void InitializeUI() {
+            try { this.Icon = Program.GetAppIcon(); } catch {}
             this.Text = "📁 ศูนย์รวมเอกสารและแบบฟอร์มประจำวอร์ด - Medical Text Expander";
             this.Size = new Size(880, 720);
             this.StartPosition = FormStartPosition.CenterParent;
@@ -4418,15 +4606,18 @@ namespace MedicalTextExpander {
 
         // Bottom Exit / Cancel Button
         private Button btnBottomClose;
+        private string alertNotice;
 
-        public LoginRegisterDialog(ExpanderContext ctx, bool isStartupGate = false) {
+        public LoginRegisterDialog(ExpanderContext ctx, bool isStartupGate = false, string alertNotice = null) {
             context = ctx;
             userManager = ctx != null ? ctx.UserManager : null;
             IsStartupGate = isStartupGate;
+            this.alertNotice = alertNotice;
             InitializeUI();
         }
 
         private void InitializeUI() {
+            try { this.Icon = Program.GetAppIcon(); } catch {}
             this.Text = "🔐 เข้าสู่ระบบ / ลงทะเบียนผู้ใช้งาน (Ward Authentication)";
             this.ClientSize = new Size(460, 532);
             this.StartPosition = FormStartPosition.CenterScreen;
@@ -4600,14 +4791,14 @@ namespace MedicalTextExpander {
             y += 32;
 
             lblLoginError = new Label {
-                Text = "",
+                Text = !string.IsNullOrEmpty(alertNotice) ? alertNotice : "",
                 ForeColor = Color.FromArgb(220, 38, 38),
                 Location = new Point(24, y),
-                Size = new Size(412, 22),
+                Size = new Size(412, 34),
                 Font = new Font("Leelawadee UI", 8.5f, FontStyle.Bold)
             };
             pnlLogin.Controls.Add(lblLoginError);
-            y += 26;
+            y += 38;
 
             btnLoginSubmit = new Button {
                 Text = "เข้าสู่ระบบ (Login)",
@@ -4812,7 +5003,7 @@ namespace MedicalTextExpander {
     }
 
     public class UserLoginDialog : LoginRegisterDialog {
-        public UserLoginDialog(ExpanderContext ctx) : base(ctx, false) { }
+        public UserLoginDialog(ExpanderContext ctx, string alertNotice = null) : base(ctx, false, alertNotice) { }
     }
 
     public class UserManagementDialog : Form {
@@ -4834,6 +5025,7 @@ namespace MedicalTextExpander {
         }
 
         private void InitializeUI() {
+            try { this.Icon = Program.GetAppIcon(); } catch {}
             this.Text = "👥 จัดการบัญชีผู้ใช้งานและสิทธิ์ (User Accounts Management)";
             this.Size = new Size(880, 520);
             this.StartPosition = FormStartPosition.CenterParent;
@@ -5119,6 +5311,7 @@ namespace MedicalTextExpander {
         }
 
         private void InitializeUI() {
+            try { this.Icon = Program.GetAppIcon(); } catch {}
             this.Text = isEditMode ? "✏️ แก้ไขข้อมูลผู้ใช้" : "➕ เพิ่มผู้ใช้ใหม่";
             this.Size = new Size(420, 420);
             this.StartPosition = FormStartPosition.CenterParent;
@@ -5338,6 +5531,31 @@ namespace MedicalTextExpander {
         private Button btnBackToMyWorkspace;
         private Button btnManageUsers;
 
+        private Panel pnlTimeoutWarning;
+        private Label lblTimeoutWarning;
+        private Button btnStayLoggedIn;
+        private System.Windows.Forms.Timer idleCheckTimer;
+        private DateTime lastActivityTime = DateTime.Now;
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct LASTINPUTINFO {
+            public static readonly int SizeOf = Marshal.SizeOf(typeof(LASTINPUTINFO));
+            [MarshalAs(UnmanagedType.U4)]
+            public UInt32 cbSize;
+            [MarshalAs(UnmanagedType.U4)]
+            public UInt32 dwTime;
+        }
+
+        [DllImport("user32.dll")]
+        private static extern bool GetLastInputInfo(ref LASTINPUTINFO plii);
+
+        public void ResetActivityTimer() {
+            lastActivityTime = DateTime.Now;
+            if (pnlTimeoutWarning != null && pnlTimeoutWarning.Visible) {
+                pnlTimeoutWarning.Visible = false;
+            }
+        }
+
         [DllImport("user32.dll")]
         private static extern IntPtr GetForegroundWindow();
 
@@ -5371,15 +5589,14 @@ namespace MedicalTextExpander {
                 manager.OnCloudStatusChanged += (active) => {
                     if (this.IsDisposed || !this.IsHandleCreated) return;
                     this.BeginInvoke(new Action(() => {
-                        lblNetworkStatus.Text = manager.StatusText;
-                        lblNetworkStatus.ForeColor = active ? Color.FromArgb(167, 243, 208) : Color.FromArgb(254, 202, 202);
+                        UpdateNetworkStatusDisplay();
                     }));
                 };
             }
         }
 
         private void InitializeUI() {
-            this.Text = "🛏️ บันทึกข้อมูลผู้ป่วยรายเตียง (Bed Notes 1-30) - ใช้ซ้ำใน Nurse Note & ซิงค์ทั้งวอร์ด (F7)";
+            this.Text = "🛏️ บันทึกข้อมูลผู้ป่วยรายเตียง (Bed Notes 1-30) v" + AppUpdater.CurrentVersion + " - ใช้ซ้ำใน Nurse Note & ซิงค์ทั้งวอร์ด (F7)";
             this.Size = new Size(960, 680);
             this.MinimumSize = new Size(640, 440);
             this.StartPosition = FormStartPosition.CenterScreen;
@@ -5387,11 +5604,7 @@ namespace MedicalTextExpander {
             this.Font = new Font("Segoe UI", 10f);
             this.BackColor = Color.FromArgb(248, 250, 252);
 
-            string iconPath = @"C:\PhisApp\Medical_Text_Expander\medical_expander_icon.ico";
-            if (!File.Exists(iconPath)) iconPath = @"C:\PhisApp\medical_expander_icon.ico";
-            if (File.Exists(iconPath)) {
-                try { this.Icon = new Icon(iconPath); } catch {}
-            }
+            try { this.Icon = Program.GetAppIcon(); } catch {}
 
             bedToolTip = new ToolTip();
             bedToolTip.InitialDelay = 300;
@@ -5404,20 +5617,22 @@ namespace MedicalTextExpander {
             pnlTop.BackColor = Color.FromArgb(13, 148, 136); // Medical Teal
 
             lblAppTitle = new Label();
-            lblAppTitle.Text = "🛏️ ข้อมูลผู้ป่วยรายเตียง (Ward Bed Notes 1-30)";
+            lblAppTitle.Text = "🛏️ ข้อมูลรายเตียง 1-30 v" + AppUpdater.CurrentVersion;
             lblAppTitle.ForeColor = Color.White;
-            lblAppTitle.Font = new Font("Segoe UI", 12f, FontStyle.Bold);
-            lblAppTitle.Location = new Point(14, 8);
+            lblAppTitle.Font = new Font("Leelawadee UI", 11f, FontStyle.Bold);
+            lblAppTitle.Location = new Point(12, 7);
             lblAppTitle.AutoSize = true;
             pnlTop.Controls.Add(lblAppTitle);
 
             lblNetworkStatus = new Label();
             lblNetworkStatus.Text = manager.StatusText;
             lblNetworkStatus.ForeColor = Color.FromArgb(204, 251, 241);
-            lblNetworkStatus.Font = new Font("Segoe UI", 9f);
-            lblNetworkStatus.Location = new Point(16, 32);
+            lblNetworkStatus.Font = new Font("Leelawadee UI", 8.25f);
+            lblNetworkStatus.Location = new Point(13, 31);
             lblNetworkStatus.AutoSize = true;
+            lblNetworkStatus.Cursor = Cursors.Hand;
             pnlTop.Controls.Add(lblNetworkStatus);
+            UpdateNetworkStatusDisplay();
 
             btnMobilePortal = new Button();
             btnMobilePortal.Text = "📱 มือถือ (QR)";
@@ -5496,9 +5711,9 @@ namespace MedicalTextExpander {
             pnlTop.Controls.Add(btnZoomIn);
 
             btnCheckUpdate = new Button();
-            btnCheckUpdate.Text = "🚀 อัปเดต";
+            btnCheckUpdate.Text = "🚀 v" + AppUpdater.CurrentVersion;
             btnCheckUpdate.Name = "btnCheckUpdate";
-            btnCheckUpdate.Size = new Size(82, 34);
+            btnCheckUpdate.Size = new Size(88, 34);
             btnCheckUpdate.BackColor = Color.FromArgb(224, 231, 255);
             btnCheckUpdate.ForeColor = Color.FromArgb(67, 56, 202);
             btnCheckUpdate.FlatStyle = FlatStyle.Flat;
@@ -5558,6 +5773,36 @@ namespace MedicalTextExpander {
 
             pnlWorkspaceNotice.Controls.Add(lblWorkspaceNotice);
             pnlWorkspaceNotice.Controls.Add(btnBackToMyWorkspace);
+
+            // Idle Timeout Warning Banner
+            pnlTimeoutWarning = new Panel();
+            pnlTimeoutWarning.Dock = DockStyle.Top;
+            pnlTimeoutWarning.Height = 36;
+            pnlTimeoutWarning.BackColor = Color.FromArgb(254, 242, 242);
+            pnlTimeoutWarning.Visible = false;
+
+            lblTimeoutWarning = new Label();
+            lblTimeoutWarning.Text = "⏳ ไม่มีการใช้งาน ระบบจะออกจากระบบอัตโนมัติในอีก 60 วินาทีเพื่อความปลอดภัย";
+            lblTimeoutWarning.ForeColor = Color.FromArgb(185, 28, 28);
+            lblTimeoutWarning.Font = new Font("Leelawadee UI", 9.5f, FontStyle.Bold);
+            lblTimeoutWarning.Location = new Point(14, 8);
+            lblTimeoutWarning.AutoSize = true;
+
+            btnStayLoggedIn = new Button();
+            btnStayLoggedIn.Text = "🔄 ใช้งานต่อ (Stay Logged In)";
+            btnStayLoggedIn.Size = new Size(185, 28);
+            btnStayLoggedIn.Location = new Point(this.ClientSize.Width - 200, 4);
+            btnStayLoggedIn.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            btnStayLoggedIn.BackColor = Color.FromArgb(220, 38, 38);
+            btnStayLoggedIn.ForeColor = Color.White;
+            btnStayLoggedIn.FlatStyle = FlatStyle.Flat;
+            btnStayLoggedIn.FlatAppearance.BorderSize = 0;
+            btnStayLoggedIn.Font = new Font("Leelawadee UI", 9f, FontStyle.Bold);
+            btnStayLoggedIn.Cursor = Cursors.Hand;
+            btnStayLoggedIn.Click += (s, e) => ResetActivityTimer();
+
+            pnlTimeoutWarning.Controls.Add(lblTimeoutWarning);
+            pnlTimeoutWarning.Controls.Add(btnStayLoggedIn);
 
             // Bottom Action Panel
             pnlBottom = new Panel();
@@ -5959,12 +6204,14 @@ namespace MedicalTextExpander {
 
             // Docking order
             this.Controls.Add(split);
+            this.Controls.Add(pnlTimeoutWarning);
             this.Controls.Add(pnlWorkspaceNotice);
             this.Controls.Add(pnlBottom);
             this.Controls.Add(pnlTop);
 
             pnlTop.SendToBack();
             pnlWorkspaceNotice.SendToBack();
+            pnlTimeoutWarning.SendToBack();
             pnlBottom.SendToBack();
             split.BringToFront();
 
@@ -5985,6 +6232,16 @@ namespace MedicalTextExpander {
                 RefreshAllBedButtons();
             };
             reminderBlinkTimer.Start();
+
+            // Idle timeout check timer (1000ms)
+            idleCheckTimer = new System.Windows.Forms.Timer();
+            idleCheckTimer.Interval = 1000;
+            idleCheckTimer.Tick += IdleCheckTimer_Tick;
+            idleCheckTimer.Start();
+
+            this.MouseMove += (s, e) => ResetActivityTimer();
+            split.MouseMove += (s, e) => ResetActivityTimer();
+            flowBeds.MouseMove += (s, e) => ResetActivityTimer();
 
             this.KeyPreview = true;
             this.KeyDown += (s, e) => {
@@ -6022,6 +6279,46 @@ namespace MedicalTextExpander {
             RepositionTopControls();
             RepositionBottomControls();
             RepositionNoteHeaderControls();
+        }
+
+        private void IdleCheckTimer_Tick(object sender, EventArgs e) {
+            if (context == null || context.IdleTimeoutMinutes <= 0) {
+                if (pnlTimeoutWarning != null && pnlTimeoutWarning.Visible) {
+                    pnlTimeoutWarning.Visible = false;
+                }
+                return;
+            }
+
+            try {
+                LASTINPUTINFO lii = new LASTINPUTINFO();
+                lii.cbSize = (uint)Marshal.SizeOf(lii);
+                if (GetLastInputInfo(ref lii)) {
+                    uint systemIdleMs = (uint)Environment.TickCount - lii.dwTime;
+                    if (systemIdleMs < 3000) {
+                        lastActivityTime = DateTime.Now;
+                    }
+                }
+            } catch {}
+
+            int totalTimeoutSec = context.IdleTimeoutMinutes * 60;
+            int elapsedSec = (int)(DateTime.Now - lastActivityTime).TotalSeconds;
+            int remainingSec = totalTimeoutSec - elapsedSec;
+
+            if (remainingSec <= 0) {
+                if (pnlTimeoutWarning != null) pnlTimeoutWarning.Visible = false;
+                lastActivityTime = DateTime.Now;
+                string notice = string.Format("⚠️ ออกจากระบบอัตโนมัติเนื่องจากไม่มีการใช้งานเกิน {0} นาที\nเพื่อความปลอดภัยของข้อมูลผู้ป่วย กรุณาเข้าสู่ระบบใหม่", context.IdleTimeoutMinutes);
+                context.Logout(notice);
+            } else if (remainingSec <= 60) {
+                if (pnlTimeoutWarning != null) {
+                    lblTimeoutWarning.Text = string.Format("⏳ ไม่มีการใช้งาน ระบบจะออกจากระบบอัตโนมัติในอีก {0} วินาทีเพื่อความปลอดภัยของข้อมูลผู้ป่วย", remainingSec);
+                    if (!pnlTimeoutWarning.Visible) pnlTimeoutWarning.Visible = true;
+                }
+            } else {
+                if (pnlTimeoutWarning != null && pnlTimeoutWarning.Visible) {
+                    pnlTimeoutWarning.Visible = false;
+                }
+            }
         }
 
         private void SetSafeSplitterDistance(int dist) {
@@ -6068,69 +6365,137 @@ namespace MedicalTextExpander {
 
             // 1. App Title & Cloud Status (Left)
             if (lblAppTitle != null) {
-                lblAppTitle.Text = (w < 850) ? "🛏️ เตียง 1-30" : "🛏️ ข้อมูลรายเตียง 1-30";
-                lblAppTitle.Font = new Font("Segoe UI", 11.5f, FontStyle.Bold);
-                lblAppTitle.Location = new Point(14, 8);
+                lblAppTitle.Text = (w < 820) ? "🛏️ เตียง 1-30 v" + AppUpdater.CurrentVersion : "🛏️ ข้อมูลรายเตียง 1-30 v" + AppUpdater.CurrentVersion;
+                lblAppTitle.Font = new Font("Leelawadee UI", 11f, FontStyle.Bold);
+                lblAppTitle.Location = new Point(12, 7);
             }
             if (lblNetworkStatus != null) {
-                lblNetworkStatus.Location = new Point(16, 32);
+                lblNetworkStatus.Font = new Font("Leelawadee UI", 8.25f);
+                lblNetworkStatus.Location = new Point(13, 31);
+                UpdateNetworkStatusDisplay();
             }
 
-            // 2. Active User Account Button & Workspace Selector
-            int leftOccupied = (lblAppTitle != null) ? (lblAppTitle.Right + 12) : 180;
+            // 2. Left side width occupied (App title & Network status strictly contained on left)
+            int titleRight = (lblAppTitle != null) ? lblAppTitle.Right : 130;
+            int statusRight = (lblNetworkStatus != null) ? lblNetworkStatus.Right : 110;
+            int leftOccupied = Math.Max(titleRight, statusRight) + 10;
+
             if (btnUserAccount != null) {
-                int userBtnW = (w < 850) ? 115 : 140;
+                int userBtnW = (w < 920) ? 115 : 135;
                 btnUserAccount.Size = new Size(userBtnW, 34);
                 btnUserAccount.Location = new Point(leftOccupied, 11);
                 btnUserAccount.BringToFront();
                 leftOccupied = btnUserAccount.Right + 8;
             }
             if (cboWorkspaceUser != null && cboWorkspaceUser.Visible) {
-                int cboW = (w < 850) ? 130 : 155;
+                int cboW = (w < 920) ? 125 : 150;
                 cboWorkspaceUser.Size = new Size(cboW, 28);
                 cboWorkspaceUser.Location = new Point(leftOccupied, 14);
                 cboWorkspaceUser.BringToFront();
-                leftOccupied = cboWorkspaceUser.Right + 10;
+                leftOccupied = cboWorkspaceUser.Right + 8;
             }
+
+            // leftLimit: absolute leftmost boundary for right-aligned buttons to prevent ANY overlapping
+            int leftLimit = leftOccupied + 8;
 
             // 3. Right-Aligned Tool Buttons
             int rx = w - 10;
             if (btnZoomIn != null) {
-                btnZoomIn.Size = new Size(34, 34);
-                btnZoomIn.Location = new Point(rx - btnZoomIn.Width, 11);
-                rx -= (btnZoomIn.Width + 4);
+                btnZoomIn.Size = new Size(32, 34);
+                int tx = rx - btnZoomIn.Width;
+                if (tx >= leftLimit) {
+                    btnZoomIn.Visible = true;
+                    btnZoomIn.Location = new Point(tx, 11);
+                    rx = tx - 4;
+                } else {
+                    btnZoomIn.Visible = false;
+                }
             }
             if (btnZoomOut != null) {
-                btnZoomOut.Size = new Size(34, 34);
-                btnZoomOut.Location = new Point(rx - btnZoomOut.Width, 11);
-                rx -= (btnZoomOut.Width + 6);
+                btnZoomOut.Size = new Size(32, 34);
+                int tx = rx - btnZoomOut.Width;
+                if (tx >= leftLimit) {
+                    btnZoomOut.Visible = true;
+                    btnZoomOut.Location = new Point(tx, 11);
+                    rx = tx - 6;
+                } else {
+                    btnZoomOut.Visible = false;
+                }
             }
             if (btnCheckUpdate != null) {
-                btnCheckUpdate.Text = "🔄 อัปเดต";
-                btnCheckUpdate.Size = new Size(76, 34);
-                btnCheckUpdate.Location = new Point(rx - btnCheckUpdate.Width, 11);
-                rx -= (btnCheckUpdate.Width + 6);
+                if (w >= 1050) {
+                    btnCheckUpdate.Text = "🚀 v" + AppUpdater.CurrentVersion;
+                    btnCheckUpdate.Size = new Size(88, 34);
+                } else {
+                    btnCheckUpdate.Text = "🚀";
+                    btnCheckUpdate.Size = new Size(36, 34);
+                }
+                if (bedToolTip != null) {
+                    bedToolTip.SetToolTip(btnCheckUpdate, "คลิกเพื่อตรวจสอบการอัปเดตเวอร์ชันใหม่จาก GitHub (เวอร์ชันปัจจุบัน: v" + AppUpdater.CurrentVersion + ")");
+                }
+                int tx = rx - btnCheckUpdate.Width;
+                if (tx >= leftLimit) {
+                    btnCheckUpdate.Visible = true;
+                    btnCheckUpdate.Location = new Point(tx, 11);
+                    rx = tx - 6;
+                } else {
+                    btnCheckUpdate.Visible = false;
+                }
             }
             if (btnIoTemplate != null) {
-                btnIoTemplate.Text = (w < 900) ? "📁 เอกสารวอร์ด" : "📁 เอกสาร & แบบฟอร์มวอร์ด";
-                btnIoTemplate.Size = (w < 900) ? new Size(130, 34) : new Size(185, 34);
-                btnIoTemplate.Location = new Point(rx - btnIoTemplate.Width, 11);
-                rx -= (btnIoTemplate.Width + 6);
+                if (w >= 1250) {
+                    btnIoTemplate.Text = "📁 เอกสาร & แบบฟอร์มวอร์ด";
+                    btnIoTemplate.Size = new Size(185, 34);
+                } else if (w >= 1050) {
+                    btnIoTemplate.Text = "📁 เอกสาร/ฟอร์ม";
+                    btnIoTemplate.Size = new Size(118, 34);
+                } else {
+                    btnIoTemplate.Text = "📁 ฟอร์ม";
+                    btnIoTemplate.Size = new Size(72, 34);
+                }
+                if (bedToolTip != null) {
+                    bedToolTip.SetToolTip(btnIoTemplate, "ศูนย์รวมเอกสารและแบบฟอร์มประจำวอร์ด (Excel, Word, PDF)");
+                }
+                int tx = rx - btnIoTemplate.Width;
+                if (tx >= leftLimit) {
+                    btnIoTemplate.Visible = true;
+                    btnIoTemplate.Location = new Point(tx, 11);
+                    rx = tx - 6;
+                } else {
+                    btnIoTemplate.Visible = false;
+                }
             }
             if (btnMobilePortal != null) {
-                btnMobilePortal.Text = (w < 900) ? "📱 มือถือ" : "📱 มือถือ (QR)";
-                btnMobilePortal.Size = (w < 900) ? new Size(82, 34) : new Size(100, 34);
-                btnMobilePortal.Location = new Point(rx - btnMobilePortal.Width, 11);
-                rx -= (btnMobilePortal.Width + 6);
+                if (w >= 1150) {
+                    btnMobilePortal.Text = "📱 มือถือ (QR)";
+                    btnMobilePortal.Size = new Size(98, 34);
+                } else if (w >= 920) {
+                    btnMobilePortal.Text = "📱 มือถือ";
+                    btnMobilePortal.Size = new Size(72, 34);
+                } else {
+                    btnMobilePortal.Text = "📱";
+                    btnMobilePortal.Size = new Size(36, 34);
+                }
+                if (bedToolTip != null) {
+                    bedToolTip.SetToolTip(btnMobilePortal, "เปิด Web & Mobile Portal ผ่าน QR Code");
+                }
+                int tx = rx - btnMobilePortal.Width;
+                if (tx >= leftLimit) {
+                    btnMobilePortal.Visible = true;
+                    btnMobilePortal.Location = new Point(tx, 11);
+                    rx = tx - 6;
+                } else {
+                    btnMobilePortal.Visible = false;
+                }
             }
 
             // 4. Extra Quick Action Buttons on Top Panel
-            // Note: DAR Catalog and SOS Calculator are already prominently available
+            // Note: DAR Catalog and SOS Calculator are already permanently available
             // on pnlQuickButtons right above the nurse note. Only show them on pnlTop if screen
             // is wide enough (>= 1260px) to prevent ANY collision with left controls.
             if (btnGoToPalette != null) {
                 int neededW = (btnCalc != null ? 135 + 6 : 0) + 140;
-                if (w >= 1260 && (rx - neededW >= leftOccupied + 15)) {
+                if (w >= 1260 && (rx - neededW >= leftLimit + 15)) {
                     btnGoToPalette.Visible = true;
                     btnGoToPalette.Text = "📋 คลังข้อวินิจฉัย (F8)";
                     btnGoToPalette.Size = new Size(140, 34);
@@ -6141,7 +6506,7 @@ namespace MedicalTextExpander {
                 }
             }
             if (btnCalc != null) {
-                if (btnGoToPalette != null && btnGoToPalette.Visible && (rx - 135 >= leftOccupied + 15)) {
+                if (btnGoToPalette != null && btnGoToPalette.Visible && (rx - 135 >= leftLimit + 15)) {
                     btnCalc.Visible = true;
                     btnCalc.Text = "🧮 คำนวณ SOS/ยา";
                     btnCalc.Size = new Size(135, 34);
@@ -6261,6 +6626,23 @@ namespace MedicalTextExpander {
             }
         }
 
+        private void UpdateNetworkStatusDisplay() {
+            if (lblNetworkStatus == null) return;
+            int w = (pnlTop != null) ? pnlTop.ClientSize.Width : this.ClientSize.Width;
+            bool active = manager != null && manager.IsSupabaseActive;
+            if (manager != null) {
+                if (w < 820 && manager.IsSupabaseActive) {
+                    lblNetworkStatus.Text = "🟢 Cloud";
+                } else {
+                    lblNetworkStatus.Text = manager.StatusText;
+                }
+                lblNetworkStatus.ForeColor = active ? Color.FromArgb(167, 243, 208) : Color.FromArgb(254, 202, 202);
+                if (bedToolTip != null) {
+                    bedToolTip.SetToolTip(lblNetworkStatus, manager.FullStatusText);
+                }
+            }
+        }
+
         private void UpdateUserAccountButton() {
             if (btnUserAccount == null) return;
             string name = (context != null && context.UserManager != null && context.UserManager.CurrentUser != null)
@@ -6269,6 +6651,9 @@ namespace MedicalTextExpander {
             bool isAdmin = (context != null && context.UserManager != null && context.UserManager.IsAdminLoggedIn);
             btnUserAccount.Text = (isAdmin ? "👑 " : "👤 ") + name;
             btnUserAccount.BackColor = isAdmin ? Color.FromArgb(15, 76, 129) : Color.FromArgb(19, 78, 74);
+            if (bedToolTip != null) {
+                bedToolTip.SetToolTip(btnUserAccount, string.Format("ผู้ใช้ปัจจุบัน: {0} ({1})\nคลิกเพื่อเปลี่ยนผู้ใช้/จัดการบัญชี", name, isAdmin ? "ผู้ดูแลระบบ Admin" : "ผู้ใช้งานทั่วไป"));
+            }
         }
 
         private void ShowUserMenu() {
@@ -6532,7 +6917,7 @@ public void RefreshAllBedButtons() {
                 }
             }
 
-            lblNetworkStatus.Text = manager.StatusText;
+            UpdateNetworkStatusDisplay();
         }
 
         private void FilterBeds(string query) {
@@ -6987,6 +7372,7 @@ public void RefreshAllBedButtons() {
             context = ctx;
             defaultTargetBed = defaultTarget;
 
+            try { this.Icon = Program.GetAppIcon(); } catch {}
             this.Text = "🔄 สลับหรือย้ายเตียงผู้ป่วย";
             this.Size = new Size(540, 485);
             this.StartPosition = FormStartPosition.CenterParent;
@@ -7372,6 +7758,7 @@ public void RefreshAllBedButtons() {
         }
 
         private void InitializeUI() {
+            try { this.Icon = Program.GetAppIcon(); } catch {}
             this.Text = string.Format("คีย์ด่วน: {0} ({1}) - เตียง {2:D2}", buttonTitle, shortcut, bedNumber);
             this.Size = new Size(820, 600);
             this.MinimumSize = new Size(640, 440);
@@ -7743,7 +8130,7 @@ public void RefreshAllBedButtons() {
         }
 
         private void InitializeUI() {
-            this.Text = "คลังข้อวินิจฉัยและกิจกรรมการพยาบาล (Template Catalog & DAR Picker) - กด F8";
+            this.Text = "คลังข้อวินิจฉัยและกิจกรรมการพยาบาล (Template Catalog & DAR Picker) v" + AppUpdater.CurrentVersion + " - กด F8";
             this.Size = new Size(1160, 720);
             this.MinimumSize = new Size(880, 560);
             this.StartPosition = FormStartPosition.CenterScreen;
@@ -7753,11 +8140,7 @@ public void RefreshAllBedButtons() {
 
             currentFontSize = context.CurrentFontSize;
 
-            string iconPath = @"C:\PhisApp\Medical_Text_Expander\medical_expander_icon.ico";
-            if (!File.Exists(iconPath)) iconPath = @"C:\PhisApp\medical_expander_icon.ico";
-            if (File.Exists(iconPath)) {
-                try { this.Icon = new Icon(iconPath); } catch {}
-            }
+            try { this.Icon = Program.GetAppIcon(); } catch {}
 
             // ==========================================
             // Top Bar: Teal Header with Search & Font Zoom
@@ -8820,6 +9203,7 @@ public void RefreshAllBedButtons() {
         }
 
         private void InitializeUI() {
+            try { this.Icon = Program.GetAppIcon(); } catch {}
             this.Text = "🔒 ยืนยันสิทธิ์ผู้ดูแลระบบ (Admin Security)";
             this.Size = new Size(420, 240);
             this.StartPosition = FormStartPosition.CenterScreen;
@@ -8960,11 +9344,7 @@ public void RefreshAllBedButtons() {
             this.BackColor = Color.FromArgb(246, 247, 250);
             this.Font = new Font("Segoe UI", 10f);
 
-            string iconPath = @"C:\PhisApp\Medical_Text_Expander\medical_expander_icon.ico";
-            if (!File.Exists(iconPath)) iconPath = @"C:\PhisApp\medical_expander_icon.ico";
-            if (File.Exists(iconPath)) {
-                try { this.Icon = new Icon(iconPath); } catch {}
-            }
+            try { this.Icon = Program.GetAppIcon(); } catch {}
 
             // ----------------------------------------------------
             // Section 1: Supabase Cloud Realtime Sync (Recommended)
@@ -9188,6 +9568,40 @@ public void RefreshAllBedButtons() {
             };
             this.Controls.Add(btnTogglePass);
 
+            // 5. Idle Session Timeout
+            Label lblTimeout = new Label();
+            lblTimeout.Text = "5. ⏱️ พักหน้าจออัตโนมัติ (Idle Timeout):";
+            lblTimeout.Location = new Point(330, 472);
+            lblTimeout.AutoSize = true;
+            lblTimeout.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
+            lblTimeout.ForeColor = Color.FromArgb(15, 118, 110);
+            this.Controls.Add(lblTimeout);
+
+            ComboBox cboIdleTimeout = new ComboBox();
+            cboIdleTimeout.Location = new Point(330, 497);
+            cboIdleTimeout.Size = new Size(285, 29);
+            cboIdleTimeout.Font = new Font("Segoe UI", 9.5f);
+            cboIdleTimeout.DropDownStyle = ComboBoxStyle.DropDownList;
+            cboIdleTimeout.Items.Add("5 นาที");
+            cboIdleTimeout.Items.Add("10 นาที");
+            cboIdleTimeout.Items.Add("15 นาที (แนะนำ)");
+            cboIdleTimeout.Items.Add("30 นาที");
+            cboIdleTimeout.Items.Add("60 นาที (1 ชั่วโมง)");
+            cboIdleTimeout.Items.Add("ปิดการใช้งาน (ไม่ตัดเซสชัน)");
+
+            int curTo = context.IdleTimeoutMinutes;
+            if (curTo == 5) cboIdleTimeout.SelectedIndex = 0;
+            else if (curTo == 10) cboIdleTimeout.SelectedIndex = 1;
+            else if (curTo == 15) cboIdleTimeout.SelectedIndex = 2;
+            else if (curTo == 30) cboIdleTimeout.SelectedIndex = 3;
+            else if (curTo == 60) cboIdleTimeout.SelectedIndex = 4;
+            else if (curTo == 0) cboIdleTimeout.SelectedIndex = 5;
+            else {
+                cboIdleTimeout.Items.Add(curTo + " นาที");
+                cboIdleTimeout.SelectedIndex = cboIdleTimeout.Items.Count - 1;
+            }
+            this.Controls.Add(cboIdleTimeout);
+
             lblStatus = new Label();
             lblStatus.Location = new Point(18, 537);
             lblStatus.Size = new Size(600, 36);
@@ -9225,6 +9639,15 @@ public void RefreshAllBedButtons() {
                 if (!string.IsNullOrEmpty(txtAdminPassword.Text.Trim())) {
                     context.AdminPassword = txtAdminPassword.Text.Trim();
                 }
+                int selectedTo = 15;
+                if (cboIdleTimeout.SelectedIndex == 0) selectedTo = 5;
+                else if (cboIdleTimeout.SelectedIndex == 1) selectedTo = 10;
+                else if (cboIdleTimeout.SelectedIndex == 2) selectedTo = 15;
+                else if (cboIdleTimeout.SelectedIndex == 3) selectedTo = 30;
+                else if (cboIdleTimeout.SelectedIndex == 4) selectedTo = 60;
+                else if (cboIdleTimeout.SelectedIndex == 5) selectedTo = 0;
+                context.IdleTimeoutMinutes = selectedTo;
+
                 context.SaveSettings("", "");
                 context.SetGitHubRepo(txtGitHubRepo.Text.Trim());
                 context.SetSupabaseConfig(txtSupabaseUrl.Text.Trim(), txtSupabaseKey.Text.Trim(), chkEnableSupabase.Checked);
@@ -9280,11 +9703,7 @@ public void RefreshAllBedButtons() {
             this.Font = new Font("Segoe UI", 9.5f);
             this.BackColor = Color.FromArgb(248, 250, 252);
 
-            string iconPath = @"C:\PhisApp\Medical_Text_Expander\medical_expander_icon.ico";
-            if (!File.Exists(iconPath)) iconPath = @"C:\PhisApp\medical_expander_icon.ico";
-            if (File.Exists(iconPath)) {
-                try { this.Icon = new Icon(iconPath); } catch {}
-            }
+            try { this.Icon = Program.GetAppIcon(); } catch {}
 
             // Top Panel
             Panel pnlTop = new Panel();
@@ -9912,11 +10331,7 @@ public void RefreshAllBedButtons() {
             this.Font = new Font("Segoe UI", 9.5f);
             this.BackColor = Color.FromArgb(248, 250, 252);
 
-            string iconPath = @"C:\PhisApp\Medical_Text_Expander\medical_expander_icon.ico";
-            if (!File.Exists(iconPath)) iconPath = @"C:\PhisApp\medical_expander_icon.ico";
-            if (File.Exists(iconPath)) {
-                try { this.Icon = new Icon(iconPath); } catch {}
-            }
+            try { this.Icon = Program.GetAppIcon(); } catch {}
 
             Panel pnlTop = new Panel();
             pnlTop.Dock = DockStyle.Top;
@@ -10414,11 +10829,7 @@ public void RefreshAllBedButtons() {
             this.StartPosition = FormStartPosition.Manual;
             this.Location = new Point(Math.Max(wa.Left + 20, wa.Right - 400), wa.Top + 60);
 
-            string iconPath = @"C:\PhisApp\Medical_Text_Expander\medical_expander_icon.ico";
-            if (!File.Exists(iconPath)) iconPath = @"C:\PhisApp\medical_expander_icon.ico";
-            if (File.Exists(iconPath)) {
-                try { this.Icon = new Icon(iconPath); } catch {}
-            }
+            try { this.Icon = Program.GetAppIcon(); } catch {}
 
             Panel pnlHeader = new Panel();
             pnlHeader.Dock = DockStyle.Top;
@@ -11108,11 +11519,7 @@ if (diff.TotalSeconds <= 0) {
             this.Font = new Font("Segoe UI", 9.5f, FontStyle.Regular);
             this.BackColor = Color.FromArgb(248, 250, 252);
 
-            string iconPath = @"C:\PhisApp\Medical_Text_Expander\medical_expander_icon.ico";
-            if (!File.Exists(iconPath)) iconPath = @"C:\PhisApp\medical_expander_icon.ico";
-            if (File.Exists(iconPath)) {
-                try { this.Icon = new Icon(iconPath); } catch {}
-            }
+            try { this.Icon = Program.GetAppIcon(); } catch {}
 
             // --- Top Banner Panel ---
             Panel pnlTopBanner = new Panel();
