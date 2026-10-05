@@ -242,26 +242,44 @@ namespace MedicalTextExpander {
             get {
                 if (_resolvedVersion != null) return _resolvedVersion;
                 try {
-                    string appDir = AppDomain.CurrentDomain.BaseDirectory;
-                    string vPath = Path.Combine(appDir, "version.json");
-                    if (File.Exists(vPath)) {
-                        string vJson = File.ReadAllText(vPath, Encoding.UTF8);
-                        string v = ExtractJsonValue(vJson, "version");
-                        if (!string.IsNullOrEmpty(v)) {
-                            _resolvedVersion = v.Trim().TrimStart('v', 'V');
-                            return _resolvedVersion;
+                    System.Reflection.Assembly asm = typeof(AppUpdater).Assembly;
+                    string appDir = "";
+                    try {
+                        if (!string.IsNullOrEmpty(asm.Location)) {
+                            appDir = Path.GetDirectoryName(asm.Location);
+                        }
+                    } catch { }
+
+                    if (string.IsNullOrEmpty(appDir)) {
+                        appDir = AppDomain.CurrentDomain.BaseDirectory;
+                    }
+
+                    // 1. Try reading version.json in application directory
+                    if (!string.IsNullOrEmpty(appDir)) {
+                        string vPath = Path.Combine(appDir, "version.json");
+                        if (File.Exists(vPath)) {
+                            string vJson = File.ReadAllText(vPath, Encoding.UTF8);
+                            string v = ExtractJsonValue(vJson, "version");
+                            if (!string.IsNullOrEmpty(v)) {
+                                _resolvedVersion = v.Trim().TrimStart('v', 'V');
+                                return _resolvedVersion;
+                            }
                         }
                     }
-                } catch { }
 
-                try {
-                    string exePath = Application.ExecutablePath;
-                    if (File.Exists(exePath)) {
-                        var fvi = System.Diagnostics.FileVersionInfo.GetVersionInfo(exePath);
-                        if (fvi != null && !string.IsNullOrEmpty(fvi.ProductVersion) && fvi.ProductVersion != "0.0.0.0") {
-                            _resolvedVersion = fvi.ProductVersion.Trim().TrimStart('v', 'V');
-                            return _resolvedVersion;
-                        }
+                    // 2. Try reading AssemblyInformationalVersion attribute
+                    var infoAttr = Attribute.GetCustomAttribute(asm, typeof(System.Reflection.AssemblyInformationalVersionAttribute)) 
+                        as System.Reflection.AssemblyInformationalVersionAttribute;
+                    if (infoAttr != null && !string.IsNullOrEmpty(infoAttr.InformationalVersion)) {
+                        _resolvedVersion = infoAttr.InformationalVersion.Trim().TrimStart('v', 'V');
+                        return _resolvedVersion;
+                    }
+
+                    // 3. Try reading Assembly Version
+                    Version ver = asm.GetName().Version;
+                    if (ver != null && (ver.Major > 0 || ver.Minor > 0 || ver.Build > 0)) {
+                        _resolvedVersion = string.Format("{0}.{1}.{2}", ver.Major, ver.Minor, Math.Max(0, ver.Build));
+                        return _resolvedVersion;
                     }
                 } catch { }
 
