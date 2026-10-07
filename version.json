@@ -1,8 +1,8 @@
 {
-  "version": "1.9.6",
+  "version": "1.9.7",
   "downloadUrl": "https://github.com/oatzilla/Medical_Text_Expander/releases/latest/download/Medical_Text_Expander.exe",
   "download_url": "https://github.com/oatzilla/Medical_Text_Expander/releases/latest/download/Medical_Text_Expander.exe",
-  "releaseDate": "2026-10-05",
-  "release_date": "2026-10-05",
-  "changelog": "- ระบบแผนการพยาบาลมาตรฐานสากล NANDA-I, NIC, NOC (International Standard Nursing Care Plan Builder): รวบรวม 20 ข้อวินิจฉัยทางการพยาบาลมาตรฐานครอบคลุมทุกกลุ่มโรคและปัญหาสำคัญในหอผู้ป่วย (ความปวด, การเคลื่อนไหว/กระดูก, แผลผ่าตัด, แผลกดทับ/Braden, สายระบาย, การหกล้ม, ติดเชื้อ, ระบบทางเดินหายใจ, สารน้ำ/เกลือแร่, การขับถ่าย, จิตสังคม/ความวิตกกังวล, สับสนเฉียบพลัน/Delirium, เลือดออก, คลื่นไส้อาเจียน, ระยะสุดท้าย ฯลฯ)\r\n- เชื่อมโยง NANDA-I (ปัญหา/ข้อวินิจฉัย), NOC (ผลลัพธ์และเป้าหมายทางการพยาบาล), และ NIC (กิจกรรมการพยาบาลแยกตามเวร เช้า/บ่าย/ดึก/ทุกเวร) แบบ Interactive Checkboxes\r\n- ระบบสร้างบันทึก Focus Charting (DAR) อัตโนมัติแบบ Real-Time พร้อมปุ่มกดแทรกลงเตียงผู้ป่วย 1-30 ได้ทันทีใน 1 คลิก และปุ่มคัดลอกลงคลิปบอร์ดสำหรับ e-PHIS / HIS โรงพยาบาล\r\n- รองรับการใช้งานเต็มรูปแบบทั้งบน Desktop Windows Forms (ปุ่มลัด Alt+N, เมนูถาดระบบ Tray, ปุ่ม [🩺 NIC / NOC] แถบหัวเรื่อง, ปุ่ม [🩺 แผนการพยาบาล NIC/NOC] เหนือบันทึกเตียง) และ Web & Mobile Cloud Portal (ปุ่มบน Navbar และปุ่มในหน้าต่างแก้ไขข้อมูลเตียง)"
+  "releaseDate": "2026-10-07",
+  "release_date": "2026-10-07",
+  "changelog": "- ปรับปรุงประสิทธิภาพและลดการใช้ Database Egress บน Supabase Cloud มากกว่า 95%:\r\n  1. ระบบตรวจสอบ Metadata (bed_number, updated_at) ล่วงหน้า: ดาวน์โหลดเฉพาะข้อมูลเตียงที่มีการอัปเดตจริง ลดขนาดข้อมูลจาก 50-200 KB เหลือเพียง ~1.5 KB ต่อรอบเมื่อข้อมูลไม่เปลี่ยนแปลง พร้อมระบบ Full Reconciliation ทุก 5 นาที\r\n  2. ปรับรอบเวลา Polling อัจฉริยะจาก 3 วินาที เป็น 15 วินาที พร้อมระบบป้องกันคำขอซ้ำซ้อน (Request Overlap Guard) และหน่วงเวลาถอยร่นเมื่อเครือข่ายมีปัญหา (Exponential Backoff สูงสุด 120 วินาที)\r\n  3. หยุดการทำงานบนเว็บขณะย่อ/สลับแท็บ (Background & Logout Tab Freezing): ตรวจจับ visibilitychange และหยุด Polling ทันทีเมื่อไม่ได้เปิดแท็บหรือออกจากระบบ และดึงข้อมูลสดทันทีเมื่อกลับมาเปิดใช้งาน\r\n  4. ยกเลิกการดาวน์โหลดคลังเอกสาร Base64 (Row 100) ขณะเริ่มโปรแกรม: โหลดเอกสารเฉพาะเมื่อผู้ใช้เปิดเมนูเอกสารวอร์ด และแคชข้อมูลด้วย updated_at\r\n- คงฟังก์ชันการทำงาน แผนการพยาบาล NANDA-I, NIC, NOC, และข้อมูลผู้ป่วยทุกเตียงครบถ้วน 100%"
 }

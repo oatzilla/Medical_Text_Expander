@@ -33,8 +33,8 @@ function initViewMode() {
  * Real-time Supabase integration, Offline-first cache, Responsive UI
  */
 
-const SUPABASE_URL = "https://mhzpurmhrqutxdhmsday.supabase.co";
-const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1oenB1cm1ocnF1dHhkaG1zZGF5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA2OTM1NjAsImV4cCI6MjEwNjI2OTU2MH0.A9a4sox0YUBKlWkEcaInqQOb8EA0yzl99uwY_cg-kyo";
+const SUPABASE_URL = "https://jchjzorgnijhlywlereh.supabase.co";
+const SUPABASE_KEY = "sb_publishable_9r1tlm0TkYwJU2wpC43feA_VIP64TIz";
 
 // Normalize all line break variants (\r\n, \r, \n) into Windows standard CRLF (\r\n)
 function normalizeToCRLF(text) {
@@ -52,6 +52,15 @@ let activeBedNumber = 1;
 let currentHistoryList = [];
 let selectedHistoryItem = null;
 let pollTimer = null;
+let bedFetchBusy = false;
+let bedGeneration = 0;
+let bedVersion = null;
+let bedFullFetchAt = 0;
+let bedRetryAt = 0;
+let bedFailures = 0;
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && getCurrentUser()) fetchAllBeds();
+});
 let isSaving = false;
 
 // ==========================================
@@ -613,12 +622,16 @@ document.addEventListener('DOMContentLoaded', () => {
     initEmptyBeds();
     loadCachedBeds();
     fetchAllBeds();
-    pollTimer = setInterval(fetchAllBeds, 3000);
+    pollTimer = setInterval(fetchAllBeds, 15000);
   }
 });
 
 // Initialize 30 empty beds
 function initEmptyBeds() {
+  bedGeneration++;
+  bedVersion = null;
+  bedFullFetchAt = 0;
+  bedRetryAt = 0;
   bedsData = [];
   for (let i = 1; i <= 30; i++) {
     bedsData.push({
@@ -1422,7 +1435,7 @@ function setupEventListeners() {
         loadCachedBeds();
         fetchAllBeds();
         if (!pollTimer) {
-          pollTimer = setInterval(fetchAllBeds, 3000);
+          pollTimer = setInterval(fetchAllBeds, 15000);
         }
 
       } catch (err) {
@@ -1521,7 +1534,7 @@ function setupEventListeners() {
         loadCachedBeds();
         fetchAllBeds();
         if (!pollTimer) {
-          pollTimer = setInterval(fetchAllBeds, 3000);
+          pollTimer = setInterval(fetchAllBeds, 15000);
         }
 
       } catch (err) {
@@ -1626,13 +1639,39 @@ function setupEventListeners() {
 // Supabase API Integration
 // ==========================================
 async function fetchAllBeds() {
+  if (!getCurrentUser() || document.hidden || bedFetchBusy || Date.now() < bedRetryAt) return;
+  bedFetchBusy = true;
+  const generation = bedGeneration;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 12000);
   try {
     const slot = getActiveWorkspaceSlot();
     const startBed = slot === 0 ? 1 : (slot * 100) + 1;
     const endBed = slot === 0 ? 30 : (slot * 100) + 30;
 
+    const meta = await fetch(`${SUPABASE_URL}/rest/v1/bed_notes?bed_number=gte.${startBed}&bed_number=lte.${endBed}&select=bed_number,updated_at&order=bed_number.asc`, {
+      signal: controller.signal,
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`
+      }
+    });
+
+    if (!meta.ok) throw new Error(`HTTP ${meta.status}`);
+
+    const version = JSON.stringify(await meta.json());
+    if (generation !== bedGeneration || !getCurrentUser() || slot !== getActiveWorkspaceSlot()) return;
+
+    if (version === bedVersion && Date.now() - bedFullFetchAt < 300000) {
+      bedFailures = 0;
+      bedRetryAt = 0;
+      setCloudStatus(true);
+      return;
+    }
+
     const res = await fetch(`${SUPABASE_URL}/rest/v1/bed_notes?bed_number=gte.${startBed}&bed_number=lte.${endBed}&select=bed_number,content,updated_at,updated_by&order=bed_number.asc`, {
       method: 'GET',
+      signal: controller.signal,
       headers: {
         'apikey': SUPABASE_KEY,
         'Authorization': `Bearer ${SUPABASE_KEY}`
@@ -1642,6 +1681,11 @@ async function fetchAllBeds() {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
     const data = await res.json();
+    if (generation !== bedGeneration || !getCurrentUser() || slot !== getActiveWorkspaceSlot()) return;
+    bedVersion = version;
+    bedFullFetchAt = Date.now();
+    bedFailures = 0;
+    bedRetryAt = 0;
     setCloudStatus(true);
 
     if (slot > 0 && data.length < 30) {
@@ -1685,7 +1729,14 @@ async function fetchAllBeds() {
 
   } catch (err) {
     console.warn('Supabase fetch error:', err);
-    setCloudStatus(false);
+    if (generation === bedGeneration && getCurrentUser()) {
+      bedRetryAt = Date.now() + Math.min(120000, 15000 * Math.pow(2, bedFailures++));
+      setCloudStatus(false);
+    }
+  } finally {
+    clearTimeout(timeout);
+    bedFetchBusy = false;
+    if (generation !== bedGeneration && getCurrentUser()) fetchAllBeds();
   }
 }
 
@@ -4003,7 +4054,7 @@ function initDocumentsSystem() {
 
   // Initial render from cache and silent cloud fetch
   renderDocumentsList();
-  fetchDocsCatalogFromCloud(true);
+  // Fetch the Base64 document catalog only when its menu is opened.
 }
 
 function openDocsModal() {
@@ -4191,10 +4242,25 @@ function renderDocumentsList() {
   });
 }
 
+let docsFetchBusy = false;
+let docsVersion = null;
+let docsFullFetchAt = 0;
 async function fetchDocsCatalogFromCloud(silent = false) {
+  if (!getCurrentUser() || docsFetchBusy) return;
+  docsFetchBusy = true;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
   try {
+    const meta = await fetch(`${SUPABASE_URL}/rest/v1/bed_notes?bed_number=eq.100&select=updated_at`, {
+      signal: controller.signal,
+      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` }
+    });
+    if (!meta.ok) throw new Error(`HTTP ${meta.status}`);
+    const version = JSON.stringify(await meta.json());
+    if (version === docsVersion && Date.now() - docsFullFetchAt < 300000) return;
     const res = await fetch(`${SUPABASE_URL}/rest/v1/bed_notes?bed_number=eq.100&select=content,updated_at,updated_by`, {
       method: 'GET',
+      signal: controller.signal,
       headers: {
         'apikey': SUPABASE_KEY,
         'Authorization': `Bearer ${SUPABASE_KEY}`
@@ -4210,10 +4276,15 @@ async function fetchDocsCatalogFromCloud(silent = false) {
       try {
         localStorage.setItem('ward_docs_catalog', JSON.stringify(currentDocsCatalog));
       } catch {}
+      docsVersion = version;
+      docsFullFetchAt = Date.now();
       renderDocumentsList();
     }
   } catch (err) {
     if (!silent) console.warn('Could not fetch latest documents catalog:', err);
+  } finally {
+    clearTimeout(timeout);
+    docsFetchBusy = false;
   }
 }
 

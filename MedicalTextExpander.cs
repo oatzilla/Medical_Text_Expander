@@ -14,9 +14,9 @@ using System.Security.Cryptography;
 [assembly: System.Reflection.AssemblyTitle("Medical Text Expander")]
 [assembly: System.Reflection.AssemblyDescription("Medical Text Expander for Hospital Ward")]
 [assembly: System.Reflection.AssemblyProduct("Medical Text Expander")]
-[assembly: System.Reflection.AssemblyVersion("1.9.6.0")]
-[assembly: System.Reflection.AssemblyFileVersion("1.9.6.0")]
-[assembly: System.Reflection.AssemblyInformationalVersion("1.9.6")]
+[assembly: System.Reflection.AssemblyVersion("1.9.7.0")]
+[assembly: System.Reflection.AssemblyFileVersion("1.9.7.0")]
+[assembly: System.Reflection.AssemblyInformationalVersion("1.9.7")]
 
 namespace MedicalTextExpander {
     public class TemplateItem {
@@ -253,7 +253,7 @@ namespace MedicalTextExpander {
     }
 
     public static class AppUpdater {
-        public const string DefaultVersion = "1.9.5";
+        public const string DefaultVersion = "1.9.7";
         private static string _resolvedVersion = null;
 
         public static string CurrentVersion {
@@ -689,12 +689,27 @@ namespace MedicalTextExpander {
             }
         }
 
+        private int cachedBedSlot = -1;
+        private string cachedBedVersion = null;
+        private DateTime cachedBedTime = DateTime.MinValue;
+        private Dictionary<int, string> cachedCloudBeds = new Dictionary<int, string>();
+
         public Dictionary<int, string> FetchAllBeds(int userSlot = 0) {
             var result = new Dictionary<int, string>();
             if (!IsEnabled) return result;
             try {
                 int minBed = (userSlot * 100) + 1;
                 int maxBed = (userSlot * 100) + 30;
+                string version;
+                HttpWebRequest metaReq = CreateRequest(string.Format("bed_notes?bed_number=gte.{0}&bed_number=lte.{1}&select=bed_number,updated_at&order=bed_number.asc", minBed, maxBed), "GET");
+                using (HttpWebResponse metaResp = (HttpWebResponse)metaReq.GetResponse())
+                using (StreamReader metaReader = new StreamReader(metaResp.GetResponseStream(), Encoding.UTF8)) {
+                    version = metaReader.ReadToEnd();
+                }
+                if (cachedBedSlot == userSlot && cachedBedVersion == version &&
+                    (DateTime.UtcNow - cachedBedTime).TotalMinutes < 5) {
+                    return new Dictionary<int, string>(cachedCloudBeds);
+                }
                 string query = string.Format("bed_notes?bed_number=gte.{0}&bed_number=lte.{1}&select=bed_number,content&order=bed_number.asc", minBed, maxBed);
                 HttpWebRequest req = CreateRequest(query, "GET");
                 using (HttpWebResponse resp = (HttpWebResponse)req.GetResponse())
@@ -710,7 +725,11 @@ namespace MedicalTextExpander {
                         }
                     }
                 }
-            } catch {}
+                cachedBedSlot = userSlot;
+                cachedBedVersion = version;
+                cachedBedTime = DateTime.UtcNow;
+                cachedCloudBeds = new Dictionary<int, string>(result);
+            } catch { throw; }
             return result;
         }
 
@@ -729,7 +748,11 @@ namespace MedicalTextExpander {
                     stream.Write(data, 0, data.Length);
                 }
                 using (HttpWebResponse resp = (HttpWebResponse)req.GetResponse()) {
-                    return resp.StatusCode == HttpStatusCode.OK || resp.StatusCode == HttpStatusCode.NoContent;
+                    bool ok = resp.StatusCode == HttpStatusCode.OK || resp.StatusCode == HttpStatusCode.NoContent;
+                    if (ok) {
+                        cachedBedVersion = null;
+                    }
+                    return ok;
                 }
             } catch {
                 return false;
@@ -793,7 +816,7 @@ namespace MedicalTextExpander {
                 for (int i = 1; i <= 30; i++) {
                     if (i > 1) sb.Append(",");
                     int bNum = (userSlot * 100) + i;
-                    sb.AppendFormat("{{\"bed_number\":{0},\"content\":\"\",\"updated_by\":\"{1}\"}}", bNum, EscapeJson(username ?? "user"));
+                    sb.AppendFormat("{{\"bed_number\":{0},\"content\":\"\",\"updated_at\":\"{1}\",\"updated_by\":\"{2}\"}}", bNum, DateTime.UtcNow.ToString("o"), EscapeJson(username ?? "user"));
                 }
                 sb.Append("]");
                 byte[] d = Encoding.UTF8.GetBytes(sb.ToString());
@@ -942,8 +965,8 @@ namespace MedicalTextExpander {
             // Periodic background check of network status (every 20s) without blocking UI thread
             networkStatusTimer = new System.Threading.Timer(_ => CheckSharedDirectoryStatus(), null, 15000, 20000);
 
-            // Periodic Supabase Cloud Polling (every 3 seconds) for real-time sync across ward PCs & mobile
-            cloudSyncTimer = new System.Threading.Timer(_ => PollSupabaseCloud(), null, 2000, 3000);
+            // Periodic Supabase Cloud Polling (every 15 seconds) for real-time sync across ward PCs & mobile
+            cloudSyncTimer = new System.Threading.Timer(_ => PollSupabaseCloud(), null, 2000, 15000);
         }
 
         public bool IsSupabaseActive {
@@ -1002,11 +1025,17 @@ namespace MedicalTextExpander {
             }
         }
 
+        private int cloudPollBusy;
+        private DateTime cloudRetryAt = DateTime.MinValue;
+        private int cloudFailures;
         private void PollSupabaseCloud() {
-            if (supabaseClient == null || !supabaseClient.IsEnabled) return;
+            if (supabaseClient == null || !supabaseClient.IsEnabled || DateTime.UtcNow < cloudRetryAt) return;
+            if (Interlocked.CompareExchange(ref cloudPollBusy, 1, 0) != 0) return;
             try {
                 int slot = activeUserSlot;
                 var cloudNotes = supabaseClient.FetchAllBeds(slot);
+                cloudFailures = 0;
+                cloudRetryAt = DateTime.MinValue;
                 if (cloudNotes == null || cloudNotes.Count == 0) return;
                 bool wasActive = isSupabaseActiveCached;
                 isSupabaseActiveCached = true;
@@ -1049,11 +1078,14 @@ namespace MedicalTextExpander {
                     }
                 }
             } catch {
+                cloudRetryAt = DateTime.UtcNow.AddSeconds(Math.Min(120, 15 * Math.Pow(2, Math.Min(cloudFailures++, 3))));
                 bool wasActive = isSupabaseActiveCached;
                 isSupabaseActiveCached = false;
                 if (wasActive && OnCloudStatusChanged != null) {
                     try { OnCloudStatusChanged(false); } catch {}
                 }
+            } finally {
+                Interlocked.Exchange(ref cloudPollBusy, 0);
             }
         }
 
