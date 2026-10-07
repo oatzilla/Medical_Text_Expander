@@ -15,7 +15,7 @@
   <!-- FontAwesome Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   
-  <link rel="stylesheet" href="style.css?v=1.9.6.2">
+  <link rel="stylesheet" href="style.css?v=1.9.8">
 </head>
 <body>
   <!-- Top Navigation Bar -->
@@ -772,6 +772,16 @@
           <label class="doc-form-label"><i class="fa-solid fa-paperclip"></i> ชื่อไฟล์ต้นฉบับ</label>
           <input type="text" id="editDocFilename" class="doc-form-input" disabled style="opacity: 0.75; background: var(--bg-hover);">
         </div>
+        <div class="doc-form-row" style="margin-bottom: 12px; display: flex; gap: 12px;">
+          <div class="doc-form-group flex-1">
+            <label class="doc-form-label"><i class="fa-solid fa-arrow-down-1-9"></i> ลำดับที่ (Order)</label>
+            <input type="number" id="editDocOrder" class="doc-form-input" min="1" max="999" placeholder="1">
+          </div>
+          <div class="doc-form-group flex-1">
+            <label class="doc-form-label"><i class="fa-solid fa-code-branch"></i> เลขเวอร์ชัน (Version)</label>
+            <input type="text" id="editDocVersion" class="doc-form-input" placeholder="v1.0" maxlength="20">
+          </div>
+        </div>
         <div class="doc-form-group" style="margin-bottom: 12px;">
           <label class="doc-form-label"><i class="fa-solid fa-file-signature"></i> ชื่อเอกสาร (ที่จะแสดงในระบบ)</label>
           <input type="text" id="editDocTitle" class="doc-form-input" placeholder="ระบุชื่อเอกสาร..." maxlength="100">
@@ -1005,7 +1015,7 @@
   <div class="toast-container" id="toastContainer"></div>
 
   <!-- Application Logic -->
-  <script src="app.js?v=1.9.7.1"></script>
+  <script src="app.js?v=1.9.8"></script>
   <script src="nic_noc.js?v=1.9.6.2"></script>
 </body>
 </html>

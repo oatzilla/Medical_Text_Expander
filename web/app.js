@@ -3551,21 +3551,63 @@ let docSearchQuery = '';
 // Backward compatibility references
 let currentIoTemplate = DEFAULT_IO_DOC;
 
-function normalizeDocsCatalog(raw) {
-  if (!raw) return { version: 2, documents: [ DEFAULT_IO_DOC ] };
-  if (Array.isArray(raw.documents)) {
-    if (raw.documents.length === 0) {
-      return { version: 2, documents: [ DEFAULT_IO_DOC ] };
-    }
-    return { version: raw.version || 2, documents: raw.documents };
+function bumpVersionString(currentVer) {
+  if (!currentVer) return 'v1.0';
+  const str = String(currentVer).trim();
+  const match = str.match(/^(v?)(\d+)(?:\.(\d+))?$/i);
+  if (match) {
+    const prefix = match[1] || 'v';
+    const major = parseInt(match[2], 10);
+    const minor = match[3] !== undefined ? parseInt(match[3], 10) : 0;
+    return `${prefix}${major}.${minor + 1}`;
   }
-  // Version 1 single object fallback
-  if (raw.filename || raw.base64) {
-    return {
+  return str.endsWith('.0') ? str.replace(/\.0$/, '.1') : (str + '.1');
+}
+
+function extractOrGenerateVersion(fileName, existingDoc) {
+  if (existingDoc && (existingDoc.doc_version || existingDoc.version)) {
+    return bumpVersionString(existingDoc.doc_version || existingDoc.version);
+  }
+  if (fileName) {
+    const m = fileName.match(/[_\-\s]v?(\d+\.\d+)/i);
+    if (m) return 'v' + m[1];
+  }
+  return 'v1.0';
+}
+
+function getNextDocOrder(catalogDocs) {
+  if (!Array.isArray(catalogDocs) || catalogDocs.length === 0) return 1;
+  let maxOrder = 0;
+  catalogDocs.forEach((d, idx) => {
+    let num = parseInt(d.order || d.seq, 10);
+    if (isNaN(num) || num <= 0) {
+      const m = (d.title || d.filename || '').match(/^(\d+)[\.\-_]/);
+      if (m) num = parseInt(m[1], 10);
+      else num = idx + 1;
+      d.order = num;
+      d.seq = num;
+    }
+    if (num > maxOrder) maxOrder = num;
+  });
+  return maxOrder + 1;
+}
+
+function normalizeDocsCatalog(raw) {
+  let catalog;
+  if (!raw) {
+    catalog = { version: 2, documents: [ DEFAULT_IO_DOC ] };
+  } else if (Array.isArray(raw.documents)) {
+    catalog = { version: raw.version || 2, documents: raw.documents.length === 0 ? [ DEFAULT_IO_DOC ] : raw.documents };
+  } else if (raw.filename || raw.base64) {
+    catalog = {
       version: 2,
       documents: [
         {
           id: 'doc_io_template',
+          order: 1,
+          seq: 1,
+          doc_version: 'v1.0',
+          version: 'v1.0',
           title: 'แบบฟอร์มบันทึก Intake / Output (I/O)',
           category: 'แบบฟอร์มบันทึกทางการพยาบาล',
           filename: raw.filename || 'แบบฟอร์ม IO.xlsx',
@@ -3578,8 +3620,43 @@ function normalizeDocsCatalog(raw) {
         }
       ]
     };
+  } else {
+    catalog = { version: 2, documents: [ DEFAULT_IO_DOC ] };
   }
-  return { version: 2, documents: [ DEFAULT_IO_DOC ] };
+
+  // Ensure every document has order and doc_version
+  catalog.documents.forEach((doc, idx) => {
+    if (doc.order === undefined || doc.order === null || isNaN(parseInt(doc.order, 10))) {
+      let ord = parseInt(doc.seq, 10);
+      if (isNaN(ord) || ord <= 0) {
+        const m = (doc.title || doc.filename || '').match(/^(\d+)[\.\-_]/);
+        if (m) ord = parseInt(m[1], 10);
+        else ord = idx + 1;
+      }
+      doc.order = ord;
+      doc.seq = ord;
+    } else {
+      doc.order = parseInt(doc.order, 10);
+      doc.seq = doc.order;
+    }
+
+    if (!doc.doc_version && !doc.version) {
+      doc.doc_version = 'v1.0';
+      doc.version = 'v1.0';
+    } else if (!doc.doc_version && doc.version) {
+      doc.doc_version = doc.version;
+    } else if (doc.doc_version && !doc.version) {
+      doc.version = doc.doc_version;
+    }
+  });
+
+  // Sort by order ascending
+  catalog.documents.sort((a, b) => {
+    const diff = (a.order || 0) - (b.order || 0);
+    return diff !== 0 ? diff : (a.title || '').localeCompare(b.title || '');
+  });
+
+  return catalog;
 }
 
 function initDocumentsSystem() {
@@ -3815,7 +3892,9 @@ function initDocumentsSystem() {
           <span class="doc-queue-filesize">${formatDocSize(item.file.size)}</span>
         </div>
         <div class="doc-queue-inputs">
+          <span class="doc-queue-seq-tag" title="ลำดับที่อัตโนมัติ">#${item.order}</span>
           <input type="text" class="doc-queue-title-input" value="${escapeHtml(item.title)}" placeholder="ชื่อเอกสาร..." title="ชื่อที่จะแสดงในระบบ">
+          <input type="text" class="doc-queue-version-input" value="${escapeHtml(item.version || 'v1.0')}" placeholder="v1.0" title="เลขเวอร์ชันอัตโนมัติ (แก้ไขได้)">
           <select class="doc-queue-cat-select" title="หมวดหมู่เอกสาร">
             <option value="แบบฟอร์มบันทึกทางการพยาบาล"${item.category === 'แบบฟอร์มบันทึกทางการพยาบาล' ? ' selected' : ''}>แบบฟอร์มบันทึก</option>
             <option value="แบบประเมินทางการพยาบาล"${item.category === 'แบบประเมินทางการพยาบาล' ? ' selected' : ''}>แบบประเมิน</option>
@@ -3831,6 +3910,13 @@ function initDocumentsSystem() {
       if (titleInput) {
         titleInput.addEventListener('input', (e) => {
           item.title = e.target.value;
+        });
+      }
+
+      const versionInput = row.querySelector('.doc-queue-version-input');
+      if (versionInput) {
+        versionInput.addEventListener('input', (e) => {
+          item.version = e.target.value;
         });
       }
 
@@ -3867,6 +3953,7 @@ function initDocumentsSystem() {
     if (!fileList || fileList.length === 0) return;
     const defaultCat = (newDocCategory ? newDocCategory.value : '') || 'แบบฟอร์มบันทึกทางการพยาบาล';
     let oversizedCount = 0;
+    let nextOrder = getNextDocOrder(currentDocsCatalog.documents);
 
     Array.from(fileList).forEach(file => {
       if (file.size > 15 * 1024 * 1024) {
@@ -3875,12 +3962,21 @@ function initDocumentsSystem() {
       }
 
       const cleanTitle = file.name.replace(/\.[^/.]+$/, '');
+      const existingDoc = currentDocsCatalog.documents.find(d => (d.filename || '').toLowerCase() === file.name.toLowerCase());
       const existingIdx = selectedDocFiles.findIndex(item => item.file.name.toLowerCase() === file.name.toLowerCase());
+
+      const assignedOrder = existingDoc ? (existingDoc.order || nextOrder++) : nextOrder++;
+      const assignedVersion = existingDoc
+        ? bumpVersionString(existingDoc.doc_version || existingDoc.version)
+        : extractOrGenerateVersion(file.name, null);
+
       const itemData = {
         id: 'queue_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
         file: file,
         title: cleanTitle,
-        category: defaultCat
+        category: defaultCat,
+        order: assignedOrder,
+        version: assignedVersion
       };
 
       if (existingIdx >= 0) {
@@ -3981,6 +4077,10 @@ function initDocumentsSystem() {
           const docId = 'doc_' + Date.now() + '_' + i;
           const newDoc = {
             id: docId,
+            order: parseInt(item.order, 10) || (currentDocsCatalog.documents.length + 1),
+            seq: parseInt(item.order, 10) || (currentDocsCatalog.documents.length + 1),
+            doc_version: (item.version || '').trim() || 'v1.0',
+            version: (item.version || '').trim() || 'v1.0',
             title: (item.title || '').trim() || item.file.name.replace(/\.[^/.]+$/, ''),
             category: item.category || 'แบบฟอร์มบันทึกทางการพยาบาล',
             filename: item.file.name,
@@ -3996,10 +4096,16 @@ function initDocumentsSystem() {
           if (existingIdx >= 0) {
             currentDocsCatalog.documents[existingIdx] = newDoc;
           } else {
-            currentDocsCatalog.documents.unshift(newDoc);
+            currentDocsCatalog.documents.push(newDoc);
           }
-          uploadedNames.push(newDoc.title);
+          uploadedNames.push(`#${newDoc.order} ${newDoc.title} (${newDoc.doc_version})`);
         }
+
+        // Sort by order ascending
+        currentDocsCatalog.documents.sort((a, b) => {
+          const diff = (a.order || 0) - (b.order || 0);
+          return diff !== 0 ? diff : (a.title || '').localeCompare(b.title || '');
+        });
 
         if (btnUploadDocText) {
           btnUploadDocText.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> กำลังบันทึก ${totalCount} เอกสารขึ้น Cloud...`;
@@ -4206,7 +4312,9 @@ function renderDocumentsList() {
       </div>
       <div class="doc-card-details">
         <div class="doc-card-title-row">
+          <span class="doc-card-seq-badge">#${doc.order || 1}</span>
           <span class="doc-card-title">${titleStr}</span>
+          <span class="doc-card-version-badge">${escapeHtml(doc.doc_version || doc.version || 'v1.0')}</span>
           <span class="doc-card-badge">${categoryStr}</span>
         </div>
         <div class="doc-card-meta">
@@ -4469,11 +4577,15 @@ function openEditDocModal(doc) {
   currentlyEditingDoc = doc;
   const modal = document.getElementById('editDocModal');
   const txtFilename = document.getElementById('editDocFilename');
+  const numOrder = document.getElementById('editDocOrder');
+  const txtVersion = document.getElementById('editDocVersion');
   const txtTitle = document.getElementById('editDocTitle');
   const selCat = document.getElementById('editDocCategory');
   if (!modal || !doc) return;
 
   if (txtFilename) txtFilename.value = doc.filename || '';
+  if (numOrder) numOrder.value = doc.order || 1;
+  if (txtVersion) txtVersion.value = doc.doc_version || doc.version || 'v1.0';
   if (txtTitle) txtTitle.value = doc.title || doc.filename || '';
   if (selCat) {
     const opts = Array.from(selCat.options).map(o => o.value);
@@ -4505,8 +4617,13 @@ function closeEditDocModal() {
 
 async function saveEditedDocument() {
   if (!currentlyEditingDoc) return;
+  const numOrder = document.getElementById('editDocOrder');
+  const txtVersion = document.getElementById('editDocVersion');
   const txtTitle = document.getElementById('editDocTitle');
   const selCat = document.getElementById('editDocCategory');
+
+  const newOrder = numOrder ? parseInt(numOrder.value, 10) : currentlyEditingDoc.order;
+  const newVersion = (txtVersion ? txtVersion.value : '').trim() || 'v1.0';
   const newTitle = (txtTitle ? txtTitle.value : '').trim();
   const newCat = selCat ? selCat.value : currentlyEditingDoc.category;
 
@@ -4523,9 +4640,18 @@ async function saveEditedDocument() {
   }
 
   const oldTitle = currentlyEditingDoc.title;
+  currentlyEditingDoc.order = !isNaN(newOrder) && newOrder > 0 ? newOrder : (currentlyEditingDoc.order || 1);
+  currentlyEditingDoc.seq = currentlyEditingDoc.order;
+  currentlyEditingDoc.doc_version = newVersion;
+  currentlyEditingDoc.version = newVersion;
   currentlyEditingDoc.title = newTitle;
   currentlyEditingDoc.category = newCat;
   currentlyEditingDoc.updated_at = new Date().toISOString();
+
+  currentDocsCatalog.documents.sort((a, b) => {
+    const diff = (a.order || 0) - (b.order || 0);
+    return diff !== 0 ? diff : (a.title || '').localeCompare(b.title || '');
+  });
 
   const jsonString = JSON.stringify(currentDocsCatalog);
 

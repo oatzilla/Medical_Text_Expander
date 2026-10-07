@@ -2806,6 +2806,8 @@ namespace MedicalTextExpander {
     }
 
     public class WardDocItem {
+        public int Order { get; set; }
+        public string DocVersion { get; set; }
         public string Id { get; set; }
         public string Title { get; set; }
         public string Category { get; set; }
@@ -2823,18 +2825,22 @@ namespace MedicalTextExpander {
     }
 
     public class EditWardDocDialog : Form {
+        public int NewOrder { get; private set; }
+        public string NewVersion { get; private set; }
         public string NewTitle { get; private set; }
         public string NewCategory { get; private set; }
         public string UploaderName { get; private set; }
 
+        private NumericUpDown numOrder;
+        private TextBox txtVersion;
         private TextBox txtTitle;
         private ComboBox cboCategory;
         private TextBox txtUploader;
 
         public EditWardDocDialog(WardDocItem item, string defaultUploader) {
             try { this.Icon = Program.GetAppIcon(); } catch {}
-            this.Text = "✏️ แก้ไขชื่อและหมวดหมู่เอกสาร - Medical Text Expander";
-            this.Size = new Size(540, 310);
+            this.Text = "✏️ แก้ไขข้อมูลและเวอร์ชันเอกสาร - Medical Text Expander";
+            this.Size = new Size(540, 360);
             this.StartPosition = FormStartPosition.CenterParent;
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
             this.MaximizeBox = false;
@@ -2848,7 +2854,7 @@ namespace MedicalTextExpander {
                 BackColor = Color.FromArgb(37, 99, 235)
             };
             Label lblH = new Label {
-                Text = "✏️ แก้ไขชื่อและหมวดหมู่เอกสารประจำวอร์ด",
+                Text = "✏️ แก้ไขข้อมูลและเวอร์ชันเอกสารประจำวอร์ด",
                 ForeColor = Color.White,
                 Font = new Font("Segoe UI", 10.5f, FontStyle.Bold),
                 Location = new Point(14, 11),
@@ -2859,23 +2865,43 @@ namespace MedicalTextExpander {
 
             Label lblFile = new Label {
                 Text = "ชื่อไฟล์: " + (item.FileName ?? "--"),
-                Location = new Point(20, 56),
-                Size = new Size(480, 22),
+                Location = new Point(20, 54),
+                Size = new Size(480, 20),
                 Font = new Font("Segoe UI", 9f, FontStyle.Bold),
                 ForeColor = Color.FromArgb(5, 150, 105)
             };
             this.Controls.Add(lblFile);
 
-            Label lblT = new Label { Text = "ชื่อเอกสาร:", Location = new Point(20, 88), Size = new Size(110, 24), Font = new Font("Segoe UI", 9f, FontStyle.Bold) };
+            Label lblOrd = new Label { Text = "ลำดับที่:", Location = new Point(20, 84), Size = new Size(100, 24), Font = new Font("Segoe UI", 9f, FontStyle.Bold) };
+            this.Controls.Add(lblOrd);
+            numOrder = new NumericUpDown {
+                Location = new Point(130, 81),
+                Size = new Size(110, 27),
+                Minimum = 1,
+                Maximum = 999,
+                Value = (item.Order > 0 && item.Order <= 999) ? item.Order : 1
+            };
+            this.Controls.Add(numOrder);
+
+            Label lblVer = new Label { Text = "เลขเวอร์ชัน:", Location = new Point(260, 84), Size = new Size(80, 24), Font = new Font("Segoe UI", 9f, FontStyle.Bold) };
+            this.Controls.Add(lblVer);
+            txtVersion = new TextBox {
+                Text = !string.IsNullOrEmpty(item.DocVersion) ? item.DocVersion : "v1.0",
+                Location = new Point(350, 81),
+                Size = new Size(150, 27)
+            };
+            this.Controls.Add(txtVersion);
+
+            Label lblT = new Label { Text = "ชื่อเอกสาร:", Location = new Point(20, 122), Size = new Size(100, 24), Font = new Font("Segoe UI", 9f, FontStyle.Bold) };
             this.Controls.Add(lblT);
-            txtTitle = new TextBox { Text = item.Title ?? item.FileName, Location = new Point(130, 85), Size = new Size(370, 27) };
+            txtTitle = new TextBox { Text = item.Title ?? item.FileName, Location = new Point(130, 119), Size = new Size(370, 27) };
             this.Controls.Add(txtTitle);
 
-            Label lblC = new Label { Text = "หมวดหมู่:", Location = new Point(20, 126), Size = new Size(110, 24), Font = new Font("Segoe UI", 9f, FontStyle.Bold) };
+            Label lblC = new Label { Text = "หมวดหมู่:", Location = new Point(20, 160), Size = new Size(100, 24), Font = new Font("Segoe UI", 9f, FontStyle.Bold) };
             this.Controls.Add(lblC);
             cboCategory = new ComboBox {
                 DropDownStyle = ComboBoxStyle.DropDownList,
-                Location = new Point(130, 123),
+                Location = new Point(130, 157),
                 Size = new Size(370, 28)
             };
             cboCategory.Items.AddRange(new object[] {
@@ -2888,14 +2914,14 @@ namespace MedicalTextExpander {
             cboCategory.SelectedIndex = catIdx >= 0 ? catIdx : 0;
             this.Controls.Add(cboCategory);
 
-            Label lblU = new Label { Text = "ผู้แก้ไข:", Location = new Point(20, 164), Size = new Size(110, 24), Font = new Font("Segoe UI", 9f, FontStyle.Bold) };
+            Label lblU = new Label { Text = "ผู้แก้ไข:", Location = new Point(20, 198), Size = new Size(100, 24), Font = new Font("Segoe UI", 9f, FontStyle.Bold) };
             this.Controls.Add(lblU);
-            txtUploader = new TextBox { Text = string.IsNullOrEmpty(defaultUploader) ? Environment.MachineName : defaultUploader, Location = new Point(130, 161), Size = new Size(370, 27) };
+            txtUploader = new TextBox { Text = string.IsNullOrEmpty(defaultUploader) ? Environment.MachineName : defaultUploader, Location = new Point(130, 195), Size = new Size(370, 27) };
             this.Controls.Add(txtUploader);
 
             Button btnSave = new Button {
                 Text = "💾 บันทึกการแก้ไข",
-                Location = new Point(130, 212),
+                Location = new Point(130, 250),
                 Size = new Size(160, 38),
                 BackColor = Color.FromArgb(37, 99, 235),
                 ForeColor = Color.White,
@@ -2908,6 +2934,8 @@ namespace MedicalTextExpander {
                     MessageBox.Show("กรุณาระบุชื่อเอกสารครับ", "แจ้งเตือน", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return;
                 }
+                NewOrder = (int)numOrder.Value;
+                NewVersion = string.IsNullOrEmpty(txtVersion.Text.Trim()) ? "v1.0" : txtVersion.Text.Trim();
                 NewTitle = txtTitle.Text.Trim();
                 NewCategory = cboCategory.SelectedItem != null ? cboCategory.SelectedItem.ToString() : item.Category;
                 UploaderName = txtUploader.Text.Trim();
@@ -2918,7 +2946,7 @@ namespace MedicalTextExpander {
 
             Button btnCancel = new Button {
                 Text = "ยกเลิก",
-                Location = new Point(300, 212),
+                Location = new Point(300, 250),
                 Size = new Size(110, 38),
                 FlatStyle = FlatStyle.Flat,
                 Cursor = Cursors.Hand
@@ -2973,6 +3001,55 @@ namespace MedicalTextExpander {
             context = ctx;
             InitializeUI();
             LoadDocuments();
+        }
+
+        public static string BumpVersionString(string currentVer) {
+            if (string.IsNullOrEmpty(currentVer)) return "v1.0";
+            string s = currentVer.Trim();
+            Match m = Regex.Match(s, @"^(v?)(\d+)(?:\.(\d+))?$", RegexOptions.IgnoreCase);
+            if (m.Success) {
+                string prefix = !string.IsNullOrEmpty(m.Groups[1].Value) ? m.Groups[1].Value : "v";
+                int major = 1;
+                int.TryParse(m.Groups[2].Value, out major);
+                int minor = 0;
+                if (m.Groups[3].Success) {
+                    int.TryParse(m.Groups[3].Value, out minor);
+                    return string.Format("{0}{1}.{2}", prefix, major, minor + 1);
+                } else {
+                    return string.Format("{0}{1}.1", prefix, major);
+                }
+            }
+            return s.EndsWith(".0") ? s.Substring(0, s.Length - 2) + ".1" : s + ".1";
+        }
+
+        public static string ExtractOrGenerateVersion(string fileName, WardDocItem existingDoc) {
+            if (existingDoc != null && !string.IsNullOrEmpty(existingDoc.DocVersion)) {
+                return BumpVersionString(existingDoc.DocVersion);
+            }
+            if (!string.IsNullOrEmpty(fileName)) {
+                Match m = Regex.Match(fileName, @"[_\-\s]v?(\d+\.\d+)", RegexOptions.IgnoreCase);
+                if (m.Success) {
+                    return "v" + m.Groups[1].Value;
+                }
+            }
+            return "v1.0";
+        }
+
+        public int GetNextDocOrder() {
+            int maxOrder = 0;
+            for (int i = 0; i < allDocuments.Count; i++) {
+                var doc = allDocuments[i];
+                if (doc.Order <= 0) {
+                    Match mNum = Regex.Match(doc.Title ?? "", @"^(\d+)[\.\-_]");
+                    if (mNum.Success) {
+                        int parsed;
+                        if (int.TryParse(mNum.Groups[1].Value, out parsed)) doc.Order = parsed;
+                    }
+                    if (doc.Order <= 0) doc.Order = i + 1;
+                }
+                if (doc.Order > maxOrder) maxOrder = doc.Order;
+            }
+            return maxOrder + 1;
         }
 
         private string GetTemplatesDirectory() {
@@ -3093,11 +3170,13 @@ namespace MedicalTextExpander {
             lvDocuments.GridLines = true;
             lvDocuments.HideSelection = false;
             lvDocuments.MultiSelect = false;
-            lvDocuments.Columns.Add("ชื่อเอกสาร", 260);
-            lvDocuments.Columns.Add("หมวดหมู่", 180);
-            lvDocuments.Columns.Add("ชื่อไฟล์", 170);
-            lvDocuments.Columns.Add("ขนาด", 75);
-            lvDocuments.Columns.Add("อัปเดตล่าสุด", 125);
+            lvDocuments.Columns.Add("ลำดับ", 55, HorizontalAlignment.Center);
+            lvDocuments.Columns.Add("ชื่อเอกสาร", 240);
+            lvDocuments.Columns.Add("เวอร์ชัน", 70, HorizontalAlignment.Center);
+            lvDocuments.Columns.Add("หมวดหมู่", 155);
+            lvDocuments.Columns.Add("ชื่อไฟล์", 155);
+            lvDocuments.Columns.Add("ขนาด", 70);
+            lvDocuments.Columns.Add("อัปเดตล่าสุด", 120);
             lvDocuments.SelectedIndexChanged += (s, e) => OnListViewSelectionChanged();
             lvDocuments.DoubleClick += (s, e) => OpenSelectedDocument();
             this.Controls.Add(lvDocuments);
@@ -3383,10 +3462,12 @@ namespace MedicalTextExpander {
 
         private void UpdateSelectedDocUI() {
             if (selectedDoc != null) {
-                lblDocDetailTitle.Text = "📄 เอกสารที่เลือก: " + (selectedDoc.Title ?? selectedDoc.FileName);
+                string verStr = string.IsNullOrEmpty(selectedDoc.DocVersion) ? "v1.0" : selectedDoc.DocVersion;
+                lblDocDetailTitle.Text = string.Format("📄 #{0} {1} ({2})",
+                    selectedDoc.Order, selectedDoc.Title ?? selectedDoc.FileName, verStr);
                 string status = selectedDoc.ExistsLocally ? "พร้อมใช้งานในเครื่อง" : "อยู่บน Cloud (คลิกเพื่อโหลด)";
-                lblDocDetailMeta.Text = string.Format("ไฟล์: {0} | หมวดหมู่: {1} | ขนาด: {2:N1} KB | สถานะ: {3}",
-                    selectedDoc.FileName, selectedDoc.Category, selectedDoc.Size / 1024.0, status);
+                lblDocDetailMeta.Text = string.Format("ลำดับ: #{0} | เวอร์ชัน: {1} | ไฟล์: {2} | หมวดหมู่: {3} | ขนาด: {4:N1} KB | สถานะ: {5}",
+                    selectedDoc.Order, verStr, selectedDoc.FileName, selectedDoc.Category, selectedDoc.Size / 1024.0, status);
 
                 btnOpenDoc.Enabled = true;
                 btnSaveAs.Enabled = true;
@@ -3434,6 +3515,8 @@ namespace MedicalTextExpander {
                         } else {
                             var item = new WardDocItem();
                             item.Id = "doc_local_" + Math.Abs(fi.Name.GetHashCode());
+                            item.Order = GetNextDocOrder();
+                            item.DocVersion = ExtractOrGenerateVersion(fi.Name, null);
                             item.FileName = fi.Name;
                             item.DownloadName = fi.Name;
                             item.Title = Path.GetFileNameWithoutExtension(fi.Name);
@@ -3455,6 +3538,8 @@ namespace MedicalTextExpander {
                 FileInfo fi = new FileInfo(rootIo);
                 var item = new WardDocItem();
                 item.Id = "doc_root_io";
+                item.Order = GetNextDocOrder();
+                item.DocVersion = "v1.0";
                 item.FileName = "แบบฟอร์ม IO.xlsx";
                 item.DownloadName = "แบบฟอร์ม IO.xlsx";
                 item.Title = "แบบฟอร์มบันทึก I/O ประจำวอร์ด";
@@ -3466,6 +3551,12 @@ namespace MedicalTextExpander {
                 item.LocalPath = rootIo;
                 allDocuments.Add(item);
             }
+
+            // Sort by Order ascending
+            allDocuments.Sort((a, b) => {
+                int cmp = a.Order.CompareTo(b.Order);
+                return cmp != 0 ? cmp : string.Compare(a.Title, b.Title, StringComparison.OrdinalIgnoreCase);
+            });
 
             // Save refreshed catalog locally
             SaveCatalogLocally();
@@ -3504,7 +3595,9 @@ namespace MedicalTextExpander {
 
                 filteredDocuments.Add(doc);
 
-                ListViewItem lvi = new ListViewItem(doc.Title ?? doc.FileName);
+                ListViewItem lvi = new ListViewItem(doc.Order > 0 ? doc.Order.ToString() : "-");
+                lvi.SubItems.Add(doc.Title ?? doc.FileName);
+                lvi.SubItems.Add(string.IsNullOrEmpty(doc.DocVersion) ? "v1.0" : doc.DocVersion);
                 lvi.SubItems.Add(doc.Category ?? "ทั่วไป");
                 lvi.SubItems.Add(doc.FileName ?? "");
                 lvi.SubItems.Add(string.Format("{0:N1} KB", doc.Size / 1024.0));
@@ -3553,11 +3646,20 @@ namespace MedicalTextExpander {
             using (var dlg = new EditWardDocDialog(selectedDoc, defaultUploader)) {
                 if (dlg.ShowDialog(this) == DialogResult.OK) {
                     string oldTitle = selectedDoc.Title;
+                    string oldVer = selectedDoc.DocVersion;
+                    int oldOrd = selectedDoc.Order;
+
+                    selectedDoc.Order = dlg.NewOrder;
+                    selectedDoc.DocVersion = dlg.NewVersion;
                     selectedDoc.Title = dlg.NewTitle;
                     selectedDoc.Category = dlg.NewCategory;
                     selectedDoc.UpdatedAt = DateTime.UtcNow.ToString("o");
                     selectedDoc.UpdatedBy = dlg.UploaderName;
 
+                    allDocuments.Sort((a, b) => {
+                        int cmp = a.Order.CompareTo(b.Order);
+                        return cmp != 0 ? cmp : string.Compare(a.Title, b.Title, StringComparison.OrdinalIgnoreCase);
+                    });
                     SaveCatalogLocally();
 
                     if (context.GetSupabaseEnabled()) {
@@ -3566,7 +3668,7 @@ namespace MedicalTextExpander {
                             string payload = SerializeDocumentsCatalog(allDocuments);
                             bool ok = client.SaveBed(100, payload);
                             if (ok) {
-                                client.SaveHistory(100, "แก้ไขชื่อเอกสาร: " + selectedDoc.Title, "เดิม: " + oldTitle + " โดย " + dlg.UploaderName);
+                                client.SaveHistory(100, "แก้ไขเอกสาร: #" + selectedDoc.Order + " " + selectedDoc.Title + " (" + selectedDoc.DocVersion + ")", "เดิม: #" + oldOrd + " " + oldTitle + " (" + oldVer + ") โดย " + dlg.UploaderName);
                             }
                         } catch (Exception ex) {
                             Debug.WriteLine("Edit doc cloud save error: " + ex.Message);
@@ -3574,7 +3676,7 @@ namespace MedicalTextExpander {
                     }
 
                     ApplyFilter();
-                    MessageBox.Show("✅ บันทึกการแก้ไขชื่อและหมวดหมู่เอกสารเรียบร้อยแล้ว!", "สำเร็จ", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    MessageBox.Show("✅ บันทึกการแก้ไขข้อมูลและเวอร์ชันเอกสารเรียบร้อยแล้ว!", "สำเร็จ", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
             }
         }
@@ -3604,6 +3706,7 @@ namespace MedicalTextExpander {
                         string uploader = (txtUploaderName.Text ?? "").Trim();
                         if (string.IsNullOrEmpty(uploader)) uploader = Environment.MachineName;
 
+                        selectedDoc.DocVersion = BumpVersionString(selectedDoc.DocVersion);
                         selectedDoc.FileName = fi.Name;
                         selectedDoc.DownloadName = fi.Name;
                         selectedDoc.FileType = fi.Extension.TrimStart('.').ToLower();
@@ -3621,7 +3724,7 @@ namespace MedicalTextExpander {
                                 string payload = SerializeDocumentsCatalog(allDocuments);
                                 bool ok = client.SaveBed(100, payload);
                                 if (ok) {
-                                    client.SaveHistory(100, "แทนที่ไฟล์เอกสาร: " + selectedDoc.Title, "ไฟล์ใหม่: " + fi.Name + " โดย " + uploader);
+                                    client.SaveHistory(100, "แทนที่ไฟล์เอกสาร (" + selectedDoc.DocVersion + "): " + selectedDoc.Title, "ไฟล์ใหม่: " + fi.Name + " โดย " + uploader);
                                 }
                             } catch (Exception ex) {
                                 Debug.WriteLine("Replace file cloud save error: " + ex.Message);
@@ -3729,6 +3832,7 @@ namespace MedicalTextExpander {
                 string uploader = txtUploaderName.Text.Trim();
                 if (string.IsNullOrEmpty(uploader)) uploader = Environment.MachineName;
 
+                int nextOrder = GetNextDocOrder();
                 List<string> processedTitles = new List<string>();
 
                 for (int i = 0; i < chosenNewFilePaths.Count; i++) {
@@ -3769,9 +3873,13 @@ namespace MedicalTextExpander {
                         existing.UpdatedAt = nowIso;
                         existing.UpdatedBy = uploader;
                         existing.LocalPath = destFile;
+                        existing.DocVersion = BumpVersionString(existing.DocVersion);
+                        if (existing.Order <= 0) existing.Order = nextOrder++;
                     } else {
                         var newDoc = new WardDocItem();
                         newDoc.Id = "doc_" + DateTime.UtcNow.Ticks + "_" + i;
+                        newDoc.Order = nextOrder++;
+                        newDoc.DocVersion = ExtractOrGenerateVersion(fi.Name, null);
                         newDoc.Title = itemTitle;
                         newDoc.Category = category;
                         newDoc.FileName = fi.Name;
@@ -3782,11 +3890,19 @@ namespace MedicalTextExpander {
                         newDoc.UpdatedAt = nowIso;
                         newDoc.UpdatedBy = uploader;
                         newDoc.LocalPath = destFile;
-                        allDocuments.Insert(0, newDoc);
+                        allDocuments.Add(newDoc);
                     }
 
-                    processedTitles.Add(itemTitle);
+                    processedTitles.Add(string.Format("#{0} {1} ({2})",
+                        existing != null ? existing.Order : (nextOrder - 1),
+                        itemTitle,
+                        existing != null ? existing.DocVersion : (allDocuments[allDocuments.Count - 1].DocVersion)));
                 }
+
+                allDocuments.Sort((a, b) => {
+                    int cmp = a.Order.CompareTo(b.Order);
+                    return cmp != 0 ? cmp : string.Compare(a.Title, b.Title, StringComparison.OrdinalIgnoreCase);
+                });
 
                 SaveCatalogLocally();
 
@@ -3962,6 +4078,8 @@ namespace MedicalTextExpander {
 
                     var existing = allDocuments.Find(d => d.FileName.Equals(doc.FileName, StringComparison.OrdinalIgnoreCase));
                     if (existing != null) {
+                        existing.Order = doc.Order > 0 ? doc.Order : existing.Order;
+                        existing.DocVersion = !string.IsNullOrEmpty(doc.DocVersion) ? doc.DocVersion : existing.DocVersion;
                         existing.Title = doc.Title;
                         existing.Category = doc.Category;
                         existing.Size = doc.Size;
@@ -3970,9 +4088,16 @@ namespace MedicalTextExpander {
                         existing.Base64 = doc.Base64;
                         existing.LocalPath = doc.LocalPath;
                     } else {
+                        if (doc.Order <= 0) doc.Order = GetNextDocOrder();
+                        if (string.IsNullOrEmpty(doc.DocVersion)) doc.DocVersion = "v1.0";
                         allDocuments.Add(doc);
                     }
                 }
+
+                allDocuments.Sort((a, b) => {
+                    int cmp = a.Order.CompareTo(b.Order);
+                    return cmp != 0 ? cmp : string.Compare(a.Title, b.Title, StringComparison.OrdinalIgnoreCase);
+                });
 
                 SaveCatalogLocally();
                 ApplyFilter();
@@ -4009,7 +4134,8 @@ namespace MedicalTextExpander {
 
             string arr = mDocs.Groups["arr"].Value;
             var matches = Regex.Matches(arr, @"\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}");
-            foreach (Match m in matches) {
+            for (int i = 0; i < matches.Count; i++) {
+                Match m = matches[i];
                 string objStr = m.Value;
                 string fn = ExtractJsonProp(objStr, "filename");
                 string title = ExtractJsonProp(objStr, "title");
@@ -4027,6 +4153,26 @@ namespace MedicalTextExpander {
                 item.UpdatedAt = ExtractJsonProp(objStr, "updated_at");
                 item.UpdatedBy = ExtractJsonProp(objStr, "updated_by");
                 item.Base64 = ExtractJsonProp(objStr, "base64");
+
+                // Parse order / seq
+                string ordStr = ExtractJsonProp(objStr, "order");
+                if (string.IsNullOrEmpty(ordStr)) ordStr = ExtractJsonProp(objStr, "seq");
+                int parsedOrd = 0;
+                if (!string.IsNullOrEmpty(ordStr) && int.TryParse(ordStr, out parsedOrd)) {
+                    item.Order = parsedOrd;
+                } else {
+                    Match mNum = Regex.Match(item.Title ?? "", @"^(\d+)[\.\-_]");
+                    if (mNum.Success && int.TryParse(mNum.Groups[1].Value, out parsedOrd)) {
+                        item.Order = parsedOrd;
+                    } else {
+                        item.Order = i + 1;
+                    }
+                }
+
+                // Parse doc_version / version
+                string verStr = ExtractJsonProp(objStr, "doc_version");
+                if (string.IsNullOrEmpty(verStr)) verStr = ExtractJsonProp(objStr, "version");
+                item.DocVersion = !string.IsNullOrEmpty(verStr) ? verStr : "v1.0";
 
                 long sz = 0;
                 long.TryParse(ExtractJsonProp(objStr, "size"), out sz);
@@ -4058,6 +4204,10 @@ namespace MedicalTextExpander {
                 var d = docs[i];
                 sb.Append("{");
                 sb.AppendFormat("\"id\":\"{0}\",", SupabaseSyncClient.EscapeJson(d.Id ?? ("doc_" + DateTime.UtcNow.Ticks + "_" + i)));
+                sb.AppendFormat("\"order\":{0},", d.Order > 0 ? d.Order : (i + 1));
+                sb.AppendFormat("\"seq\":{0},", d.Order > 0 ? d.Order : (i + 1));
+                sb.AppendFormat("\"doc_version\":\"{0}\",", SupabaseSyncClient.EscapeJson(string.IsNullOrEmpty(d.DocVersion) ? "v1.0" : d.DocVersion));
+                sb.AppendFormat("\"version\":\"{0}\",", SupabaseSyncClient.EscapeJson(string.IsNullOrEmpty(d.DocVersion) ? "v1.0" : d.DocVersion));
                 sb.AppendFormat("\"title\":\"{0}\",", SupabaseSyncClient.EscapeJson(d.Title ?? ""));
                 sb.AppendFormat("\"category\":\"{0}\",", SupabaseSyncClient.EscapeJson(d.Category ?? "แบบฟอร์มบันทึกทางการพยาบาล"));
                 sb.AppendFormat("\"filename\":\"{0}\",", SupabaseSyncClient.EscapeJson(d.FileName ?? ""));

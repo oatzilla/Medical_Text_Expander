@@ -1,8 +1,8 @@
 {
-  "version": "1.9.7",
+  "version": "1.9.8",
   "downloadUrl": "https://github.com/oatzilla/Medical_Text_Expander/releases/latest/download/Medical_Text_Expander.exe",
   "download_url": "https://github.com/oatzilla/Medical_Text_Expander/releases/latest/download/Medical_Text_Expander.exe",
   "releaseDate": "2026-10-07",
   "release_date": "2026-10-07",
-  "changelog": "- ปรับปรุงประสิทธิภาพและลดการใช้ Database Egress บน Supabase Cloud มากกว่า 95%:\r\n  1. ระบบตรวจสอบ Metadata (bed_number, updated_at) ล่วงหน้า: ดาวน์โหลดเฉพาะข้อมูลเตียงที่มีการอัปเดตจริง ลดขนาดข้อมูลจาก 50-200 KB เหลือเพียง ~1.5 KB ต่อรอบเมื่อข้อมูลไม่เปลี่ยนแปลง พร้อมระบบ Full Reconciliation ทุก 5 นาที\r\n  2. ปรับรอบเวลา Polling อัจฉริยะจาก 3 วินาที เป็น 15 วินาที พร้อมระบบป้องกันคำขอซ้ำซ้อน (Request Overlap Guard) และหน่วงเวลาถอยร่นเมื่อเครือข่ายมีปัญหา (Exponential Backoff สูงสุด 120 วินาที)\r\n  3. หยุดการทำงานบนเว็บขณะย่อ/สลับแท็บ (Background & Logout Tab Freezing): ตรวจจับ visibilitychange และหยุด Polling ทันทีเมื่อไม่ได้เปิดแท็บหรือออกจากระบบ และดึงข้อมูลสดทันทีเมื่อกลับมาเปิดใช้งาน\r\n  4. ยกเลิกการดาวน์โหลดคลังเอกสาร Base64 (Row 100) ขณะเริ่มโปรแกรม: โหลดเอกสารเฉพาะเมื่อผู้ใช้เปิดเมนูเอกสารวอร์ด และแคชข้อมูลด้วย updated_at\r\n- คงฟังก์ชันการทำงาน แผนการพยาบาล NANDA-I, NIC, NOC, และข้อมูลผู้ป่วยทุกเตียงครบถ้วน 100%"
+  "changelog": "- ระบบกำหนดเลขลำดับอัตโนมัติ (Auto-Sequence #1, #2...) และเวอร์ชันอัตโนมัติ (Auto-Version v1.0, v1.1...) ในคลังเอกสาร & แบบฟอร์มวอร์ด:\r\n  1. กำหนดเลขลำดับ (Order / Seq) อัตโนมัติต่อเนื่องเมื่อเพิ่มไฟล์ใหม่เข้าคลังเอกสาร\r\n  2. กำหนดเลขเวอร์ชันเริ่มต้น v1.0 และเพิ่มเวอร์ชันอัตโนมัติ (Auto-Bump เช่น v1.0 -> v1.1) เมื่อตรวจพบชื่อไฟล์เดิมหรือกดแทนที่ไฟล์เดิม\r\n  3. แสดงป้ายเลขลำดับและเวอร์ชันชัดเจนบน Desktop (คอลัมน์ใน ListView) และ Web Portal (Badge บนการ์ดเอกสาร)\r\n  4. สามารถปรับแก้ลำดับและเวอร์ชันได้อิสระในคิวอัปโหลดและหน้าต่างแก้ไขเอกสาร\r\n  5. ซิงค์ Supabase Cloud (Row 100) และ catalog.json ทันที"
 }
