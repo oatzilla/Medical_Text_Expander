@@ -14,9 +14,9 @@ using System.Security.Cryptography;
 [assembly: System.Reflection.AssemblyTitle("Medical Text Expander")]
 [assembly: System.Reflection.AssemblyDescription("Medical Text Expander for Hospital Ward")]
 [assembly: System.Reflection.AssemblyProduct("Medical Text Expander")]
-[assembly: System.Reflection.AssemblyVersion("1.9.7.0")]
-[assembly: System.Reflection.AssemblyFileVersion("1.9.7.0")]
-[assembly: System.Reflection.AssemblyInformationalVersion("1.9.7")]
+[assembly: System.Reflection.AssemblyVersion("1.9.8.0")]
+[assembly: System.Reflection.AssemblyFileVersion("1.9.8.0")]
+[assembly: System.Reflection.AssemblyInformationalVersion("1.9.8")]
 
 namespace MedicalTextExpander {
     public class TemplateItem {
@@ -44,7 +44,10 @@ namespace MedicalTextExpander {
             if (args != null) {
                 foreach (string arg in args) {
                     if (string.Equals(arg, "/restart", StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(arg, "-restart", StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(arg, "--restart", StringComparison.OrdinalIgnoreCase) ||
                         string.Equals(arg, "/force", StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(arg, "-force", StringComparison.OrdinalIgnoreCase) ||
                         string.Equals(arg, "/kill", StringComparison.OrdinalIgnoreCase)) {
                         forceRestart = true;
                     }
@@ -253,7 +256,7 @@ namespace MedicalTextExpander {
     }
 
     public static class AppUpdater {
-        public const string DefaultVersion = "1.9.7";
+        public const string DefaultVersion = "1.9.8";
         private static string _resolvedVersion = null;
 
         public static string CurrentVersion {
