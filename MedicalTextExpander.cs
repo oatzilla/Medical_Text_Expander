@@ -4515,8 +4515,8 @@ namespace MedicalTextExpander {
                     error = "ไม่พบบัญชีผู้ใช้นี้";
                     return false;
                 }
-                if (target.Role == "admin" || target.UserSlot == 0 || target.Id == "u_admin") {
-                    error = "ไม่สามารถระงับบัญชีผู้ดูแลระบบ (Admin) ได้";
+                if (target.UserSlot == 0 || target.Id == "u_admin") {
+                    error = "ไม่สามารถระงับบัญชีผู้ดูแลระบบหลักของวอร์ด (Admin Slot 0) ได้";
                     return false;
                 }
                 target.IsActive = !target.IsActive;
@@ -4544,13 +4544,19 @@ namespace MedicalTextExpander {
                     error = "ไม่พบบัญชีผู้ใช้นี้";
                     return false;
                 }
-                if (target.Role == "admin" || target.UserSlot == 0 || target.Id == "u_admin") {
-                    error = "ไม่สามารถลบบัญชีผู้ดูแลระบบ (Admin) ได้";
+                if (target.UserSlot == 0 || target.Id == "u_admin") {
+                    error = "ไม่สามารถลบบัญชีผู้ดูแลระบบหลักของวอร์ด (Admin Slot 0) ได้";
                     return false;
                 }
                 slotToClear = target.UserSlot;
                 users.Remove(target);
-                if (activeWorkspaceUser != null && string.Equals(activeWorkspaceUser.Username, username, StringComparison.OrdinalIgnoreCase)) {
+                if (currentUser != null && string.Equals(currentUser.Username, username, StringComparison.OrdinalIgnoreCase)) {
+                    var rootAdmin = users.Find(u => u.UserSlot == 0);
+                    if (rootAdmin == null && users.Count > 0) rootAdmin = users[0];
+                    currentUser = rootAdmin;
+                    activeWorkspaceUser = rootAdmin;
+                    SaveSession(rootAdmin != null ? rootAdmin.Username : "");
+                } else if (activeWorkspaceUser != null && string.Equals(activeWorkspaceUser.Username, username, StringComparison.OrdinalIgnoreCase)) {
                     activeWorkspaceUser = currentUser;
                 }
             }
@@ -5331,8 +5337,8 @@ namespace MedicalTextExpander {
             if (lvUsers.SelectedItems.Count == 0) return;
             var user = lvUsers.SelectedItems[0].Tag as WardUserItem;
             if (user == null) return;
-            if (user.Role == "admin" || user.UserSlot == 0 || user.Id == "u_admin") {
-                MessageBox.Show(this, "ไม่สามารถระงับบัญชีผู้ดูแลระบบ (Admin) ได้", "คำเตือน", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            if (user.UserSlot == 0 || user.Id == "u_admin") {
+                MessageBox.Show(this, "ไม่สามารถระงับบัญชีผู้ดูแลระบบหลักของวอร์ด (Admin Slot 0) ได้", "คำเตือน", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
             string err;
@@ -5347,8 +5353,8 @@ namespace MedicalTextExpander {
             if (lvUsers.SelectedItems.Count == 0) return;
             var user = lvUsers.SelectedItems[0].Tag as WardUserItem;
             if (user == null) return;
-            if (user.Role == "admin" || user.UserSlot == 0 || user.Id == "u_admin") {
-                MessageBox.Show(this, "ไม่สามารถลบบัญชีผู้ดูแลระบบ (Admin) ได้", "คำเตือน", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            if (user.UserSlot == 0 || user.Id == "u_admin") {
+                MessageBox.Show(this, "ไม่สามารถลบบัญชีผู้ดูแลระบบหลักของวอร์ด (Admin Slot 0) ได้", "คำเตือน", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
             var confirmRes = MessageBox.Show(this, string.Format("คุณต้องการลบบัญชีผู้ใช้ \"{0}\" ({1}) หรือไม่?\n\nกด Yes: ลบบัญชีและล้างเตียงบน Cloud\nกด No: ลบบัญชีแต่เก็บข้อมูลเตียงไว้\nกด Cancel: ยกเลิก", user.DisplayName, user.Username), "ยืนยันการลบ", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
@@ -5469,7 +5475,8 @@ namespace MedicalTextExpander {
             cboRole.Items.Add("👩‍⚕️ พยาบาล / ผู้ใช้งานทั่วไป (User)");
             cboRole.Items.Add("👑 ผู้ดูแลระบบ (Admin)");
             cboRole.SelectedIndex = (UserItem.Role == "admin") ? 1 : 0;
-            if (isEditMode && (UserItem.Role == "admin" || UserItem.UserSlot == 0 || UserItem.Id == "u_admin")) cboRole.Enabled = false;
+            bool isPrimaryAdmin = isEditMode && (UserItem.UserSlot == 0 || UserItem.Id == "u_admin");
+            cboRole.Enabled = !isPrimaryAdmin;
             this.Controls.Add(cboRole);
             y += 34;
 
@@ -5508,7 +5515,7 @@ namespace MedicalTextExpander {
                 Checked = UserItem.IsActive,
                 Cursor = Cursors.Hand
             };
-            if (isEditMode && (UserItem.Role == "admin" || UserItem.UserSlot == 0 || UserItem.Id == "u_admin")) chkIsActive.Enabled = false;
+            if (isEditMode && (UserItem.UserSlot == 0 || UserItem.Id == "u_admin")) chkIsActive.Enabled = false;
             this.Controls.Add(chkIsActive);
             y += 38;
 

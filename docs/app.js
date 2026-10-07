@@ -868,8 +868,9 @@ function renderUsersTable(filterText = '') {
       <i class="fa-solid fa-pen"></i>
     </button>`;
 
-    // Toggle active status & Delete button (not for admin)
-    if (u.username.toLowerCase() !== 'admin') {
+    // Toggle active status & Delete button (not for primary admin)
+    const isPrimaryRoot = (u.user_slot === 0 || u.id === 'u_admin');
+    if (!isPrimaryRoot) {
       const isAct = u.is_active !== false;
       actionBtns += `<button type="button" class="btn btn-secondary btn-sm" onclick="handleToggleUserActive('${escapeHtml(u.username)}')" title="${isAct ? 'ระงับการใช้งาน' : 'เปิดใช้งาน'}" style="margin-right:4px; padding:3px 7px; font-size:12px; color:${isAct ? '#f59e0b' : '#10b981'};">
         <i class="fa-solid ${isAct ? 'fa-ban' : 'fa-check'}"></i>
@@ -901,12 +902,12 @@ window.handleAdminSwitchToUser = function(username) {
 };
 
 window.handleToggleUserActive = async function(username) {
-  if (username.toLowerCase() === 'admin') {
-    alert('ไม่สามารถระงับบัญชีผู้ดูแลระบบหลัก (admin) ได้');
-    return;
-  }
   const u = usersCatalogCache.find(x => x.username.toLowerCase() === username.toLowerCase());
   if (!u) return;
+  if (u.user_slot === 0 || u.id === 'u_admin') {
+    alert('ไม่สามารถระงับบัญชีผู้ดูแลระบบหลักของวอร์ด (Admin Slot 0) ได้');
+    return;
+  }
   u.is_active = (u.is_active === false) ? true : false;
   await saveUsersCatalogToCloud(usersCatalogCache);
   updateWorkspaceSelectOptions();
@@ -915,12 +916,12 @@ window.handleToggleUserActive = async function(username) {
 };
 
 window.handleDeleteUser = async function(username) {
-  if (username.toLowerCase() === 'admin') {
-    alert('ไม่สามารถลบบัญชีผู้ดูแลระบบหลัก (admin) ได้');
-    return;
-  }
   const u = usersCatalogCache.find(x => x.username.toLowerCase() === username.toLowerCase());
   if (!u) return;
+  if (u.user_slot === 0 || u.id === 'u_admin') {
+    alert('ไม่สามารถลบบัญชีผู้ดูแลระบบหลักของวอร์ด (Admin Slot 0) ได้');
+    return;
+  }
 
   if (!confirm(`ต้องการลบบัญชีผู้ใช้ [${username}] ออกจากระบบใช่หรือไม่?`)) {
     return;
@@ -981,9 +982,15 @@ function openAddEditUserModal(user = null) {
       formUser.disabled = false;
     }
     if (formDisplay) formDisplay.value = user.display_name || user.username;
-    if (formRole) formRole.value = user.role || 'user';
+    if (formRole) {
+      formRole.value = user.role || 'user';
+      formRole.disabled = (user.user_slot === 0 || user.id === 'u_admin');
+    }
     if (formPassHint) formPassHint.textContent = '(เว้นว่างไว้หากไม่ต้องการเปลี่ยนรหัสผ่าน)';
-    if (formActive) formActive.checked = user.is_active !== false;
+    if (formActive) {
+      formActive.checked = user.is_active !== false;
+      formActive.disabled = (user.user_slot === 0 || user.id === 'u_admin');
+    }
   } else {
     // Add Mode
     if (title) title.innerHTML = '<i class="fa-solid fa-user-plus"></i> เพิ่มผู้ใช้งานใหม่';
@@ -993,9 +1000,15 @@ function openAddEditUserModal(user = null) {
       formUser.disabled = false;
     }
     if (formDisplay) formDisplay.value = '';
-    if (formRole) formRole.value = 'user';
+    if (formRole) {
+      formRole.value = 'user';
+      formRole.disabled = false;
+    }
     if (formPassHint) formPassHint.textContent = '(ต้องระบุรหัสผ่านสำหรับการสร้างบัญชีใหม่)';
-    if (formActive) formActive.checked = true;
+    if (formActive) {
+      formActive.checked = true;
+      formActive.disabled = false;
+    }
   }
 
   if (modal) {
