@@ -256,7 +256,7 @@ namespace MedicalTextExpander {
     }
 
     public static class AppUpdater {
-        public const string DefaultVersion = "1.9.8";
+        public const string DefaultVersion = "1.9.9";
         private static string _resolvedVersion = null;
 
         public static string CurrentVersion {
@@ -1076,7 +1076,9 @@ namespace MedicalTextExpander {
 
                         // Trigger real-time UI notification
                         if (OnBedChanged != null) {
-                            OnBedChanged(bed, cloudContent);
+                            try {
+                                OnBedChanged(bed, cloudContent);
+                            } catch {}
                         }
                     }
                 }
@@ -1894,7 +1896,7 @@ namespace MedicalTextExpander {
                         } else if (t.StartsWith("EmailApiKey=", StringComparison.OrdinalIgnoreCase)) {
                             emailApiKey = t.Substring("EmailApiKey=".Length).Trim();
                         } else if (t.StartsWith("EmailSender=", StringComparison.OrdinalIgnoreCase)) {
-                            emailSender = t.Substring("EmailSender=".Length).Trim();
+                            emailSender = t.Substring("EmailSender=".Length).Trim().Replace("\\u003c", "<").Replace("\\u003e", ">");
                         } else if (t.StartsWith("IdleTimeoutMinutes=", StringComparison.OrdinalIgnoreCase)) {
                             int to;
                             if (int.TryParse(t.Substring("IdleTimeoutMinutes=".Length).Trim(), out to) && to >= 0 && to <= 1440) {
@@ -8250,7 +8252,9 @@ namespace MedicalTextExpander {
         public void OnWorkspaceChanged() {
             if (this.IsDisposed || !this.IsHandleCreated) return;
             if (this.InvokeRequired) {
-                this.BeginInvoke(new Action(OnWorkspaceChanged));
+                try {
+                    this.BeginInvoke(new Action(OnWorkspaceChanged));
+                } catch {}
                 return;
             }
 
@@ -8725,8 +8729,11 @@ public void RefreshAllBedButtons() {
         }
 
         public void ReplaceNoteExternal(string text) {
+            if (this.IsDisposed || !this.IsHandleCreated) return;
             if (this.InvokeRequired) {
-                this.BeginInvoke(new Action(() => ReplaceNoteExternal(text)));
+                try {
+                    this.BeginInvoke(new Action(() => ReplaceNoteExternal(text)));
+                } catch {}
                 return;
             }
             txtNote.Text = BedNotesManager.NormalizeNewlines(text ?? "");
@@ -8734,8 +8741,11 @@ public void RefreshAllBedButtons() {
         }
 
         public void InsertSnippetExternal(string snippet) {
+            if (this.IsDisposed || !this.IsHandleCreated) return;
             if (this.InvokeRequired) {
-                this.BeginInvoke(new Action(() => InsertSnippetExternal(snippet)));
+                try {
+                    this.BeginInvoke(new Action(() => InsertSnippetExternal(snippet)));
+                } catch {}
                 return;
             }
             InsertSnippetAtCursor(snippet);
@@ -8808,8 +8818,11 @@ public void RefreshAllBedButtons() {
         }
 
         private void Manager_OnBedChanged(int bedNum, string content) {
+            if (this.IsDisposed || !this.IsHandleCreated) return;
             if (this.InvokeRequired) {
-                this.BeginInvoke(new Action(() => Manager_OnBedChanged(bedNum, content)));
+                try {
+                    this.BeginInvoke(new Action(() => Manager_OnBedChanged(bedNum, content)));
+                } catch {}
                 return;
             }
 
