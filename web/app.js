@@ -3490,9 +3490,22 @@ function getCurrentShift() {
   return 'night';
 }
 
+function stripTrailingBackslashes(text) {
+  if (!text) return '';
+  let s = text.replace(/\\r\\n/g, '\n').replace(/\\n/g, '\n').replace(/\\\r/g, '\n');
+  s = s.replace(/\\\r?\n/g, '\n');
+  return s.split(/\r?\n/).map(line => {
+    let t = line.trim();
+    if (t === '\\') return '';
+    if (line.endsWith('\\')) return line.slice(0, -1).trimEnd();
+    return line;
+  }).join('\n');
+}
+
 function filterContentByShift(content, shift) {
+  content = stripTrailingBackslashes(content);
   if (!content || shift === 'all' || !hasShiftTags(content)) {
-    return content;
+    return stripTrailingBackslashes(content);
   }
 
   const lines = content.split(/\r?\n/);
@@ -3568,7 +3581,7 @@ function filterContentByShift(content, shift) {
     }
   }
 
-  return normalizeToCRLF(result.join('\r\n'));
+  return normalizeToCRLF(stripTrailingBackslashes(result.join('\r\n')));
 }
 
 function getEffectiveTemplateContent(item) {
@@ -3576,7 +3589,7 @@ function getEffectiveTemplateContent(item) {
   if (hasShiftTags(item.content) && currentTemplateShift !== 'all') {
     return filterContentByShift(item.content, currentTemplateShift);
   }
-  return item.content;
+  return stripTrailingBackslashes(item.content);
 }
 
 function updateShiftButtonsActiveState() {
@@ -3628,6 +3641,15 @@ async function initClinicalTemplates() {
           }
         }
         if (loaded) {
+          if (Array.isArray(templateCategories)) {
+            templateCategories.forEach(cat => {
+              if (Array.isArray(cat.items)) {
+                cat.items.forEach(it => {
+                  if (it && it.content) it.content = stripTrailingBackslashes(it.content);
+                });
+              }
+            });
+          }
           console.log(`[Templates] Loaded ${templateCategories.length} categories directly from Supabase Cloud (Row 102)`);
         }
       }
@@ -3639,9 +3661,18 @@ async function initClinicalTemplates() {
   // 2. Fallback to templates.json if cloud fetch was not possible
   if (!loaded) {
     try {
-      const res = await fetch('templates.json?v=1.9.5');
+      const res = await fetch('templates.json?v=1.9.9.2');
       if (!res.ok) throw new Error('Cannot load templates.json');
       templateCategories = await res.json();
+      if (Array.isArray(templateCategories)) {
+        templateCategories.forEach(cat => {
+          if (Array.isArray(cat.items)) {
+            cat.items.forEach(it => {
+              if (it && it.content) it.content = stripTrailingBackslashes(it.content);
+            });
+          }
+        });
+      }
       loaded = true;
       console.log(`[Templates] Loaded ${templateCategories.length} categories from templates.json fallback`);
     } catch (err) {

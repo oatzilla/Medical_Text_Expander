@@ -23,7 +23,11 @@ namespace MedicalTextExpander {
         public string Shortcut { get; set; }
         public string Title { get; set; }
         public string Category { get; set; }
-        public string Content { get; set; }
+        private string content;
+        public string Content {
+            get { return ShiftHelper.StripTrailingBackslashes(content ?? ""); }
+            set { content = ShiftHelper.StripTrailingBackslashes(value ?? ""); }
+        }
 
         public TemplateItem(string shortcut, string title, string category, string content) {
             Shortcut = shortcut;
@@ -737,9 +741,9 @@ namespace MedicalTextExpander {
         }
 
         public bool SaveBed(int bedNum, string content, int userSlot = 0, string editorName = "") {
-            if (!IsEnabled || bedNum < 1 || (bedNum > 30 && bedNum != 100 && bedNum != 101)) return false;
+            if (!IsEnabled || bedNum < 1 || (bedNum > 30 && bedNum != 100 && bedNum != 101 && bedNum != 102)) return false;
             try {
-                int remoteBed = (bedNum == 100 || bedNum == 101) ? bedNum : ((userSlot * 100) + bedNum);
+                int remoteBed = (bedNum == 100 || bedNum == 101 || bedNum == 102) ? bedNum : ((userSlot * 100) + bedNum);
                 string author = string.IsNullOrEmpty(editorName) ? Environment.MachineName : editorName;
                 string body = string.Format("{{\"content\":\"{0}\",\"updated_at\":\"{1}\",\"updated_by\":\"{2}\"}}",
                     EscapeJson(content), DateTime.UtcNow.ToString("o"), EscapeJson(author));
@@ -2064,9 +2068,9 @@ namespace MedicalTextExpander {
                     if (!string.IsNullOrEmpty(cloudJson)) {
                         var mRaw = Regex.Match(cloudJson, @"""raw_text""\s*:\s*""((?:\\""|[^""])*)""", RegexOptions.Singleline);
                         if (mRaw.Success) {
-                            newContent = SupabaseSyncClient.UnescapeJson(mRaw.Groups[1].Value);
+                            newContent = ShiftHelper.StripTrailingBackslashes(SupabaseSyncClient.UnescapeJson(mRaw.Groups[1].Value));
                         } else if (cloudJson.Contains(".boneca") || cloudJson.Contains("[20.")) {
-                            newContent = cloudJson;
+                            newContent = ShiftHelper.StripTrailingBackslashes(cloudJson);
                         }
                     }
                 } catch {}
@@ -2136,7 +2140,7 @@ namespace MedicalTextExpander {
                     }
                 }
 
-                string combinedContent = "{\"version\":\"1.9.5\",\"categories\":" + jsonTpl + ",\"raw_text\":\"" + sbRaw.ToString() + "\"}";
+                string combinedContent = "{\"version\":\"1.9.9\",\"categories\":" + jsonTpl + ",\"raw_text\":\"" + sbRaw.ToString() + "\"}";
                 SupabaseSyncClient client = new SupabaseSyncClient(supabaseUrl, supabaseKey);
                 string who = (userManager != null && userManager.CurrentUser != null) ? userManager.CurrentUser.Username : "Desktop Admin";
                 bool ok = client.SaveRow102TemplatesJson(combinedContent, who);
@@ -9169,9 +9173,25 @@ public void RefreshAllBedButtons() {
             return "night";
         }
 
+        public static string StripTrailingBackslashes(string text) {
+            if (string.IsNullOrEmpty(text)) return "";
+            string cleaned = text.Replace("\\\r\n", "\r\n").Replace("\\\n", "\r\n").Replace("\\\r", "\r\n");
+            string[] lines = cleaned.Split(new string[] { "\r\n", "\n" }, StringSplitOptions.None);
+            for (int i = 0; i < lines.Length; i++) {
+                string l = lines[i];
+                if (l.Trim() == "\\") {
+                    lines[i] = "";
+                } else if (l.EndsWith("\\")) {
+                    lines[i] = l.TrimEnd('\\').TrimEnd();
+                }
+            }
+            return BedNotesManager.NormalizeNewlines(string.Join("\r\n", lines));
+        }
+
         public static string FilterContentByShift(string content, string shift) {
+            content = StripTrailingBackslashes(content);
             if (string.IsNullOrEmpty(content) || shift == "all" || !HasShiftTags(content)) {
-                return content;
+                return StripTrailingBackslashes(content);
             }
 
             string[] lines = content.Split(new string[] { "\r\n", "\n" }, StringSplitOptions.None);
@@ -9247,7 +9267,7 @@ public void RefreshAllBedButtons() {
                 }
             }
 
-            return BedNotesManager.NormalizeNewlines(string.Join("\r\n", result.ToArray()));
+            return StripTrailingBackslashes(string.Join("\r\n", result.ToArray()));
         }
     }
 
