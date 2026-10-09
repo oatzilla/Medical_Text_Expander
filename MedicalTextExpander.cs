@@ -1550,8 +1550,8 @@ namespace MedicalTextExpander {
         public string GetGitHubRepo() { return string.IsNullOrEmpty(gitHubRepo) ? AppUpdater.DefaultGitHubRepo : gitHubRepo; }
         public void SetGitHubRepo(string repo) { gitHubRepo = repo; SaveConfigFile(); }
 
-        private string supabaseUrl = "https://mhzpurmhrqutxdhmsday.supabase.co";
-        private string supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1oenB1cm1ocnF1dHhkaG1zZGF5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA2OTM1NjAsImV4cCI6MjEwNjI2OTU2MH0.A9a4sox0YUBKlWkEcaInqQOb8EA0yzl99uwY_cg-kyo";
+        private string supabaseUrl = "https://jchjzorgnijhlywlereh.supabase.co";
+        private string supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpjaGp6b3JnbmlqaGx5d2xlcmVoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTEzMzY1MTMsImV4cCI6MjEwNjkxMjUxM30.OdQmLt3hjbcCWKyjfgXZxZysSBXpIyVOGJeuYvAluSw";
         private bool supabaseEnabled = true;
         public string GetSupabaseUrl() { return supabaseUrl; }
         public string GetSupabaseKey() { return supabaseKey; }
@@ -1574,20 +1574,28 @@ namespace MedicalTextExpander {
 
         private string emailApiKey = "";
         public string EmailApiKey {
-            get { return string.IsNullOrEmpty(emailApiKey) ? (userManager != null ? userManager.EmailApiKey : "") : emailApiKey; }
+            get {
+                if (userManager != null && !string.IsNullOrEmpty(userManager.EmailApiKey))
+                    return userManager.EmailApiKey;
+                return emailApiKey ?? "";
+            }
             set {
-                emailApiKey = value;
-                if (userManager != null) userManager.EmailApiKey = value;
+                emailApiKey = value ?? "";
+                if (userManager != null) userManager.EmailApiKey = value ?? "";
                 SaveConfigFile();
             }
         }
 
         private string emailSender = "";
         public string EmailSender {
-            get { return string.IsNullOrEmpty(emailSender) ? (userManager != null ? userManager.EmailSender : "") : emailSender; }
+            get {
+                if (userManager != null && !string.IsNullOrEmpty(userManager.EmailSender))
+                    return userManager.EmailSender;
+                return emailSender ?? "";
+            }
             set {
-                emailSender = value;
-                if (userManager != null) userManager.EmailSender = value;
+                emailSender = value ?? "";
+                if (userManager != null) userManager.EmailSender = value ?? "";
                 SaveConfigFile();
             }
         }
@@ -1657,12 +1665,17 @@ namespace MedicalTextExpander {
 
             bedNotesManager = new BedNotesManager(localBedNotesDir, sharedBedNotesDir, supabaseUrl, supabaseKey, supabaseEnabled);
             userManager = new WardUserManager(appBaseDir, bedNotesManager.SupabaseClientInstance);
-            if (!string.IsNullOrEmpty(emailApiKey) && string.IsNullOrEmpty(userManager.EmailApiKey)) {
+            if (!string.IsNullOrEmpty(userManager.EmailApiKey)) {
+                emailApiKey = userManager.EmailApiKey;
+            } else if (!string.IsNullOrEmpty(emailApiKey)) {
                 userManager.EmailApiKey = emailApiKey;
             }
-            if (!string.IsNullOrEmpty(emailSender) && string.IsNullOrEmpty(userManager.EmailSender)) {
+            if (!string.IsNullOrEmpty(userManager.EmailSender)) {
+                emailSender = userManager.EmailSender;
+            } else if (!string.IsNullOrEmpty(emailSender)) {
                 userManager.EmailSender = emailSender;
             }
+            SaveConfigFile();
             userManager.OnWorkspaceChanged += (slot, uname, dname) => {
                 bedNotesManager.SetActiveWorkspace(slot, uname, dname);
                 if (bedNotesForm != null && !bedNotesForm.IsDisposed) {
@@ -4351,9 +4364,24 @@ namespace MedicalTextExpander {
                 );
 
                 if (isBrevo) {
-                    string senderEmail = !string.IsNullOrEmpty(sender) ? sender.Trim() : "noreply@ward-expander.local";
+                    string senderEmail = "generalorthopedics.tuh@gmail.com";
+                    string senderName = "Medical Text Expander";
+                    if (!string.IsNullOrEmpty(sender) && sender.Contains("@")) {
+                        string s = sender.Trim();
+                        int idx1 = s.IndexOf('<');
+                        int idx2 = s.IndexOf('>');
+                        if (idx1 >= 0 && idx2 > idx1) {
+                            if (idx1 > 0) senderName = s.Substring(0, idx1).Trim();
+                            senderEmail = s.Substring(idx1 + 1, idx2 - idx1 - 1).Trim();
+                        } else {
+                            senderEmail = s;
+                        }
+                    }
+                    if (string.IsNullOrEmpty(senderName)) senderName = "Medical Text Expander";
+                    if (string.IsNullOrEmpty(senderEmail)) senderEmail = "generalorthopedics.tuh@gmail.com";
+
                     string jsonBody = "{" +
-                        "\"sender\":{\"name\":\"Medical Text Expander\",\"email\":\"" + SupabaseSyncClient.EscapeJson(senderEmail) + "\"}," +
+                        "\"sender\":{\"name\":\"" + SupabaseSyncClient.EscapeJson(senderName) + "\",\"email\":\"" + SupabaseSyncClient.EscapeJson(senderEmail) + "\"}," +
                         "\"to\":[{\"email\":\"" + SupabaseSyncClient.EscapeJson(toEmail.Trim()) + "\",\"name\":\"" + SupabaseSyncClient.EscapeJson(toName ?? "User") + "\"}]," +
                         "\"subject\":\"" + SupabaseSyncClient.EscapeJson(subject) + "\"," +
                         "\"htmlContent\":\"" + SupabaseSyncClient.EscapeJson(html) + "\"" +
@@ -6507,6 +6535,12 @@ namespace MedicalTextExpander {
 
         public EmailApiSettingsDialog(ExpanderContext ctx) {
             context = ctx;
+            if (context != null) {
+                context.LoadSettings();
+                if (context.UserManager != null) {
+                    context.UserManager.LoadCatalog();
+                }
+            }
             InitializeUI();
         }
 
@@ -6577,7 +6611,7 @@ namespace MedicalTextExpander {
             y += 36;
 
             var lblSnd = new Label {
-                Text = "อีเมลผู้ส่ง (Sender Email - ค่าเริ่มต้น onboarding@resend.dev):",
+                Text = "อีเมลผู้ส่ง (Sender Email - Resend: onboarding@resend.dev หรือ Brevo: อีเมลที่ยืนยันแล้ว):",
                 Location = new Point(20, y),
                 AutoSize = true,
                 Font = new Font("Leelawadee UI", 9f, FontStyle.Bold)
@@ -6592,7 +6626,7 @@ namespace MedicalTextExpander {
                 Text = context != null ? context.EmailSender : ""
             };
             if (string.IsNullOrEmpty(txtSender.Text)) {
-                txtSender.Text = "Medical Text Expander <onboarding@resend.dev>";
+                txtSender.Text = "Medical Text Expander <generalorthopedics.tuh@gmail.com>";
             }
             this.Controls.Add(txtSender);
             y += 36;
