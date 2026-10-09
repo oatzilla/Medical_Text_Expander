@@ -897,7 +897,12 @@ namespace MedicalTextExpander {
                           .Replace("\\r", "\r\n")
                           .Replace("\\t", "\t")
                           .Replace("\\\"", "\"")
-                          .Replace("\\\\", "\\");
+                          .Replace("\\\\", "\\")
+                          .Replace("\\<", "<")
+                          .Replace("\\>", ">");
+            try {
+                res = Regex.Replace(res, @"\\u([0-9a-fA-F]{4})", m => ((char)Convert.ToInt32(m.Groups[1].Value, 16)).ToString());
+            } catch {}
             return BedNotesManager.NormalizeNewlines(res);
         }
     }
@@ -4365,23 +4370,24 @@ namespace MedicalTextExpander {
                     otp
                 );
 
-                if (isBrevo) {
-                    string senderEmail = "generalorthopedics.tuh@gmail.com";
-                    string senderName = "Medical Text Expander";
-                    if (!string.IsNullOrEmpty(sender) && sender.Contains("@")) {
-                        string s = sender.Trim();
-                        int idx1 = s.IndexOf('<');
-                        int idx2 = s.IndexOf('>');
-                        if (idx1 >= 0 && idx2 > idx1) {
-                            if (idx1 > 0) senderName = s.Substring(0, idx1).Trim();
-                            senderEmail = s.Substring(idx1 + 1, idx2 - idx1 - 1).Trim();
-                        } else {
-                            senderEmail = s;
-                        }
+                string senderEmail = "generalorthopedics.tuh@gmail.com";
+                string senderName = "Medical Text Expander";
+                if (!string.IsNullOrEmpty(sender)) {
+                    string s = sender.Trim().Replace("\\u003c", "<").Replace("\\u003e", ">").Replace("\\<", "<").Replace("\\>", ">");
+                    Match mEmail = Regex.Match(s, @"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}");
+                    if (mEmail.Success) {
+                        senderEmail = mEmail.Value.Trim();
                     }
-                    if (string.IsNullOrEmpty(senderName)) senderName = "Medical Text Expander";
-                    if (string.IsNullOrEmpty(senderEmail)) senderEmail = "generalorthopedics.tuh@gmail.com";
+                    int idx1 = s.IndexOf('<');
+                    if (idx1 > 0) {
+                        string n = s.Substring(0, idx1).Trim();
+                        if (!string.IsNullOrEmpty(n)) senderName = n;
+                    }
+                }
+                if (string.IsNullOrEmpty(senderName)) senderName = "Medical Text Expander";
+                if (string.IsNullOrEmpty(senderEmail)) senderEmail = "generalorthopedics.tuh@gmail.com";
 
+                if (isBrevo) {
                     string jsonBody = "{" +
                         "\"sender\":{\"name\":\"" + SupabaseSyncClient.EscapeJson(senderName) + "\",\"email\":\"" + SupabaseSyncClient.EscapeJson(senderEmail) + "\"}," +
                         "\"to\":[{\"email\":\"" + SupabaseSyncClient.EscapeJson(toEmail.Trim()) + "\",\"name\":\"" + SupabaseSyncClient.EscapeJson(toName ?? "User") + "\"}]," +
@@ -4403,12 +4409,7 @@ namespace MedicalTextExpander {
                         return ((int)resp.StatusCode >= 200 && (int)resp.StatusCode < 300);
                     }
                 } else {
-                    string fromAddress = !string.IsNullOrEmpty(sender) ? sender.Trim() : "Medical Text Expander <onboarding@resend.dev>";
-                    if (!fromAddress.Contains("<") && fromAddress.Contains("@")) {
-                        fromAddress = string.Format("Medical Text Expander <{0}>", fromAddress);
-                    } else if (!fromAddress.Contains("@")) {
-                        fromAddress = "Medical Text Expander <onboarding@resend.dev>";
-                    }
+                    string fromAddress = string.Format("{0} <{1}>", senderName, senderEmail);
 
                     string jsonBody = "{" +
                         "\"from\":\"" + SupabaseSyncClient.EscapeJson(fromAddress) + "\"," +
@@ -4561,7 +4562,7 @@ namespace MedicalTextExpander {
                 string k = ExtractJsonProp(c, "api_key");
                 string s = ExtractJsonProp(c, "sender");
                 if (!string.IsNullOrEmpty(k)) EmailApiKey = k;
-                if (!string.IsNullOrEmpty(s)) EmailSender = s;
+                if (!string.IsNullOrEmpty(s)) EmailSender = s.Replace("\\u003c", "<").Replace("\\u003e", ">").Replace("\\<", "<").Replace("\\>", ">");
             }
         }
 
@@ -4992,13 +4993,13 @@ namespace MedicalTextExpander {
             targetUsername = match.Username;
 
             if (string.IsNullOrEmpty(match.Email)) {
-                error = "บัญชีนี้ยังไม่ได้ลงทะเบียนอีเมลไว้ในระบบ กรุณาใช้รหัสผ่านสำรองวอร์ด (Ward Master PIN 9844) เพื่อรีเซ็ตรหัสผ่าน";
+                error = "บัญชีนี้ยังไม่ได้ลงทะเบียนอีเมลไว้ในระบบ กรุณาใช้รหัสผ่านสำรองวอร์ด (Ward Master PIN) เพื่อรีเซ็ตรหัสผ่าน";
                 return false;
             }
 
             string apiKey = !string.IsNullOrEmpty(EmailApiKey) ? EmailApiKey : "";
             if (string.IsNullOrEmpty(apiKey)) {
-                error = "ระบบยังไม่ได้ตั้งค่า Email API Key (Resend / Brevo) กรุณาใช้รหัสผ่านสำรองวอร์ด (Ward Master PIN 9844) หรือติดต่อ Admin";
+                error = "ระบบยังไม่ได้ตั้งค่า Email API Key (Resend / Brevo) กรุณาใช้รหัสผ่านสำรองวอร์ด (Ward Master PIN) หรือติดต่อ Admin";
                 return false;
             }
 
@@ -5815,7 +5816,7 @@ namespace MedicalTextExpander {
             y += 56;
 
             var lnkToPin = new LinkLabel {
-                Text = "🛡️ ไม่มีอีเมลหรือเน็ตนอกมีปัญหา? ใช้รหัสผ่านสำรองวอร์ด (Ward Master PIN 9844)",
+                Text = "🛡️ ไม่มีอีเมลหรือเน็ตนอกมีปัญหา? ใช้รหัสผ่านสำรองวอร์ด (Ward Master PIN)",
                 Location = new Point(24, y),
                 AutoSize = true,
                 LinkColor = Color.FromArgb(15, 118, 110),
@@ -5974,7 +5975,7 @@ namespace MedicalTextExpander {
             y += 26;
 
             var lblDesc = new Label {
-                Text = "สำหรับกรณีฉุกเฉิน / พยาบาลไม่มีอีเมล / เน็ตภายนอกติดขัด (ค่าเริ่มต้นวอร์ด: 9844)",
+                Text = "สำหรับกรณีฉุกเฉิน / พยาบาลไม่มีอีเมล / เน็ตภายนอกติดขัด (ติดต่อหัวหน้าเวรหรือ Admin เพื่อขอ PIN)",
                 Font = new Font("Leelawadee UI", 8.5f),
                 ForeColor = Color.FromArgb(100, 116, 139),
                 Location = new Point(24, y),
@@ -5995,7 +5996,7 @@ namespace MedicalTextExpander {
             pnlForgotPin.Controls.Add(txtPinUser);
             y += 32;
 
-            var lblPin = new Label { Text = "รหัสผ่านสำรองวอร์ด (Ward Master PIN - 9844):", Location = new Point(24, y), AutoSize = true, Font = new Font("Leelawadee UI", 9f, FontStyle.Bold) };
+            var lblPin = new Label { Text = "รหัสผ่านสำรองวอร์ด (Ward Master PIN) หรือรหัส Admin:", Location = new Point(24, y), AutoSize = true, Font = new Font("Leelawadee UI", 9f, FontStyle.Bold) };
             pnlForgotPin.Controls.Add(lblPin);
             y += 20;
 
@@ -6124,7 +6125,7 @@ namespace MedicalTextExpander {
                 SwitchForgotSubTab("verify");
             } else {
                 lblForgotMsg1.Text = err;
-                if (err.Contains("9844")) {
+                if (err.Contains("Master PIN") || err.Contains("9844")) {
                     txtPinUser.Text = target;
                 }
             }

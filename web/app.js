@@ -922,15 +922,16 @@ async function sendOtpEmailViaApi(apiKey, sender, toEmail, toName, otpCode) {
 
   if (provider === 'brevo') {
     let senderName = 'Medical Text Expander';
-    let senderEmail = 'noreply@medical-expander.local';
-    if (sender && sender.includes('@')) {
-      const s = sender.trim();
-      const match = s.match(/(.*?)\s*<(.+?)>/);
-      if (match) {
-        senderName = match[1].trim() || senderName;
-        senderEmail = match[2].trim();
-      } else {
-        senderEmail = s;
+    let senderEmail = 'generalorthopedics.tuh@gmail.com';
+    if (sender) {
+      const s = sender.trim().replace(/\\u003c/gi, '<').replace(/\\u003e/gi, '>').replace(/\\</g, '<').replace(/\\>/g, '>');
+      const emailMatch = s.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+      if (emailMatch) {
+        senderEmail = emailMatch[0].trim();
+      }
+      const nameMatch = s.match(/^(.*?)\s*<.*?>/);
+      if (nameMatch && nameMatch[1].trim()) {
+        senderName = nameMatch[1].trim();
       }
     }
 
@@ -953,7 +954,7 @@ async function sendOtpEmailViaApi(apiKey, sender, toEmail, toName, otpCode) {
         body: JSON.stringify(payload)
       });
     } catch (netErr) {
-      throw new Error('ส่งอีเมลผ่านเบราว์เซอร์ไม่สำเร็จ (ติดข้อจำกัด CORS / เครือข่าย): กรุณาใช้โปรแกรม Desktop เพื่อส่งอีเมล หรือใช้ [รหัสฉุกเฉินวอร์ด PIN: 9844] เพื่อรีเซ็ตรหัสผ่านทันที');
+      throw new Error('ส่งอีเมลผ่านเบราว์เซอร์ไม่สำเร็จ (ติดข้อจำกัด CORS / เครือข่าย): กรุณาใช้โปรแกรม Desktop เพื่อส่งอีเมล หรือใช้ [รหัสฉุกเฉินวอร์ด Master PIN] เพื่อรีเซ็ตรหัสผ่านทันที');
     }
 
     if (!res.ok) {
@@ -963,10 +964,20 @@ async function sendOtpEmailViaApi(apiKey, sender, toEmail, toName, otpCode) {
     return true;
 
   } else if (provider === 'resend') {
-    let fromAddr = sender && sender.trim() ? sender.trim() : 'Medical Text Expander <onboarding@resend.dev>';
-    if (!fromAddr.includes('@')) {
-      fromAddr = 'Medical Text Expander <onboarding@resend.dev>';
+    let senderName = 'Medical Text Expander';
+    let senderEmail = 'onboarding@resend.dev';
+    if (sender) {
+      const s = sender.trim().replace(/\\u003c/gi, '<').replace(/\\u003e/gi, '>').replace(/\\</g, '<').replace(/\\>/g, '>');
+      const emailMatch = s.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+      if (emailMatch) {
+        senderEmail = emailMatch[0].trim();
+      }
+      const nameMatch = s.match(/^(.*?)\s*<.*?>/);
+      if (nameMatch && nameMatch[1].trim()) {
+        senderName = nameMatch[1].trim();
+      }
     }
+    const fromAddr = `${senderName} <${senderEmail}>`;
 
     const payload = {
       from: fromAddr,
@@ -986,7 +997,7 @@ async function sendOtpEmailViaApi(apiKey, sender, toEmail, toName, otpCode) {
         body: JSON.stringify(payload)
       });
     } catch (netErr) {
-      throw new Error('ส่งอีเมลผ่านเบราว์เซอร์ไม่สำเร็จ (ติดข้อจำกัด CORS / เครือข่าย): กรุณาใช้โปรแกรม Desktop เพื่อส่งอีเมล หรือใช้ [รหัสฉุกเฉินวอร์ด PIN: 9844] เพื่อรีเซ็ตรหัสผ่านทันที');
+      throw new Error('ส่งอีเมลผ่านเบราว์เซอร์ไม่สำเร็จ (ติดข้อจำกัด CORS / เครือข่าย): กรุณาใช้โปรแกรม Desktop เพื่อส่งอีเมล หรือใช้ [รหัสฉุกเฉินวอร์ด Master PIN] เพื่อรีเซ็ตรหัสผ่านทันที');
     }
 
     if (!res.ok) {
@@ -1971,7 +1982,7 @@ function setupEventListeners() {
 
         if (!targetUser.email || !targetUser.email.trim()) {
           if (errMsg) {
-            errMsg.innerHTML = `⚠️ บัญชี <strong>${escapeHtml(targetUser.username)}</strong> ยังไม่ได้ลงทะเบียนอีเมลไว้<br>💡 กรุณากดปุ่ม <strong>"ใช้รหัสปลดล็อกวอร์ด (PIN: 9844)"</strong> ด้านล่างเพื่อตั้งรหัสผ่านใหม่ได้ทันที`;
+            errMsg.innerHTML = `⚠️ บัญชี <strong>${escapeHtml(targetUser.username)}</strong> ยังไม่ได้ลงทะเบียนอีเมลไว้<br>💡 กรุณากดปุ่ม <strong>"ใช้รหัสปลดล็อกวอร์ด (Ward Master PIN)"</strong> ด้านล่างเพื่อตั้งรหัสผ่านใหม่ได้ทันที`;
             errMsg.style.display = 'block';
           }
           const pinUser = document.getElementById('forgotPinUsername');
@@ -1982,7 +1993,7 @@ function setupEventListeners() {
         const cfg = getEmailConfig();
         if (!cfg.api_key || !cfg.api_key.trim()) {
           if (errMsg) {
-            errMsg.innerHTML = `⚠️ ยังไม่ได้ตั้งค่า Email API Key (Resend / Brevo) ในระบบ<br>💡 กรุณากดปุ่ม <strong>"ใช้รหัสปลดล็อกวอร์ด (PIN: 9844)"</strong> ด้านล่างเพื่อตั้งรหัสผ่านใหม่`;
+            errMsg.innerHTML = `⚠️ ยังไม่ได้ตั้งค่า Email API Key (Resend / Brevo) ในระบบ<br>💡 กรุณากดปุ่ม <strong>"ใช้รหัสปลดล็อกวอร์ด (Ward Master PIN)"</strong> ด้านล่างเพื่อตั้งรหัสผ่านใหม่`;
             errMsg.style.display = 'block';
           }
           const pinUser = document.getElementById('forgotPinUsername');
@@ -2008,7 +2019,7 @@ function setupEventListeners() {
       } catch (err) {
         console.error('Request OTP error:', err);
         if (errMsg) {
-          errMsg.innerHTML = `❌ เกิดข้อผิดพลาด: ${escapeHtml(err.message)}<br>💡 สามารถกดใช้ <strong>"รหัสปลดล็อกวอร์ด (PIN: 9844)"</strong> ด้านล่างเพื่อตั้งรหัสผ่านใหม่ได้ทันที`;
+          errMsg.innerHTML = `❌ เกิดข้อผิดพลาด: ${escapeHtml(err.message)}<br>💡 สามารถกดใช้ <strong>"รหัสปลดล็อกวอร์ด (Ward Master PIN)"</strong> ด้านล่างเพื่อตั้งรหัสผ่านใหม่ได้ทันที`;
           errMsg.style.display = 'block';
         }
       } finally {
@@ -2148,7 +2159,7 @@ function setupEventListeners() {
                            (adminUser && adminUser.password_hash === enteredPinHash);
 
         if (!isPinValid) {
-          if (errMsg) { errMsg.textContent = '❌ รหัส Ward Master PIN หรือรหัส Admin ไม่ถูกต้อง (PIN เริ่มต้น: 9844)'; errMsg.style.display = 'block'; }
+          if (errMsg) { errMsg.textContent = '❌ รหัส Ward Master PIN หรือรหัส Admin ไม่ถูกต้อง'; errMsg.style.display = 'block'; }
           return;
         }
 
