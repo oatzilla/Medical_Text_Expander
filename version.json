@@ -1,8 +1,8 @@
 {
-  "version": "1.9.8",
+  "version": "1.9.9",
   "downloadUrl": "https://github.com/oatzilla/Medical_Text_Expander/releases/latest/download/Medical_Text_Expander.exe",
   "download_url": "https://github.com/oatzilla/Medical_Text_Expander/releases/latest/download/Medical_Text_Expander.exe",
-  "releaseDate": "2026-10-07",
-  "release_date": "2026-10-07",
-  "changelog": "- ระบบกำหนดเลขลำดับอัตโนมัติ (Auto-Sequence #1, #2...) และเวอร์ชันอัตโนมัติ (Auto-Version v1.0, v1.1...) ในคลังเอกสาร & แบบฟอร์มวอร์ด:\r\n  1. กำหนดเลขลำดับ (Order / Seq) อัตโนมัติต่อเนื่องเมื่อเพิ่มไฟล์ใหม่เข้าคลังเอกสาร\r\n  2. กำหนดเลขเวอร์ชันเริ่มต้น v1.0 และเพิ่มเวอร์ชันอัตโนมัติ (Auto-Bump เช่น v1.0 -> v1.1) เมื่อตรวจพบชื่อไฟล์เดิมหรือกดแทนที่ไฟล์เดิม\r\n  3. แสดงป้ายเลขลำดับและเวอร์ชันชัดเจนบน Desktop (คอลัมน์ใน ListView) และ Web Portal (Badge บนการ์ดเอกสาร)\r\n  4. สามารถปรับแก้ลำดับและเวอร์ชันได้อิสระในคิวอัปโหลดและหน้าต่างแก้ไขเอกสาร\r\n  5. ซิงค์ Supabase Cloud (Row 100) และ catalog.json ทันที"
+  "releaseDate": "2026-10-09",
+  "release_date": "2026-10-09",
+  "changelog": "- บริการฟรี HTTP REST Email API (Resend / Brevo) สำหรับส่งรหัส OTP 6 หลักกู้คืนรหัสผ่าน:\r\n  1. รองรับ API Key ฟรีจาก Resend (3,000 ฉบับ/เดือน) และ Brevo (300 ฉบับ/วัน ~9,000 ฉบับ/เดือน) ตรวจจับผู้ให้บริการอัตโนมัติ (re_... / xkeysib-...)\r\n  2. ระบบกู้คืนรหัสผ่าน 2 ขั้นตอน (2-Step OTP Recovery) พร้อมหมดอายุใน 10 นาที และแจ้งเตือนความปลอดภัย\r\n  3. ระบบปลดล็อกฉุกเฉินวอร์ด (Master Ward PIN Fallback: 9844) สำหรับพยาบาลที่ไม่ได้ลงทะเบียนอีเมล หรือในกรณีเครือข่ายขัดข้อง\r\n  4. หน้าต่าง Admin ตั้งค่า Email API พร้อมปุ่มทดสอบส่งอีเมลทันที ซิงค์ข้อมูลข้าม Desktop และ Web ผ่าน Supabase Cloud Row 101"
 }

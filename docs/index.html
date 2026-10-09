@@ -15,7 +15,7 @@
   <!-- FontAwesome Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   
-  <link rel="stylesheet" href="style.css?v=1.9.8">
+  <link rel="stylesheet" href="style.css?v=1.9.9">
 </head>
 <body>
   <!-- Top Navigation Bar -->
@@ -831,8 +831,8 @@
         <!-- TAB 1: LOGIN FORM -->
         <form id="loginForm" onsubmit="return false;">
           <div class="doc-form-group" style="margin-bottom: 14px;">
-            <label class="doc-form-label"><i class="fa-solid fa-user"></i> ชื่อผู้ใช้งาน (Username)</label>
-            <input type="text" id="loginUsername" class="doc-form-input" placeholder="ระบุชื่อผู้ใช้งาน (Username)..." required autocomplete="username">
+            <label class="doc-form-label"><i class="fa-solid fa-user"></i> ชื่อผู้ใช้งาน (Username หรือ Display Name)</label>
+            <input type="text" id="loginUsername" class="doc-form-input" placeholder="ระบุชื่อผู้ใช้งาน (Username หรือ Display Name เช่น admin หรือ OAT)..." required autocomplete="username">
           </div>
           <div class="doc-form-group" style="margin-bottom: 10px;">
             <label class="doc-form-label"><i class="fa-solid fa-key"></i> รหัสผ่าน (Password)</label>
@@ -843,6 +843,11 @@
               <input type="checkbox" id="loginShowPassword" style="cursor:pointer;">
               <span>แสดงรหัสผ่าน</span>
             </label>
+            <a href="javascript:void(0)" id="lnkForgotPassword" style="color:var(--primary-color, #0d9488); text-decoration:none; font-weight:500; display:inline-flex; align-items:center; gap:4px;">
+              <i class="fa-solid fa-key"></i> ลืมรหัสผ่าน?
+            </a>
+          </div>
+          <div style="display:flex; align-items:center; margin-bottom: 14px; font-size:13px; color:var(--text-muted);">
             <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
               <input type="checkbox" id="loginRememberMe" checked style="cursor:pointer;">
               <span title="จดจำการล็อกอินไว้ในอุปกรณ์นี้">จดจำการเข้าสู่ระบบ</span>
@@ -871,6 +876,11 @@
             <input type="text" id="regDisplayName" class="doc-form-input" placeholder="เช่น พว. สุดา (กะเช้า)..." required autocomplete="off">
           </div>
           <div class="doc-form-group" style="margin-bottom: 12px;">
+            <label class="doc-form-label"><i class="fa-solid fa-envelope"></i> อีเมลสำหรับกู้คืนรหัสผ่าน (Email)</label>
+            <input type="email" id="regEmail" class="doc-form-input" placeholder="เช่น nurse01@hospital.go.th (ใส่เพื่อขอรับรหัส OTP เมื่อลืมรหัสผ่าน)..." autocomplete="email">
+            <span style="font-size:11px; color:var(--text-muted); margin-top:2px; display:block;">ไม่บังคับ - ใช้รับรหัสยืนยัน OTP 6 หลัก เมื่อลืมรหัสผ่านเข้าใช้งาน</span>
+          </div>
+          <div class="doc-form-group" style="margin-bottom: 12px;">
             <label class="doc-form-label"><i class="fa-solid fa-key"></i> กำหนดรหัสผ่าน *</label>
             <input type="password" id="regPassword" class="doc-form-input" placeholder="อย่างน้อย 4 ตัวอักษร..." required autocomplete="new-password">
           </div>
@@ -889,6 +899,100 @@
             </button>
           </div>
         </form>
+
+        <!-- TAB 3: FORGOT PASSWORD (MULTI-STEP & WARD PIN FALLBACK) -->
+        <div id="forgotForm" style="display:none;">
+          <!-- Step 1: Request OTP -->
+          <div id="forgotStepOtp">
+            <div style="background: rgba(13, 148, 136, 0.08); border-left: 3px solid #0d9488; padding: 10px 12px; border-radius: 4px; margin-bottom: 14px; font-size: 13px; color: var(--text-color);">
+              <i class="fa-solid fa-shield-halved" style="color:#0d9488; margin-right:4px;"></i>
+              ระบบจะส่งรหัสยืนยัน OTP 6 หลัก ไปยังอีเมลที่คุณลงทะเบียนไว้ (มีอายุ 10 นาที)
+            </div>
+            <div class="doc-form-group" style="margin-bottom: 14px;">
+              <label class="doc-form-label"><i class="fa-solid fa-user"></i> ชื่อผู้ใช้งาน หรือ อีเมล</label>
+              <input type="text" id="forgotUsername" class="doc-form-input" placeholder="ระบุ Username หรือ อีเมล..." required autocomplete="username">
+            </div>
+            <div id="forgotOtpErrorMessage" class="alert-box-danger" style="display:none; margin-bottom: 12px;"></div>
+            <div id="forgotOtpSuccessMessage" class="alert-box-success" style="display:none; margin-bottom: 12px; background: rgba(16, 185, 129, 0.12); color: #059669; padding: 8px 12px; border-radius: 6px; font-size: 13px;"></div>
+            <div style="display:flex; gap:10px; margin-top: 10px;">
+              <button type="button" class="btn btn-primary" id="btnRequestOtp" style="flex:1; justify-content:center; background:#0d9488;">
+                <i class="fa-solid fa-paper-plane"></i> ส่งรหัส OTP ไปที่อีเมล
+              </button>
+            </div>
+            <div style="margin-top: 14px; text-align: center; border-top: 1px dashed var(--border-color); padding-top: 12px;">
+              <button type="button" id="btnGoToWardPin" style="background:none; border:none; color:#ea580c; cursor:pointer; font-size:12px; font-weight:600; display:inline-flex; align-items:center; gap:5px;">
+                <i class="fa-solid fa-hospital-user"></i> ไม่มีอีเมลหรือฉุกเฉิน? ใช้รหัสปลดล็อกวอร์ด (PIN: 9844)
+              </button>
+            </div>
+          </div>
+
+          <!-- Step 2: Verify OTP & Reset Password -->
+          <div id="forgotStepVerify" style="display:none;">
+            <div style="background: rgba(16, 185, 129, 0.08); border-left: 3px solid #10b981; padding: 10px 12px; border-radius: 4px; margin-bottom: 14px; font-size: 13px; color: var(--text-color);">
+              <i class="fa-solid fa-envelope-circle-check" style="color:#10b981; margin-right:4px;"></i>
+              รหัส OTP 6 หลัก ถูกส่งไปยัง <strong id="forgotMaskedEmail">...</strong> แล้ว
+            </div>
+            <div class="doc-form-group" style="margin-bottom: 12px;">
+              <label class="doc-form-label"><i class="fa-solid fa-key"></i> รหัส OTP 6 หลัก</label>
+              <input type="text" id="forgotOtpCode" class="doc-form-input" placeholder="กรอกรหัส 6 หลัก (เช่น 123456)..." maxlength="6" style="letter-spacing: 4px; font-size: 18px; text-align: center; font-weight: bold;">
+            </div>
+            <div class="doc-form-group" style="margin-bottom: 12px;">
+              <label class="doc-form-label"><i class="fa-solid fa-lock"></i> กำหนดรหัสผ่านใหม่</label>
+              <input type="password" id="forgotNewPassword" class="doc-form-input" placeholder="อย่างน้อย 4 ตัวอักษร..." required autocomplete="new-password">
+            </div>
+            <div class="doc-form-group" style="margin-bottom: 12px;">
+              <label class="doc-form-label"><i class="fa-solid fa-shield-halved"></i> ยืนยันรหัสผ่านใหม่อีกครั้ง</label>
+              <input type="password" id="forgotConfirmNewPassword" class="doc-form-input" placeholder="กรอกรหัสผ่านใหม่อีกครั้ง..." required autocomplete="new-password">
+            </div>
+            <div id="forgotVerifyErrorMessage" class="alert-box-danger" style="display:none; margin-bottom: 12px;"></div>
+            <div style="display:flex; gap:10px; margin-top: 10px;">
+              <button type="button" class="btn btn-primary" id="btnVerifyOtpSubmit" style="flex:1; justify-content:center; background:#10b981;">
+                <i class="fa-solid fa-check-circle"></i> ยืนยันรหัส OTP และตั้งรหัสผ่านใหม่
+              </button>
+            </div>
+            <div style="margin-top: 10px; text-align: center;">
+              <button type="button" id="btnResendOtp" style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:12px; text-decoration:underline;">
+                <i class="fa-solid fa-arrow-rotate-left"></i> ขอรหัส OTP ใหม่อีกครั้ง
+              </button>
+            </div>
+          </div>
+
+          <!-- Step 3: Ward Master PIN Reset -->
+          <div id="forgotStepPin" style="display:none;">
+            <div style="background: rgba(234, 88, 12, 0.08); border-left: 3px solid #ea580c; padding: 10px 12px; border-radius: 4px; margin-bottom: 14px; font-size: 13px; color: var(--text-color);">
+              <i class="fa-solid fa-triangle-exclamation" style="color:#ea580c; margin-right:4px;"></i>
+              รหัสปลดล็อกฉุกเฉินวอร์ด (Master Ward PIN) สำหรับพยาบาลที่ไม่ได้ใส่อีเมลหรือกู้รหัสเร่งด่วน
+            </div>
+            <div class="doc-form-group" style="margin-bottom: 12px;">
+              <label class="doc-form-label"><i class="fa-solid fa-user"></i> ชื่อผู้ใช้งานที่ต้องการรีเซ็ต</label>
+              <input type="text" id="forgotPinUsername" class="doc-form-input" placeholder="ระบุ Username..." required>
+            </div>
+            <div class="doc-form-group" style="margin-bottom: 12px;">
+              <label class="doc-form-label"><i class="fa-solid fa-shield-halved"></i> รหัสปลดล็อกวอร์ด (Ward Master PIN หรือ รหัส Admin)</label>
+              <input type="password" id="forgotWardPin" class="doc-form-input" placeholder="รหัส PIN วอร์ด (ค่าเริ่มต้น 9844)..." required>
+            </div>
+            <div class="doc-form-group" style="margin-bottom: 12px;">
+              <label class="doc-form-label"><i class="fa-solid fa-key"></i> ตั้งรหัสผ่านใหม่</label>
+              <input type="password" id="forgotPinNewPassword" class="doc-form-input" placeholder="อย่างน้อย 4 ตัวอักษร..." required autocomplete="new-password">
+            </div>
+            <div class="doc-form-group" style="margin-bottom: 12px;">
+              <label class="doc-form-label"><i class="fa-solid fa-shield-halved"></i> ยืนยันรหัสผ่านใหม่อีกครั้ง</label>
+              <input type="password" id="forgotPinConfirmNewPassword" class="doc-form-input" placeholder="กรอกรหัสผ่านใหม่อีกครั้ง..." required autocomplete="new-password">
+            </div>
+            <div id="forgotPinErrorMessage" class="alert-box-danger" style="display:none; margin-bottom: 12px;"></div>
+            <div style="display:flex; gap:10px; margin-top: 10px;">
+              <button type="button" class="btn btn-primary" id="btnVerifyPinSubmit" style="flex:1; justify-content:center; background:#ea580c; border:none;">
+                <i class="fa-solid fa-unlock-keyhole"></i> ยืนยัน PIN และตั้งรหัสผ่านใหม่
+              </button>
+            </div>
+          </div>
+
+          <div style="margin-top: 16px; text-align: center;">
+            <button type="button" id="btnBackToLogin" style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:13px; text-decoration:none;">
+              <i class="fa-solid fa-arrow-left"></i> กลับสู่หน้าเข้าสู่ระบบ
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -906,9 +1010,14 @@
 
       <div class="modal-body" style="padding: 16px 20px; overflow-y: auto; flex: 1;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 10px;">
-          <button type="button" class="btn btn-primary btn-sm" id="btnOpenAddUserModal" style="background:#10b981; border:none;">
-            <i class="fa-solid fa-user-plus"></i> เพิ่มผู้ใช้งานใหม่
-          </button>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button type="button" class="btn btn-primary btn-sm" id="btnOpenAddUserModal" style="background:#10b981; border:none;">
+              <i class="fa-solid fa-user-plus"></i> เพิ่มผู้ใช้งานใหม่
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm" id="btnOpenEmailApiModal" style="background:#0284c7; color:#fff; border:none;">
+              <i class="fa-solid fa-envelope-circle-check"></i> ตั้งค่า Email API (OTP)
+            </button>
+          </div>
           <div style="position:relative; width: 260px;">
             <i class="fa-solid fa-magnifying-glass" style="position:absolute; left:10px; top:50%; transform:translateY(-50%); color:var(--text-muted); font-size:12px;"></i>
             <input type="text" id="userSearchInput" class="doc-form-input" placeholder="ค้นหาชื่อผู้ใช้..." style="padding-left:30px; height:32px; font-size:13px;">
@@ -921,6 +1030,7 @@
               <tr>
                 <th>Username</th>
                 <th>ชื่อแสดง (Display Name)</th>
+                <th>อีเมล (Email)</th>
                 <th>บทบาท (Role)</th>
                 <th>ชุดเตียง (Slot)</th>
                 <th>วิธีสมัคร</th>
@@ -977,6 +1087,11 @@
             <input type="text" id="userFormDisplayName" class="doc-form-input" placeholder="เช่น พว.สมหญิง วอร์ดกระดูก..." required maxlength="60">
           </div>
           <div class="doc-form-group" style="margin-bottom: 12px;">
+            <label class="doc-form-label"><i class="fa-solid fa-envelope"></i> อีเมลสำหรับกู้คืนรหัสผ่าน (Email)</label>
+            <input type="email" id="userFormEmail" class="doc-form-input" placeholder="เช่น nurse01@hospital.go.th..." maxlength="100">
+            <span style="font-size:11px; color:var(--text-muted); margin-top:2px; display:block;">ใช้รับรหัสยืนยัน OTP 6 หลัก เมื่อลืมรหัสผ่าน</span>
+          </div>
+          <div class="doc-form-group" style="margin-bottom: 12px;">
             <label class="doc-form-label"><i class="fa-solid fa-shield-halved"></i> บทบาท / สิทธิ์ (Role)</label>
             <select id="userFormRole" class="doc-form-select">
               <option value="user">👩‍⚕️ พยาบาล / ผู้ใช้งานทั่วไป (User)</option>
@@ -1011,11 +1126,74 @@
     </div>
   </div>
 
+  <!-- Email API Settings Modal (Admin) -->
+  <div class="modal-overlay" id="emailApiModal" aria-hidden="true">
+    <div class="modal-card" style="max-width: 520px;">
+      <div class="modal-header" style="background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);">
+        <div class="modal-header-left">
+          <span class="modal-badge-docs"><i class="fa-solid fa-paper-plane"></i> Email OTP Service</span>
+          <h2 class="modal-title">📧 ตั้งค่าบริการส่งอีเมล OTP (Resend / Brevo)</h2>
+        </div>
+        <button class="modal-close-btn" id="btnCloseEmailApiModal" aria-label="ปิด"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <div class="modal-body" style="padding: 18px 22px;">
+        <div style="background: rgba(2, 132, 199, 0.08); border-left: 3px solid #0284c7; padding: 10px 12px; border-radius: 4px; margin-bottom: 14px; font-size: 13px; color: var(--text-color); line-height: 1.5;">
+          <strong>บริการฟรี HTTP REST Email API ที่รองรับ:</strong>
+          <ul style="margin: 4px 0 0 16px; padding: 0;">
+            <li><strong>Resend (re_...):</strong> ฟรี 3,000 ฉบับ/เดือน (sender เริ่มต้น: <code>onboarding@resend.dev</code>)</li>
+            <li><strong>Brevo (xkeysib-...):</strong> ฟรี 300 ฉบับ/วัน (~9,000 ฉบับ/เดือน)</li>
+          </ul>
+          <span style="font-size: 11px; color: var(--text-muted); display: block; margin-top: 4px;">* ระบบจะตรวจจับผู้ให้บริการอัตโนมัติจากรูปแบบของ API Key</span>
+        </div>
+
+        <form id="emailApiForm" onsubmit="return false;">
+          <div class="doc-form-group" style="margin-bottom: 12px;">
+            <label class="doc-form-label"><i class="fa-solid fa-key"></i> API Key (Resend re_... หรือ Brevo xkeysib-...)</label>
+            <div style="display:flex; gap:6px;">
+              <input type="password" id="emailApiKeyInput" class="doc-form-input" placeholder="ระบุ API Key..." autocomplete="off" style="flex:1;">
+              <button type="button" class="btn btn-secondary btn-sm" id="btnToggleEmailApiKey" style="padding:0 10px;" title="แสดง/ซ่อน API Key">
+                <i class="fa-solid fa-eye"></i>
+              </button>
+            </div>
+            <span style="font-size:11px; color:var(--text-muted); margin-top:2px; display:block;" id="emailProviderDetected">ระบบจะตรวจจับผู้ให้บริการโดยอัตโนมัติ</span>
+          </div>
+
+          <div class="doc-form-group" style="margin-bottom: 14px;">
+            <label class="doc-form-label"><i class="fa-solid fa-at"></i> อีเมลผู้ส่ง (Sender Address)</label>
+            <input type="text" id="emailSenderInput" class="doc-form-input" placeholder="เช่น Medical Text Expander &lt;onboarding@resend.dev&gt;...">
+            <span style="font-size:11px; color:var(--text-muted); margin-top:2px; display:block;">หากใช้ Resend และยังไม่ได้ Verify โดเมน ให้ใช้ <code>onboarding@resend.dev</code></span>
+          </div>
+
+          <div style="background: var(--bg-hover); border: 1px dashed var(--border-color); border-radius: var(--radius-sm); padding: 12px; margin-bottom: 14px;">
+            <label class="doc-form-label" style="margin-bottom:6px;"><i class="fa-solid fa-vial"></i> ทดสอบส่งอีเมล (Test Email)</label>
+            <div style="display:flex; gap:8px;">
+              <input type="email" id="emailTestTarget" class="doc-form-input" placeholder="ระบุอีเมลผู้รับทดสอบ..." style="flex:1;">
+              <button type="button" class="btn btn-secondary btn-sm" id="btnTestSendEmail" style="white-space:nowrap; background:#0284c7; color:#fff; border:none;">
+                <i class="fa-solid fa-paper-plane"></i> ทดสอบส่ง
+              </button>
+            </div>
+            <div id="emailTestStatus" style="font-size:12px; margin-top:6px; display:none;"></div>
+          </div>
+
+          <div id="emailApiErrorMessage" class="alert-box-danger" style="display:none; margin-bottom: 12px;"></div>
+        </form>
+      </div>
+
+      <div class="modal-footer io-modal-footer">
+        <button type="button" class="btn btn-secondary btn-sm" id="btnCancelEmailApiModal">ปิด</button>
+        <button type="button" class="btn btn-primary btn-sm" id="btnSaveEmailApiSubmit" style="background:#0284c7; border:none;">
+          <i class="fa-solid fa-floppy-disk"></i> บันทึกการตั้งค่า
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- Toast Notification Container -->
   <div class="toast-container" id="toastContainer"></div>
 
   <!-- Application Logic -->
-  <script src="app.js?v=1.9.8"></script>
+  <script src="app.js?v=1.9.9"></script>
   <script src="nic_noc.js?v=1.9.6.2"></script>
 </body>
 </html>
