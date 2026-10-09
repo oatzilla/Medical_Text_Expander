@@ -8,20 +8,17 @@ echo   🏥 ติดตั้งโปรแกรม Medical Text Expander (�
 echo =======================================================================
 echo.
 
-set "TARGET_DIR=C:\PhisApp\Medical_Text_Expander"
+set "TARGET_DIR=%~dp0"
+set "TARGET_DIR=%TARGET_DIR:~0,-1%"
 
-echo [1/4] กำลังปิดโปรแกรมรุ่นเดิม (หากกำลังเปิดอยู่)...
+echo [1/3] กำลังปิดโปรแกรมรุ่นเดิม (หากกำลังเปิดอยู่)...
 taskkill /F /IM Medical_Text_Expander.exe >nul 2>&1
 timeout /t 1 /nobreak >nul
 
-echo [2/4] กำลังสร้างและคัดลอกไฟล์ไปยัง %TARGET_DIR%...
-if not exist "%TARGET_DIR%" mkdir "%TARGET_DIR%"
-xcopy /E /I /Y "%~dp0*.*" "%TARGET_DIR%\" >nul
-
-echo [3/4] สร้างไอคอนทางลัดบน Desktop...
+echo [2/3] สร้างไอคอนทางลัดบน Desktop...
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$ws = New-Object -ComObject WScript.Shell; $d = [Environment]::GetFolderPath('Desktop'); $s = $ws.CreateShortcut($d + '\Medical Text Expander.lnk'); $s.TargetPath = '%TARGET_DIR%\Medical_Text_Expander.exe'; $s.WorkingDirectory = '%TARGET_DIR%'; $s.IconLocation = '%TARGET_DIR%\medical_expander_icon.ico'; $s.Description = 'โปรแกรมช่วยพิมพ์และบันทึกข้อมูลผู้ป่วยรายเตียง'; $s.Save()"
 
-echo [4/4] ตั้งค่าให้เปิดโปรแกรมอัตโนมัติพร้อม Windows (Startup)...
+echo [3/3] ตั้งค่าให้เปิดโปรแกรมอัตโนมัติพร้อม Windows (Startup)...
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$ws = New-Object -ComObject WScript.Shell; $st = [Environment]::GetFolderPath('Startup'); $s = $ws.CreateShortcut($st + '\Medical Text Expander.lnk'); $s.TargetPath = '%TARGET_DIR%\Medical_Text_Expander.exe'; $s.WorkingDirectory = '%TARGET_DIR%'; $s.IconLocation = '%TARGET_DIR%\medical_expander_icon.ico'; $s.Save()"
 
 echo.
