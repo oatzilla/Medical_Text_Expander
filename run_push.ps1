@@ -17,11 +17,15 @@ if ($LASTEXITCODE -eq 0) {
     Write-Host '[OK] Main branch pushed successfully!' -ForegroundColor Green
     Write-Host ''
     Write-Host '[2/2] Deploying gh-pages branch for Web Portal...' -ForegroundColor Yellow
-    git fetch origin gh-pages
-    $parent = (git rev-parse FETCH_HEAD).Trim()
+    git fetch origin gh-pages 2>$null
+    $parent = $(git rev-parse origin/gh-pages 2>$null)
     $tree = (git write-tree --prefix=docs/).Trim()
-    $commit = (git commit-tree $tree -p $parent -m "deploy: update web portal v1.9.9 (otp recovery & supabase migration)").Trim()
-    git push origin "${commit}:refs/heads/gh-pages"
+    if ($parent -and $parent.Length -ge 40) {
+        $commit = (git commit-tree $tree -p $parent.Trim() -m "deploy: update web portal v1.9.9 (otp recovery & supabase migration)").Trim()
+    } else {
+        $commit = (git commit-tree $tree -m "deploy: update web portal v1.9.9 (otp recovery & supabase migration)").Trim()
+    }
+    git push origin "${commit}:refs/heads/gh-pages" -f
     Write-Host ''
     Write-Host '========================================================' -ForegroundColor Green
     Write-Host '   SUCCESS: v1.9.9 is now LIVE on GitHub & GitHub Pages!' -ForegroundColor Green
