@@ -33,8 +33,8 @@ function initViewMode() {
  * Real-time Supabase integration, Offline-first cache, Responsive UI
  */
 
-const SUPABASE_URL = "https://jchjzorgnijhlywlereh.supabase.co";
-const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpjaGp6b3JnbmlqaGx5d2xlcmVoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTEzMzY1MTMsImV4cCI6MjEwNjkxMjUxM30.OdQmLt3hjbcCWKyjfgXZxZysSBXpIyVOGJeuYvAluSw";
+const SUPABASE_URL = "https://zjpfxunvyjhvzipxqiqs.supabase.co";
+const SUPABASE_KEY = "sb_publishable_vxQ2YXKZJtn6-BwnajGASQ_dJqdlYee";
 
 // Normalize all line break variants (\r\n, \r, \n) into Windows standard CRLF (\r\n)
 function normalizeToCRLF(text) {
