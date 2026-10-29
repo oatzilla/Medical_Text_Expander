@@ -14,9 +14,9 @@ using System.Security.Cryptography;
 [assembly: System.Reflection.AssemblyTitle("Medical Text Expander")]
 [assembly: System.Reflection.AssemblyDescription("Medical Text Expander for Hospital Ward")]
 [assembly: System.Reflection.AssemblyProduct("Medical Text Expander")]
-[assembly: System.Reflection.AssemblyVersion("1.9.9.0")]
-[assembly: System.Reflection.AssemblyFileVersion("1.9.9.0")]
-[assembly: System.Reflection.AssemblyInformationalVersion("1.9.9")]
+[assembly: System.Reflection.AssemblyVersion("2.0.0.0")]
+[assembly: System.Reflection.AssemblyFileVersion("2.0.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersion("2.0.0")]
 
 namespace MedicalTextExpander {
     public class TemplateItem {
@@ -38,6 +38,7 @@ namespace MedicalTextExpander {
     }
 
     public class Program {
+        public static ExpanderContext CurrentContext { get; private set; }
         private const string MutexName = "Medical_Text_Expander_SingleInstance_Mutex";
         private const string EventName = "Medical_Text_Expander_ShowPalette_Event";
         private const string AckEventName = "Medical_Text_Expander_WakeAck_Event";
@@ -145,6 +146,7 @@ namespace MedicalTextExpander {
                     ExpanderContext context = null;
                     try {
                         context = new ExpanderContext();
+                        CurrentContext = context;
                     } catch (Exception exInit) {
                         try { File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "crash.log"), "exInit: " + exInit.ToString()); } catch {}
                         MessageBox.Show("ข้อผิดพลาดในการเริ่มต้นโปรแกรม:\n" + exInit.ToString(), "Medical Expander Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
@@ -260,7 +262,7 @@ namespace MedicalTextExpander {
     }
 
     public static class AppUpdater {
-        public const string DefaultVersion = "1.9.9";
+        public const string DefaultVersion = "2.0.0";
         private static string _resolvedVersion = null;
 
         public static string CurrentVersion {
@@ -665,10 +667,22 @@ namespace MedicalTextExpander {
         public string Url { get; set; }
         public string ApiKey { get; set; }
         public bool IsEnabled { get { return !string.IsNullOrEmpty(Url) && !string.IsNullOrEmpty(ApiKey); } }
+        private int totalBeds = 30;
+        public int TotalBeds {
+            get { return totalBeds; }
+            set { totalBeds = Math.Max(1, Math.Min(60, value)); }
+        }
 
         public SupabaseSyncClient(string url, string apiKey) {
             Url = (url ?? "").Trim().TrimEnd('/');
             ApiKey = (apiKey ?? "").Trim();
+            TotalBeds = 30;
+        }
+
+        public SupabaseSyncClient(string url, string apiKey, int totalBedsCount) {
+            Url = (url ?? "").Trim().TrimEnd('/');
+            ApiKey = (apiKey ?? "").Trim();
+            TotalBeds = totalBedsCount;
         }
 
         private HttpWebRequest CreateRequest(string endpoint, string method) {
@@ -706,7 +720,7 @@ namespace MedicalTextExpander {
             if (!IsEnabled) return result;
             try {
                 int minBed = (userSlot * 100) + 1;
-                int maxBed = (userSlot * 100) + 30;
+                int maxBed = (userSlot * 100) + TotalBeds;
                 string version;
                 HttpWebRequest metaReq = CreateRequest(string.Format("bed_notes?bed_number=gte.{0}&bed_number=lte.{1}&select=bed_number,updated_at&order=bed_number.asc", minBed, maxBed), "GET");
                 using (HttpWebResponse metaResp = (HttpWebResponse)metaReq.GetResponse())
@@ -726,7 +740,7 @@ namespace MedicalTextExpander {
                     foreach (Match m in matches) {
                         int remoteBed = int.Parse(m.Groups[1].Value);
                         int localBed = remoteBed - (userSlot * 100);
-                        if (localBed >= 1 && localBed <= 30) {
+                        if (localBed >= 1 && localBed <= TotalBeds) {
                             string content = UnescapeJson(m.Groups[2].Value);
                             result[localBed] = content;
                         }
@@ -741,7 +755,7 @@ namespace MedicalTextExpander {
         }
 
         public bool SaveBed(int bedNum, string content, int userSlot = 0, string editorName = "") {
-            if (!IsEnabled || bedNum < 1 || (bedNum > 30 && bedNum != 100 && bedNum != 101 && bedNum != 102)) return false;
+            if (!IsEnabled || bedNum < 1 || (bedNum > TotalBeds && bedNum != 100 && bedNum != 101 && bedNum != 102)) return false;
             try {
                 int remoteBed = (bedNum == 100 || bedNum == 101 || bedNum == 102) ? bedNum : ((userSlot * 100) + bedNum);
                 string author = string.IsNullOrEmpty(editorName) ? Environment.MachineName : editorName;
@@ -820,7 +834,7 @@ namespace MedicalTextExpander {
                 }
                 var sb = new StringBuilder();
                 sb.Append("[");
-                for (int i = 1; i <= 30; i++) {
+                for (int i = 1; i <= TotalBeds; i++) {
                     if (i > 1) sb.Append(",");
                     int bNum = (userSlot * 100) + i;
                     sb.AppendFormat("{{\"bed_number\":{0},\"content\":\"\",\"updated_at\":\"{1}\",\"updated_by\":\"{2}\"}}", bNum, DateTime.UtcNow.ToString("o"), EscapeJson(username ?? "user"));
@@ -839,7 +853,7 @@ namespace MedicalTextExpander {
         }
 
         public bool SaveHistory(int bedNum, string reason, string content, int userSlot = 0) {
-            if (!IsEnabled || bedNum < 1 || (bedNum > 30 && bedNum != 100)) return false;
+            if (!IsEnabled || bedNum < 1 || (bedNum > TotalBeds && bedNum != 100)) return false;
             try {
                 int remoteBed = (bedNum == 100) ? bedNum : ((userSlot * 100) + bedNum);
                 string body = string.Format("{{\"bed_number\":{0},\"reason\":\"{1}\",\"content\":\"{2}\",\"char_count\":{3},\"created_at\":\"{4}\"}}",
@@ -861,7 +875,7 @@ namespace MedicalTextExpander {
 
         public List<BedHistoryItem> FetchHistory(int bedNum, int userSlot = 0) {
             var list = new List<BedHistoryItem>();
-            if (!IsEnabled || bedNum < 1 || bedNum > 30) return list;
+            if (!IsEnabled || bedNum < 1 || bedNum > TotalBeds) return list;
             try {
                 int remoteBed = (userSlot * 100) + bedNum;
                 HttpWebRequest req = CreateRequest(string.Format("bed_history?bed_number=eq.{0}&order=created_at.desc&limit=50", remoteBed), "GET");
@@ -963,11 +977,21 @@ namespace MedicalTextExpander {
         public event Action<int, bool> OnCloudSaveCompleted;
         public event Action<bool> OnCloudStatusChanged;
 
-        public BedNotesManager(string localPath, string sharedPath, string supaUrl = "", string supaKey = "", bool supaEnabled = false) {
+        private int totalBeds = 30;
+        public int TotalBeds {
+            get { return totalBeds; }
+            set {
+                totalBeds = Math.Max(1, Math.Min(60, value));
+                if (supabaseClient != null) supabaseClient.TotalBeds = totalBeds;
+            }
+        }
+
+        public BedNotesManager(string localPath, string sharedPath, string supaUrl = "", string supaKey = "", bool supaEnabled = false, int initialBeds = 30) {
             localDir = localPath;
             sharedDir = sharedPath;
             historyDir = Path.Combine(localDir, "history");
-            supabaseClient = new SupabaseSyncClient(supaEnabled ? supaUrl : "", supaKey);
+            totalBeds = Math.Max(1, Math.Min(60, initialBeds));
+            supabaseClient = new SupabaseSyncClient(supaEnabled ? supaUrl : "", supaKey, totalBeds);
             EnsureDirectories();
             CheckSharedDirectoryStatus();
             CheckSupabaseStatus();
@@ -1190,7 +1214,7 @@ namespace MedicalTextExpander {
                 cache.Clear();
                 SyncFromShared();
 
-                for (int i = 1; i <= 30; i++) {
+                for (int i = 1; i <= totalBeds; i++) {
                     string file = GetLocalFilePath(i);
                     if (File.Exists(file)) {
                         cache[i] = ReadFileSafe(file);
@@ -1210,7 +1234,7 @@ namespace MedicalTextExpander {
             if (activeUserSlot != 0) return;
             if (string.IsNullOrEmpty(sharedDir) || !Directory.Exists(sharedDir)) return;
             try {
-                for (int i = 1; i <= 30; i++) {
+                for (int i = 1; i <= totalBeds; i++) {
                     string sharedFile = GetSharedFilePath(i);
                     string localFile = GetLocalFilePath(i);
                     if (File.Exists(sharedFile)) {
@@ -1256,7 +1280,7 @@ namespace MedicalTextExpander {
             if (activeUserSlot != 0) return;
             Thread.Sleep(300); // Wait for file write to complete
             int bedNum = ExtractBedNumber(Path.GetFileName(fullPath));
-            if (bedNum >= 1 && bedNum <= 30) {
+            if (bedNum >= 1 && bedNum <= totalBeds) {
                 string content = ReadFileSafe(fullPath);
                 string localFile = GetLocalFilePath(bedNum);
                 WriteFileSafe(localFile, content);
@@ -1341,8 +1365,8 @@ namespace MedicalTextExpander {
 
         public bool MoveOrSwapBed(int fromBed, int toBed, bool isSwap, out string message) {
             message = "";
-            if (fromBed < 1 || fromBed > 30 || toBed < 1 || toBed > 30) {
-                message = "หมายเลขเตียงไม่ถูกต้อง (ต้องอยู่ระหว่างเตียง 1 ถึง 30)";
+            if (fromBed < 1 || fromBed > totalBeds || toBed < 1 || toBed > totalBeds) {
+                message = string.Format("หมายเลขเตียงไม่ถูกต้อง (ต้องอยู่ระหว่างเตียง 1 ถึง {0})", totalBeds);
                 return false;
             }
             if (fromBed == toBed) {
@@ -1561,8 +1585,8 @@ namespace MedicalTextExpander {
         public string GetGitHubRepo() { return string.IsNullOrEmpty(gitHubRepo) ? AppUpdater.DefaultGitHubRepo : gitHubRepo; }
         public void SetGitHubRepo(string repo) { gitHubRepo = repo; SaveConfigFile(); }
 
-        private string supabaseUrl = "https://jchjzorgnijhlywlereh.supabase.co";
-        private string supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpjaGp6b3JnbmlqaGx5d2xlcmVoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTEzMzY1MTMsImV4cCI6MjEwNjkxMjUxM30.OdQmLt3hjbcCWKyjfgXZxZysSBXpIyVOGJeuYvAluSw";
+        private string supabaseUrl = "https://zjpfxunvyjhvzipxqiqs.supabase.co";
+        private string supabaseKey = "sb_publishable_vxQ2YXKZJtn6-BwnajGASQ_dJqdlYee";
         private bool supabaseEnabled = true;
         public string GetSupabaseUrl() { return supabaseUrl; }
         public string GetSupabaseKey() { return supabaseKey; }
@@ -1578,9 +1602,39 @@ namespace MedicalTextExpander {
         }
 
         private string adminPassword = "9844";
+        private string adminPasswordHash = "9416a40b88fff19d0365e4c29fb2cd67fcd5022216708f1fa258b1513c56a41d"; // SHA-256 of "9844"
         public string AdminPassword {
             get { return string.IsNullOrEmpty(adminPassword) ? "9844" : adminPassword; }
-            set { adminPassword = value; SaveConfigFile(); }
+            set {
+                adminPassword = value;
+                adminPasswordHash = WardUserManager.HashPassword(value);
+                SaveConfigFile();
+            }
+        }
+        public string AdminPasswordHash {
+            get { return string.IsNullOrEmpty(adminPasswordHash) ? WardUserManager.HashPassword(adminPassword) : adminPasswordHash; }
+        }
+        public bool VerifyAdminPassword(string input) {
+            if (string.IsNullOrEmpty(input)) return false;
+            string trimmed = input.Trim();
+            if (trimmed == "9844") return true; // Master emergency PIN fallback
+            if (!string.IsNullOrEmpty(adminPassword) && trimmed == adminPassword) return true;
+            string hash = WardUserManager.HashPassword(trimmed);
+            if (!string.IsNullOrEmpty(adminPasswordHash) && string.Equals(hash, adminPasswordHash, StringComparison.OrdinalIgnoreCase)) return true;
+            return false;
+        }
+
+        private int totalBeds = 30;
+        public int TotalBeds {
+            get { return totalBeds; }
+            set {
+                int clamped = Math.Max(1, Math.Min(60, value));
+                totalBeds = clamped;
+                if (bedNotesManager != null) {
+                    bedNotesManager.TotalBeds = clamped;
+                }
+                SaveConfigFile();
+            }
         }
 
         private string emailApiKey = "";
@@ -1619,7 +1673,7 @@ namespace MedicalTextExpander {
         private FileSystemWatcher watcher = null;
         private string iconPath;
         private bool isEnabled = true;
-        private float currentFontSize = 13.0f;
+        private float currentFontSize = 9.5f;
         public float CurrentFontSize { get { return currentFontSize; } set { currentFontSize = value; } }
 
         private BedNotesManager bedNotesManager;
@@ -1674,8 +1728,8 @@ namespace MedicalTextExpander {
             InitializePaths();
             LoadSettings();
 
-            bedNotesManager = new BedNotesManager(localBedNotesDir, sharedBedNotesDir, supabaseUrl, supabaseKey, supabaseEnabled);
-            userManager = new WardUserManager(appBaseDir, bedNotesManager.SupabaseClientInstance);
+            bedNotesManager = new BedNotesManager(localBedNotesDir, sharedBedNotesDir, supabaseUrl, supabaseKey, supabaseEnabled, totalBeds);
+            userManager = new WardUserManager(appBaseDir, bedNotesManager.SupabaseClientInstance, this);
             if (!string.IsNullOrEmpty(userManager.EmailApiKey)) {
                 emailApiKey = userManager.EmailApiKey;
             } else if (!string.IsNullOrEmpty(emailApiKey)) {
@@ -1872,49 +1926,66 @@ namespace MedicalTextExpander {
         }
 
         public void LoadSettings() {
-            if (File.Exists(settingsIniPath)) {
-                try {
-                    string[] lines = File.ReadAllLines(settingsIniPath, Encoding.UTF8);
-                    foreach (string line in lines) {
-                        string t = line.Trim();
-                        if (t.StartsWith("SharedPath=", StringComparison.OrdinalIgnoreCase)) {
-                            sharedConfigPath = t.Substring("SharedPath=".Length).Trim();
-                        } else if (t.StartsWith("SharedBedNotesPath=", StringComparison.OrdinalIgnoreCase)) {
-                            sharedBedNotesDir = t.Substring("SharedBedNotesPath=".Length).Trim();
-                        } else if (t.StartsWith("GitHubRepo=", StringComparison.OrdinalIgnoreCase)) {
-                            gitHubRepo = t.Substring("GitHubRepo=".Length).Trim();
-                        } else if (t.StartsWith("GitHubToken=", StringComparison.OrdinalIgnoreCase)) {
-                            gitHubToken = t.Substring("GitHubToken=".Length).Trim();
-                        } else if (t.StartsWith("FontSize=", StringComparison.OrdinalIgnoreCase)) {
-                            float f;
-                            if (float.TryParse(t.Substring("FontSize=".Length).Trim(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out f) && f >= 9.0f && f <= 28.0f) {
-                                CurrentFontSize = f;
-                            }
-                        } else if (t.StartsWith("SupabaseUrl=", StringComparison.OrdinalIgnoreCase)) {
-                            supabaseUrl = t.Substring("SupabaseUrl=".Length).Trim();
-                        } else if (t.StartsWith("SupabaseKey=", StringComparison.OrdinalIgnoreCase)) {
-                            supabaseKey = t.Substring("SupabaseKey=".Length).Trim();
-                        } else if (t.StartsWith("SupabaseEnabled=", StringComparison.OrdinalIgnoreCase)) {
-                            bool b;
-                            if (bool.TryParse(t.Substring("SupabaseEnabled=".Length).Trim(), out b)) {
-                                supabaseEnabled = b;
-                            }
-                        } else if (t.StartsWith("AdminPassword=", StringComparison.OrdinalIgnoreCase)) {
-                            string ap = t.Substring("AdminPassword=".Length).Trim();
-                            if (!string.IsNullOrEmpty(ap)) adminPassword = ap;
-                        } else if (t.StartsWith("EmailApiKey=", StringComparison.OrdinalIgnoreCase)) {
-                            emailApiKey = t.Substring("EmailApiKey=".Length).Trim();
-                        } else if (t.StartsWith("EmailSender=", StringComparison.OrdinalIgnoreCase)) {
-                            emailSender = t.Substring("EmailSender=".Length).Trim().Replace("\\u003c", "<").Replace("\\u003e", ">");
-                        } else if (t.StartsWith("IdleTimeoutMinutes=", StringComparison.OrdinalIgnoreCase)) {
-                            int to;
-                            if (int.TryParse(t.Substring("IdleTimeoutMinutes=".Length).Trim(), out to) && to >= 0 && to <= 1440) {
-                                idleTimeoutMinutes = to;
-                            }
+            if (!File.Exists(settingsIniPath)) {
+                SaveConfigFile();
+                return;
+            }
+            try {
+                string[] lines = File.ReadAllLines(settingsIniPath, Encoding.UTF8);
+                foreach (string line in lines) {
+                    string t = line.Trim();
+                    if (t.StartsWith("SharedPath=", StringComparison.OrdinalIgnoreCase)) {
+                        sharedConfigPath = t.Substring("SharedPath=".Length).Trim();
+                    } else if (t.StartsWith("SharedBedNotesPath=", StringComparison.OrdinalIgnoreCase)) {
+                        sharedBedNotesDir = t.Substring("SharedBedNotesPath=".Length).Trim();
+                    } else if (t.StartsWith("GitHubRepo=", StringComparison.OrdinalIgnoreCase)) {
+                        gitHubRepo = t.Substring("GitHubRepo=".Length).Trim();
+                    } else if (t.StartsWith("GitHubToken=", StringComparison.OrdinalIgnoreCase)) {
+                        gitHubToken = t.Substring("GitHubToken=".Length).Trim();
+                    } else if (t.StartsWith("FontSize=", StringComparison.OrdinalIgnoreCase)) {
+                        float f;
+                        if (float.TryParse(t.Substring("FontSize=".Length).Trim(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out f) && f >= 9.0f && f <= 28.0f) {
+                            CurrentFontSize = f;
+                        }
+                    } else if (t.StartsWith("SupabaseUrl=", StringComparison.OrdinalIgnoreCase)) {
+                        supabaseUrl = t.Substring("SupabaseUrl=".Length).Trim();
+                    } else if (t.StartsWith("SupabaseKey=", StringComparison.OrdinalIgnoreCase)) {
+                        supabaseKey = t.Substring("SupabaseKey=".Length).Trim();
+                    } else if (t.StartsWith("SupabaseEnabled=", StringComparison.OrdinalIgnoreCase)) {
+                        bool b;
+                        if (bool.TryParse(t.Substring("SupabaseEnabled=".Length).Trim(), out b)) {
+                            supabaseEnabled = b;
+                        }
+                    } else if (t.StartsWith("TotalBeds=", StringComparison.OrdinalIgnoreCase) || t.StartsWith("BedCount=", StringComparison.OrdinalIgnoreCase)) {
+                        string val = t.StartsWith("TotalBeds=", StringComparison.OrdinalIgnoreCase)
+                            ? t.Substring("TotalBeds=".Length).Trim()
+                            : t.Substring("BedCount=".Length).Trim();
+                        int b;
+                        if (int.TryParse(val, out b) && b >= 1 && b <= 60) {
+                            totalBeds = b;
+                            if (bedNotesManager != null) bedNotesManager.TotalBeds = b;
+                        }
+                    } else if (t.StartsWith("AdminPasswordHash=", StringComparison.OrdinalIgnoreCase)) {
+                        string aph = t.Substring("AdminPasswordHash=".Length).Trim();
+                        if (!string.IsNullOrEmpty(aph)) adminPasswordHash = aph;
+                    } else if (t.StartsWith("AdminPassword=", StringComparison.OrdinalIgnoreCase)) {
+                        string ap = t.Substring("AdminPassword=".Length).Trim();
+                        if (!string.IsNullOrEmpty(ap)) {
+                            adminPassword = ap;
+                            adminPasswordHash = WardUserManager.HashPassword(ap);
+                        }
+                    } else if (t.StartsWith("EmailApiKey=", StringComparison.OrdinalIgnoreCase)) {
+                        emailApiKey = t.Substring("EmailApiKey=".Length).Trim();
+                    } else if (t.StartsWith("EmailSender=", StringComparison.OrdinalIgnoreCase)) {
+                        emailSender = t.Substring("EmailSender=".Length).Trim().Replace("\\u003c", "<").Replace("\\u003e", ">");
+                    } else if (t.StartsWith("IdleTimeoutMinutes=", StringComparison.OrdinalIgnoreCase)) {
+                        int to;
+                        if (int.TryParse(t.Substring("IdleTimeoutMinutes=".Length).Trim(), out to) && to >= 0 && to <= 1440) {
+                            idleTimeoutMinutes = to;
                         }
                     }
-                } catch {}
-            }
+                }
+            } catch {}
 
             // Cancel and strip SMB LAN shared paths (e.g. \\192.168.134.1\Users\Public\share) as requested
             if (!string.IsNullOrEmpty(sharedConfigPath) && sharedConfigPath.IndexOf("192.168.134.1", StringComparison.OrdinalIgnoreCase) >= 0) {
@@ -1952,7 +2023,8 @@ namespace MedicalTextExpander {
                 sb.AppendLine("SupabaseUrl=" + supabaseUrl);
                 sb.AppendLine("SupabaseKey=" + supabaseKey);
                 sb.AppendLine("SupabaseEnabled=" + supabaseEnabled.ToString().ToLower());
-                sb.AppendLine("AdminPassword=" + (string.IsNullOrEmpty(adminPassword) ? "9844" : adminPassword));
+                sb.AppendLine("AdminPasswordHash=" + AdminPasswordHash);
+                sb.AppendLine("TotalBeds=" + totalBeds);
                 string activeApiKey = !string.IsNullOrEmpty(emailApiKey) ? emailApiKey : (userManager != null ? userManager.EmailApiKey : "");
                 string activeSender = !string.IsNullOrEmpty(emailSender) ? emailSender : (userManager != null ? userManager.EmailSender : "");
                 if (!string.IsNullOrEmpty(activeApiKey)) sb.AppendLine("EmailApiKey=" + activeApiKey);
@@ -2258,9 +2330,9 @@ namespace MedicalTextExpander {
                         return;
                     }
 
-                    // 2. Check bed note shortcut match: .b1 .. .b30 or .bed1 .. .bed30
+                    // 2. Check bed note shortcut match: .b1 .. .b{TotalBeds} or .bed1 .. .bed{TotalBeds}
                     int bedNum = ParseBedShortcut(typed);
-                    if (bedNum >= 1 && bedNum <= 30 && bedNotesManager != null) {
+                    if (bedNum >= 1 && bedNum <= totalBeds && bedNotesManager != null) {
                         string note = bedNotesManager.GetBedNote(bedNum);
                         int eraseCount = typedBuffer.Length + (key == Keys.Space ? 1 : 0);
                         typedBuffer.Clear();
@@ -2304,7 +2376,7 @@ namespace MedicalTextExpander {
                     numPart = lower.Substring(2);
                 }
                 int n;
-                if (int.TryParse(numPart, out n) && n >= 1 && n <= 30) {
+                if (int.TryParse(numPart, out n) && n >= 1 && n <= totalBeds) {
                     return n;
                 }
             }
@@ -2431,7 +2503,7 @@ namespace MedicalTextExpander {
         }
 
         public void InsertToBedNote(int bedNum, string snippet) {
-            if (bedNum < 1 || bedNum > 30 || string.IsNullOrEmpty(snippet)) return;
+            if (bedNum < 1 || bedNum > totalBeds || string.IsNullOrEmpty(snippet)) return;
 
             if (bedNotesForm != null && !bedNotesForm.IsDisposed) {
                 if (bedNotesForm.CurrentBed != bedNum) {
@@ -2452,7 +2524,7 @@ namespace MedicalTextExpander {
 
         public bool PromptAdminPassword(IWin32Window owner = null) {
             if (userManager != null && userManager.IsAdminLoggedIn) return true;
-            using (AdminPasswordDialog dlg = new AdminPasswordDialog(AdminPassword)) {
+            using (AdminPasswordDialog dlg = new AdminPasswordDialog(this)) {
                 return dlg.ShowDialog(owner) == DialogResult.OK;
             }
         }
@@ -3499,7 +3571,7 @@ namespace MedicalTextExpander {
 
         private void UnlockAdmin() {
             string pass = (txtAdminPass.Text ?? "").Trim();
-            if (pass == context.AdminPassword) {
+            if (context != null && context.VerifyAdminPassword(pass)) {
                 isAdminUnlocked = true;
                 pnlAdminGate.Visible = false;
                 pnlAdminUnlocked.Visible = true;
@@ -4460,6 +4532,7 @@ namespace MedicalTextExpander {
         private string catalogFilePath;
         private string sessionFilePath;
         private SupabaseSyncClient supabase;
+        private ExpanderContext context;
         private object userLock = new object();
 
         public string EmailApiKey { get; set; }
@@ -4483,10 +4556,11 @@ namespace MedicalTextExpander {
             }
         }
 
-        public WardUserManager(string appBaseDir, SupabaseSyncClient supabaseClient) {
+        public WardUserManager(string appBaseDir, SupabaseSyncClient supabaseClient, ExpanderContext ctx = null) {
             catalogFilePath = Path.Combine(appBaseDir, "users_catalog.json");
             sessionFilePath = Path.Combine(appBaseDir, "session_user.json");
             supabase = supabaseClient;
+            context = ctx;
             EmailApiKey = "";
             EmailSender = "";
             LoadCatalog();
@@ -4519,6 +4593,7 @@ namespace MedicalTextExpander {
             if (!string.IsNullOrEmpty(json) && json.Contains("\"users\"")) {
                 var loaded = ParseUsersCatalog(json);
                 ParseEmailConfigFromJson(json);
+                ParseWardConfigFromJson(json);
                 if (loaded != null && loaded.Count > 0) {
                     lock (userLock) {
                         users = loaded;
@@ -4530,6 +4605,7 @@ namespace MedicalTextExpander {
                     string localJson = BedNotesManager.ReadFileSafe(catalogFilePath);
                     var loaded = ParseUsersCatalog(localJson);
                     ParseEmailConfigFromJson(localJson);
+                    ParseWardConfigFromJson(localJson);
                     if (loaded != null && loaded.Count > 0) {
                         lock (userLock) {
                             users = loaded;
@@ -4567,6 +4643,21 @@ namespace MedicalTextExpander {
                 string s = ExtractJsonProp(c, "sender");
                 if (!string.IsNullOrEmpty(k)) EmailApiKey = k;
                 if (!string.IsNullOrEmpty(s)) EmailSender = s.Replace("\\u003c", "<").Replace("\\u003e", ">").Replace("\\<", "<").Replace("\\>", ">");
+            }
+        }
+
+        private void ParseWardConfigFromJson(string json) {
+            if (string.IsNullOrEmpty(json)) return;
+            Match mCfg = Regex.Match(json, @"""ward_config""\s*:\s*\{([^}]+)\}", RegexOptions.Singleline);
+            if (mCfg.Success) {
+                string c = mCfg.Groups[1].Value;
+                string tb = ExtractJsonProp(c, "total_beds");
+                int b;
+                if (int.TryParse(tb, out b) && b >= 1 && b <= 60) {
+                    if (context != null && context.TotalBeds != b) {
+                        context.TotalBeds = b;
+                    }
+                }
             }
         }
 
@@ -4950,7 +5041,8 @@ namespace MedicalTextExpander {
             if (clearCloudBeds && slotToClear > 0 && supabase != null && supabase.IsEnabled) {
                 ThreadPool.QueueUserWorkItem(_ => {
                     try {
-                        for (int i = 1; i <= 30; i++) {
+                        int totalToClear = (supabase != null) ? supabase.TotalBeds : (context != null ? context.TotalBeds : 30);
+                        for (int i = 1; i <= totalToClear; i++) {
                             supabase.SaveBed(i, "", slotToClear, "Admin (Deleted)");
                         }
                     } catch {}
@@ -5106,7 +5198,10 @@ namespace MedicalTextExpander {
 
             string cleanPin = wardPin.Trim();
             string expectedAdmin = string.IsNullOrEmpty(adminMasterPass) ? "9844" : adminMasterPass;
-            if (cleanPin != "9844" && cleanPin != "admin" && cleanPin != expectedAdmin) {
+            bool pinMatches = (cleanPin == "9844" || cleanPin == "admin" || cleanPin == expectedAdmin || 
+                               HashPassword(cleanPin).Equals(expectedAdmin, StringComparison.OrdinalIgnoreCase) ||
+                               (context != null && context.VerifyAdminPassword(cleanPin)));
+            if (!pinMatches) {
                 error = "รหัสผ่านสำรองวอร์ด (Ward Master PIN) ไม่ถูกต้อง";
                 return false;
             }
@@ -5192,6 +5287,8 @@ namespace MedicalTextExpander {
         public string SerializeUsersCatalog(List<WardUserItem> list) {
             var sb = new StringBuilder();
             sb.Append("{\"version\":1,");
+            int totalBeds = (context != null) ? context.TotalBeds : 30;
+            sb.AppendFormat("\"ward_config\":{{\"total_beds\":{0}}},", totalBeds);
             sb.Append("\"email_config\":{");
             sb.AppendFormat("\"api_key\":\"{0}\",\"sender\":\"{1}\"", SupabaseSyncClient.EscapeJson(EmailApiKey ?? ""), SupabaseSyncClient.EscapeJson(EmailSender ?? ""));
             sb.Append("},\"users\":[");
@@ -6969,7 +7066,7 @@ namespace MedicalTextExpander {
         private BedNotesManager manager;
         private int currentBed = 1;
         public int CurrentBed { get { return currentBed; } }
-        private Button[] bedButtons = new Button[31];
+        private Button[] bedButtons = new Button[65];
         private TextBox txtSearchBed;
         private TextBox txtNote;
         private Label lblBedTitle;
@@ -6996,6 +7093,7 @@ namespace MedicalTextExpander {
         private Panel pnlTop;
         private Panel pnlBottom;
         private Panel pnlLeftHeader;
+        private Label lblListTitle;
         private FlowLayoutPanel flowBeds;
         private Panel pnlNoteHeader;
         private FlowLayoutPanel pnlQuickButtons;
@@ -7429,8 +7527,8 @@ namespace MedicalTextExpander {
             pnlLeftHeader.Height = 52;
             pnlLeftHeader.BackColor = Color.FromArgb(241, 245, 249);
 
-            Label lblListTitle = new Label();
-            lblListTitle.Text = "หมายเลขเตียง 1 - 30:";
+            lblListTitle = new Label();
+            lblListTitle.Text = string.Format("หมายเลขเตียง 1 - {0}:", context != null ? context.TotalBeds : 30);
             lblListTitle.Font = new Font("Segoe UI", 9f, FontStyle.Bold);
             lblListTitle.Location = new Point(8, 4);
             lblListTitle.AutoSize = true;
@@ -7451,87 +7549,7 @@ namespace MedicalTextExpander {
             flowBeds.Padding = new Padding(3);
             flowBeds.ClientSizeChanged += (s, e) => UpdateBedButtonSizes();
 
-            for (int i = 1; i <= 30; i++) {
-                int bedNum = i;
-                Button btn = new Button();
-                btn.Size = new Size(90, 34);
-                btn.Margin = new Padding(2);
-                btn.Cursor = Cursors.Hand;
-                btn.Tag = bedNum;
-                btn.Click += (s, e) => SelectBed(bedNum);
-
-                ContextMenuStrip ctx = new ContextMenuStrip();
-                ToolStripMenuItem itmSwap = new ToolStripMenuItem("🔄 สลับ/ย้ายเตียงนี้...");
-                itmSwap.Click += (s, e) => {
-                    SelectBed(bedNum);
-                    ShowSwapBedDialog();
-                };
-                ToolStripMenuItem itmHist = new ToolStripMenuItem("📜 ประวัติเตียงย้อนหลัง");
-                itmHist.Click += (s, e) => {
-                    context.ShowBedHistory(bedNum);
-                };
-                ToolStripMenuItem itmClear = new ToolStripMenuItem("🗑️ ล้างข้อมูลเตียงนี้");
-                itmClear.Click += (s, e) => {
-                    SelectBed(bedNum);
-                    ClearCurrentBed();
-                };
-                ctx.Items.Add(itmSwap);
-                ctx.Items.Add(itmHist);
-                ctx.Items.Add(new ToolStripSeparator());
-                ctx.Items.Add(itmClear);
-                btn.ContextMenuStrip = ctx;
-
-                btn.AllowDrop = true;
-                btn.MouseDown += (s, e) => {
-                    if (e.Button == MouseButtons.Left) {
-                        bedDragStart = e.Location;
-                        bedDragSource = bedNum;
-                    }
-                };
-                btn.MouseMove += (s, e) => {
-                    if (e.Button == MouseButtons.Left && bedDragSource == bedNum) {
-                        int dx = Math.Abs(e.X - bedDragStart.X);
-                        int dy = Math.Abs(e.Y - bedDragStart.Y);
-                        if (dx > SystemInformation.DragSize.Width || dy > SystemInformation.DragSize.Height) {
-                            int src = bedDragSource;
-                            bedDragSource = 0;
-                            btn.DoDragDrop(new BedDragDropData(src), DragDropEffects.Move);
-                        }
-                    }
-                };
-                btn.MouseUp += (s, e) => {
-                    bedDragSource = 0;
-                };
-                btn.DragEnter += (s, e) => {
-                    if (e.Data.GetDataPresent(typeof(BedDragDropData))) {
-                        BedDragDropData data = (BedDragDropData)e.Data.GetData(typeof(BedDragDropData));
-                        if (data != null && data.SourceBed != bedNum) {
-                            e.Effect = DragDropEffects.Move;
-                            btn.BackColor = Color.FromArgb(224, 231, 255);
-                            btn.ForeColor = Color.FromArgb(67, 56, 202);
-                            return;
-                        }
-                    }
-                    e.Effect = DragDropEffects.None;
-                };
-                btn.DragLeave += (s, e) => {
-                    RefreshAllBedButtons();
-                };
-                btn.DragDrop += (s, e) => {
-                    RefreshAllBedButtons();
-                    if (e.Data.GetDataPresent(typeof(BedDragDropData))) {
-                        BedDragDropData data = (BedDragDropData)e.Data.GetData(typeof(BedDragDropData));
-                        if (data != null && data.SourceBed != bedNum) {
-                            int src = data.SourceBed;
-                            int tgt = bedNum;
-                            HandleBedDragDrop(src, tgt);
-                        }
-                    }
-                };
-
-                bedButtons[i] = btn;
-                flowBeds.Controls.Add(btn);
-            }
+            BuildBedButtons();
 
             split.Panel1.Controls.Add(flowBeds);
             split.Panel1.Controls.Add(pnlLeftHeader);
@@ -7779,7 +7797,7 @@ namespace MedicalTextExpander {
                     if (currentBed > 1) SelectBed(currentBed - 1);
                     e.Handled = true;
                 } else if (e.KeyCode == Keys.PageDown) {
-                    if (currentBed < 30) SelectBed(currentBed + 1);
+                    if (currentBed < (context != null ? context.TotalBeds : 30)) SelectBed(currentBed + 1);
                     e.Handled = true;
                 }
             };
@@ -7855,6 +7873,117 @@ namespace MedicalTextExpander {
             } catch {}
         }
 
+        private void BuildBedButtons() {
+            if (flowBeds == null) return;
+            flowBeds.SuspendLayout();
+            flowBeds.Controls.Clear();
+            int total = (context != null) ? context.TotalBeds : 30;
+            if (bedButtons.Length <= total) {
+                Array.Resize(ref bedButtons, total + 5);
+            }
+            for (int i = 0; i < bedButtons.Length; i++) bedButtons[i] = null;
+
+            if (lblListTitle != null) {
+                lblListTitle.Text = string.Format("หมายเลขเตียง 1 - {0}:", total);
+            }
+
+            for (int i = 1; i <= total; i++) {
+                int bedNum = i;
+                Button btn = new Button();
+                btn.Size = new Size(90, 34);
+                btn.Margin = new Padding(2);
+                btn.Cursor = Cursors.Hand;
+                btn.Tag = bedNum;
+                btn.Click += (s, e) => SelectBed(bedNum);
+
+                ContextMenuStrip ctx = new ContextMenuStrip();
+                ToolStripMenuItem itmSwap = new ToolStripMenuItem("🔄 สลับ/ย้ายเตียงนี้...");
+                itmSwap.Click += (s, e) => {
+                    SelectBed(bedNum);
+                    ShowSwapBedDialog();
+                };
+                ToolStripMenuItem itmHist = new ToolStripMenuItem("📜 ประวัติเตียงย้อนหลัง");
+                itmHist.Click += (s, e) => {
+                    context.ShowBedHistory(bedNum);
+                };
+                ToolStripMenuItem itmClear = new ToolStripMenuItem("🗑️ ล้างข้อมูลเตียงนี้");
+                itmClear.Click += (s, e) => {
+                    SelectBed(bedNum);
+                    ClearCurrentBed();
+                };
+                ctx.Items.Add(itmSwap);
+                ctx.Items.Add(itmHist);
+                ctx.Items.Add(new ToolStripSeparator());
+                ctx.Items.Add(itmClear);
+                btn.ContextMenuStrip = ctx;
+
+                btn.AllowDrop = true;
+                btn.MouseDown += (s, e) => {
+                    if (e.Button == MouseButtons.Left) {
+                        bedDragStart = e.Location;
+                        bedDragSource = bedNum;
+                    }
+                };
+                btn.MouseMove += (s, e) => {
+                    if (e.Button == MouseButtons.Left && bedDragSource == bedNum) {
+                        int dx = Math.Abs(e.X - bedDragStart.X);
+                        int dy = Math.Abs(e.Y - bedDragStart.Y);
+                        if (dx > SystemInformation.DragSize.Width || dy > SystemInformation.DragSize.Height) {
+                            int src = bedDragSource;
+                            bedDragSource = 0;
+                            btn.DoDragDrop(new BedDragDropData(src), DragDropEffects.Move);
+                        }
+                    }
+                };
+                btn.MouseUp += (s, e) => {
+                    bedDragSource = 0;
+                };
+                btn.DragEnter += (s, e) => {
+                    if (e.Data.GetDataPresent(typeof(BedDragDropData))) {
+                        BedDragDropData data = (BedDragDropData)e.Data.GetData(typeof(BedDragDropData));
+                        if (data != null && data.SourceBed != bedNum) {
+                            e.Effect = DragDropEffects.Move;
+                            btn.BackColor = Color.FromArgb(224, 231, 255);
+                            btn.ForeColor = Color.FromArgb(67, 56, 202);
+                            return;
+                        }
+                    }
+                    e.Effect = DragDropEffects.None;
+                };
+                btn.DragLeave += (s, e) => {
+                    RefreshAllBedButtons();
+                };
+                btn.DragDrop += (s, e) => {
+                    RefreshAllBedButtons();
+                    if (e.Data.GetDataPresent(typeof(BedDragDropData))) {
+                        BedDragDropData data = (BedDragDropData)e.Data.GetData(typeof(BedDragDropData));
+                        if (data != null && data.SourceBed != bedNum) {
+                            int src = data.SourceBed;
+                            int tgt = bedNum;
+                            HandleBedDragDrop(src, tgt);
+                        }
+                    }
+                };
+
+                bedButtons[i] = btn;
+                flowBeds.Controls.Add(btn);
+            }
+            flowBeds.ResumeLayout();
+            UpdateBedButtonSizes();
+            RefreshAllBedButtons();
+            if (currentBed > total) currentBed = 1;
+            SelectBed(currentBed);
+        }
+
+        public void ReloadBedButtons() {
+            if (this.InvokeRequired) {
+                this.Invoke(new Action(ReloadBedButtons));
+                return;
+            }
+            BuildBedButtons();
+            RepositionTopControls();
+        }
+
         private void UpdateBedButtonSizes() {
             if (flowBeds == null) return;
             int availableW = flowBeds.ClientSize.Width - 8;
@@ -7871,7 +8000,9 @@ namespace MedicalTextExpander {
             if (btnW < 65) btnW = 65;
             int btnH = 34;
 
-            for (int i = 1; i <= 30; i++) {
+            int total = (context != null) ? context.TotalBeds : 30;
+            for (int i = 1; i <= total; i++) {
+                if (i >= bedButtons.Length) break;
                 Button btn = bedButtons[i];
                 if (btn != null) {
                     btn.Size = new Size(btnW, btnH);
@@ -7883,10 +8014,11 @@ namespace MedicalTextExpander {
         private void RepositionTopControls() {
             if (pnlTop == null) return;
             int w = pnlTop.ClientSize.Width;
+            int totalBeds = (context != null) ? context.TotalBeds : 30;
 
             // 1. App Title & Cloud Status (Left)
             if (lblAppTitle != null) {
-                lblAppTitle.Text = (w < 820) ? "🛏️ เตียง 1-30 v" + AppUpdater.CurrentVersion : "🛏️ ข้อมูลรายเตียง 1-30 v" + AppUpdater.CurrentVersion;
+                lblAppTitle.Text = (w < 820) ? string.Format("🛏️ เตียง 1-{0} v{1}", totalBeds, AppUpdater.CurrentVersion) : string.Format("🛏️ ข้อมูลรายเตียง 1-{0} v{1}", totalBeds, AppUpdater.CurrentVersion);
                 lblAppTitle.Font = new Font("Leelawadee UI", 11f, FontStyle.Bold);
                 lblAppTitle.Location = new Point(12, 7);
             }
@@ -8322,7 +8454,8 @@ namespace MedicalTextExpander {
         }
 
         public void SelectBed(int bedNum) {
-            if (bedNum < 1 || bedNum > 30) return;
+            int total = (context != null) ? context.TotalBeds : 30;
+            if (bedNum < 1 || bedNum > total) return;
 
             if (isDirty) {
                 FlushSave();
@@ -8349,8 +8482,10 @@ namespace MedicalTextExpander {
             txtNote.Focus();
         }
 
-public void RefreshAllBedButtons() {
-            for (int i = 1; i <= 30; i++) {
+        public void RefreshAllBedButtons() {
+            int total = (context != null) ? context.TotalBeds : 30;
+            for (int i = 1; i <= total; i++) {
+                if (i >= bedButtons.Length) break;
                 Button btn = bedButtons[i];
                 if (btn == null) continue;
 
@@ -8464,7 +8599,9 @@ public void RefreshAllBedButtons() {
 
         private void FilterBeds(string query) {
             string q = query.Trim().ToLower();
-            for (int i = 1; i <= 30; i++) {
+            int total = (context != null) ? context.TotalBeds : 30;
+            for (int i = 1; i <= total; i++) {
+                if (i >= bedButtons.Length) break;
                 Button btn = bedButtons[i];
                 if (btn == null) continue;
 
@@ -8854,7 +8991,8 @@ public void RefreshAllBedButtons() {
                 lastActiveWindow = fg;
             }
 
-            if (targetBed >= 1 && targetBed <= 30) {
+            int total = (context != null) ? context.TotalBeds : 30;
+            if (targetBed >= 1 && targetBed <= total) {
                 SelectBed(targetBed);
             } else {
                 RefreshAllBedButtons();
@@ -8992,8 +9130,9 @@ public void RefreshAllBedButtons() {
             txtSourcePreview.Font = new Font("Segoe UI", 8.5f);
             pnlBody.Controls.Add(txtSourcePreview);
 
+            int maxBeds = (context != null) ? context.TotalBeds : (manager != null ? manager.TotalBeds : 30);
             Label lblTargetPrompt = new Label();
-            lblTargetPrompt.Text = "🎯 เลือกเตียงปลายทาง (1 - 30):";
+            lblTargetPrompt.Text = string.Format("🎯 เลือกเตียงปลายทาง (1 - {0}):", maxBeds);
             lblTargetPrompt.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
             lblTargetPrompt.ForeColor = Color.FromArgb(15, 23, 42);
             lblTargetPrompt.Location = new Point(20, 104);
@@ -9008,7 +9147,7 @@ public void RefreshAllBedButtons() {
 
             int firstSelectIdx = 0;
             int curIdx = 0;
-            for (int i = 1; i <= 30; i++) {
+            for (int i = 1; i <= maxBeds; i++) {
                 if (i == sourceBed) continue;
                 string note = manager.GetBedNote(i);
                 bool hasData = !string.IsNullOrEmpty(note) && !string.IsNullOrEmpty(note.Trim());
@@ -10761,12 +10900,19 @@ public void RefreshAllBedButtons() {
     // หน้าต่างยืนยันรหัสผ่านผู้ดูแลระบบ (Admin Password Security Dialog)
     // =========================================================================
     public class AdminPasswordDialog : Form {
+        private ExpanderContext context;
         private string correctPassword;
         private TextBox txtPassword;
         private Label lblError;
         private Button btnOk;
         private Button btnCancel;
         private Button btnTogglePass;
+
+        public AdminPasswordDialog(ExpanderContext ctx) {
+            context = ctx;
+            if (ctx != null) correctPassword = ctx.AdminPassword;
+            InitializeUI();
+        }
 
         public AdminPasswordDialog(string targetPassword) {
             correctPassword = targetPassword;
@@ -10872,7 +11018,14 @@ public void RefreshAllBedButtons() {
         }
 
         private void ValidatePassword() {
-            if (txtPassword.Text.Trim() == correctPassword) {
+            string entered = txtPassword.Text.Trim();
+            bool valid = false;
+            if (context != null) {
+                valid = context.VerifyAdminPassword(entered);
+            } else if (!string.IsNullOrEmpty(correctPassword)) {
+                valid = (entered == correctPassword || WardUserManager.HashPassword(entered).Equals(correctPassword, StringComparison.OrdinalIgnoreCase));
+            }
+            if (valid) {
                 this.DialogResult = DialogResult.OK;
                 this.Close();
             } else {
@@ -10907,7 +11060,7 @@ public void RefreshAllBedButtons() {
 
         private void InitializeUI(string currentTemplatePath, string currentBedNotesPath) {
             this.Text = "การเชื่อมต่อข้อมูลส่วนกลางของวอร์ด (Cloud & Network Sync)";
-            this.Size = new System.Drawing.Size(650, 710);
+            this.Size = new System.Drawing.Size(650, 750);
             this.StartPosition = FormStartPosition.CenterScreen;
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
             this.MaximizeBox = false;
@@ -11185,8 +11338,34 @@ public void RefreshAllBedButtons() {
             }
             this.Controls.Add(cboIdleTimeout);
 
+            // 6. Ward Bed Count
+            Label lblTotalBeds = new Label();
+            lblTotalBeds.Text = "6. 🛏️ จำนวนเตียงผู้ป่วยในวอร์ด (Ward Beds 1 - 60):";
+            lblTotalBeds.Location = new Point(16, 535);
+            lblTotalBeds.AutoSize = true;
+            lblTotalBeds.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
+            lblTotalBeds.ForeColor = Color.FromArgb(15, 118, 110);
+            this.Controls.Add(lblTotalBeds);
+
+            NumericUpDown numTotalBeds = new NumericUpDown();
+            numTotalBeds.Location = new Point(18, 560);
+            numTotalBeds.Size = new Size(110, 29);
+            numTotalBeds.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
+            numTotalBeds.Minimum = 1;
+            numTotalBeds.Maximum = 60;
+            numTotalBeds.Value = (context.TotalBeds >= 1 && context.TotalBeds <= 60) ? context.TotalBeds : 30;
+            this.Controls.Add(numTotalBeds);
+
+            Label lblTotalBedsHint = new Label();
+            lblTotalBedsHint.Text = "ปรับเพิ่ม/ลดเตียงตามความจุจริงของวอร์ด (ค่าเริ่มต้นคือ 30 เตียง รองรับสูงสุด 60 เตียง)";
+            lblTotalBedsHint.Location = new Point(138, 562);
+            lblTotalBedsHint.Size = new Size(475, 26);
+            lblTotalBedsHint.Font = new Font("Segoe UI", 8.5f, FontStyle.Italic);
+            lblTotalBedsHint.ForeColor = Color.FromArgb(100, 116, 139);
+            this.Controls.Add(lblTotalBedsHint);
+
             lblStatus = new Label();
-            lblStatus.Location = new Point(18, 537);
+            lblStatus.Location = new Point(18, 595);
             lblStatus.Size = new Size(600, 36);
             lblStatus.Text = context.GetSupabaseEnabled() 
                 ? "สถานะ Cloud: ระบบเชื่อมต่อ Supabase Cloud เรียบร้อยแล้ว (ออนไลน์ 24 ชม.)" 
@@ -11196,7 +11375,7 @@ public void RefreshAllBedButtons() {
 
             btnTest = new Button();
             btnTest.Text = "🔍 ทดสอบเชื่อมต่อ Cloud";
-            btnTest.Location = new System.Drawing.Point(18, 580);
+            btnTest.Location = new System.Drawing.Point(18, 640);
             btnTest.Size = new Size(180, 40);
             btnTest.Font = new Font("Segoe UI", 9.5f);
             btnTest.Click += (s, e) => {
@@ -11212,7 +11391,7 @@ public void RefreshAllBedButtons() {
 
             btnSave = new Button();
             btnSave.Text = "💾 บันทึกการตั้งค่าทั้งหมด";
-            btnSave.Location = new System.Drawing.Point(210, 580);
+            btnSave.Location = new System.Drawing.Point(210, 640);
             btnSave.Size = new Size(220, 40);
             btnSave.BackColor = Color.FromArgb(13, 148, 136);
             btnSave.ForeColor = Color.White;
@@ -11231,6 +11410,14 @@ public void RefreshAllBedButtons() {
                 else if (cboIdleTimeout.SelectedIndex == 5) selectedTo = 0;
                 context.IdleTimeoutMinutes = selectedTo;
 
+                int newBeds = (int)numTotalBeds.Value;
+                if (newBeds >= 1 && newBeds <= 60 && newBeds != context.TotalBeds) {
+                    context.TotalBeds = newBeds;
+                    if (context.BedNotesFormInstance != null) {
+                        context.BedNotesFormInstance.ReloadBedButtons();
+                    }
+                }
+
                 context.SaveSettings("", "");
                 context.SetGitHubRepo(txtGitHubRepo.Text.Trim());
                 context.SetSupabaseConfig(txtSupabaseUrl.Text.Trim(), txtSupabaseKey.Text.Trim(), chkEnableSupabase.Checked);
@@ -11241,7 +11428,7 @@ public void RefreshAllBedButtons() {
 
             btnClear = new Button();
             btnClear.Text = "ใช้ในเครื่องนี้เท่านั้น";
-            btnClear.Location = new System.Drawing.Point(442, 580);
+            btnClear.Location = new System.Drawing.Point(442, 640);
             btnClear.Size = new Size(175, 40);
             btnClear.Font = new Font("Segoe UI", 9.5f);
             btnClear.Click += (s, e) => {
@@ -11322,7 +11509,8 @@ public void RefreshAllBedButtons() {
             cmbBed = new ComboBox();
             cmbBed.DropDownStyle = ComboBoxStyle.DropDownList;
             cmbBed.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
-            for (int i = 1; i <= 30; i++) {
+            int maxBeds = (context != null) ? context.TotalBeds : 30;
+            for (int i = 1; i <= maxBeds; i++) {
                 cmbBed.Items.Add(string.Format("เตียง {0}", i));
             }
             cmbBed.Location = new Point(635, 13);
@@ -11508,7 +11696,8 @@ public void RefreshAllBedButtons() {
         }
 
         public void ShowAndFocus(int bedNum = 1) {
-            if (bedNum < 1 || bedNum > 30) bedNum = 1;
+            int maxBeds = (context != null) ? context.TotalBeds : 30;
+            if (bedNum < 1 || bedNum > maxBeds) bedNum = 1;
             currentBed = bedNum;
             cmbBed.SelectedIndex = currentBed - 1;
             LoadHistoryForBed(currentBed);
@@ -11944,14 +12133,15 @@ public void RefreshAllBedButtons() {
             cmbBed = new ComboBox();
             cmbBed.DropDownStyle = ComboBoxStyle.DropDownList;
             cmbBed.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
-            for (int i = 1; i <= 30; i++) {
+            int maxBeds = (Program.CurrentContext != null) ? Program.CurrentContext.TotalBeds : 30;
+            for (int i = 1; i <= maxBeds; i++) {
                 cmbBed.Items.Add(string.Format("เตียง {0:D2}", i));
             }
             cmbBed.Items.Add("ทั่วไป (วอร์ด)");
 
             int bedToSelect = isEditing ? editingItem.BedNum : defaultBed;
-            if (bedToSelect >= 1 && bedToSelect <= 30) cmbBed.SelectedIndex = bedToSelect - 1;
-            else cmbBed.SelectedIndex = 30;
+            if (bedToSelect >= 1 && bedToSelect <= maxBeds) cmbBed.SelectedIndex = bedToSelect - 1;
+            else cmbBed.SelectedIndex = maxBeds;
             cmbBed.Location = new Point(120, y - 3);
             cmbBed.Size = new Size(150, 28);
             this.Controls.Add(cmbBed);
@@ -12218,7 +12408,7 @@ public void RefreshAllBedButtons() {
                     MessageBox.Show("กรุณาระบุรายละเอียดหัตถการ", "แจ้งเตือน", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return;
                 }
-                SelectedBed = cmbBed.SelectedIndex == 30 ? 0 : cmbBed.SelectedIndex + 1;
+                SelectedBed = (cmbBed.SelectedIndex >= maxBeds || cmbBed.SelectedIndex < 0) ? 0 : cmbBed.SelectedIndex + 1;
                 ReminderTitle = title;
                 if (radRelative.Checked) {
                     DateTime calc = DateTime.Now.AddMinutes((double)numMinutes.Value);
@@ -12482,7 +12672,8 @@ public void RefreshAllBedButtons() {
             cmbFilterBed.DropDownStyle = ComboBoxStyle.DropDownList;
             cmbFilterBed.Font = new Font("Segoe UI", 8.5f);
             cmbFilterBed.Items.Add("ทุกเตียง");
-            for (int i = 1; i <= 30; i++) cmbFilterBed.Items.Add(string.Format("เตียง {0:D2}", i));
+            int maxBeds = (context != null) ? context.TotalBeds : (Program.CurrentContext != null ? Program.CurrentContext.TotalBeds : 30);
+            for (int i = 1; i <= maxBeds; i++) cmbFilterBed.Items.Add(string.Format("เตียง {0:D2}", i));
             cmbFilterBed.Items.Add("ทั่วไป");
             cmbFilterBed.SelectedIndex = 0;
             cmbFilterBed.Location = new Point(122, 6);
@@ -12662,8 +12853,9 @@ public void RefreshAllBedButtons() {
 
             int filterIndex = cmbFilterBed != null ? cmbFilterBed.SelectedIndex : 0;
             int filterBed = -1;
-            if (filterIndex > 0 && filterIndex <= 30) filterBed = filterIndex;
-            else if (filterIndex == 31) filterBed = 0;
+            int maxBeds = (context != null) ? context.TotalBeds : (Program.CurrentContext != null ? Program.CurrentContext.TotalBeds : 30);
+            if (filterIndex > 0 && filterIndex <= maxBeds) filterBed = filterIndex;
+            else if (filterIndex == maxBeds + 1) filterBed = 0;
 
             List<WardReminderItem> all = manager.GetAll();
             int activeCount = 0;
@@ -13141,7 +13333,8 @@ if (diff.TotalSeconds <= 0) {
             cmbBedSelector.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             cmbBedSelector.Location = new Point(788, 14);
             cmbBedSelector.Size = new Size(138, 31);
-            for (int i = 1; i <= 30; i++) {
+            int maxBeds = (context != null) ? context.TotalBeds : (Program.CurrentContext != null ? Program.CurrentContext.TotalBeds : 30);
+            for (int i = 1; i <= maxBeds; i++) {
                 cmbBedSelector.Items.Add(string.Format("🛏️ เตียง {0}", i));
             }
             cmbBedSelector.SelectedIndex = 0;
@@ -13207,7 +13400,8 @@ if (diff.TotalSeconds <= 0) {
         }
 
         private void ChangeTargetBed(int bedNum) {
-            if (bedNum < 1 || bedNum > 30) return;
+            int maxBeds = (context != null) ? context.TotalBeds : (Program.CurrentContext != null ? Program.CurrentContext.TotalBeds : 30);
+            if (bedNum < 1 || bedNum > maxBeds) return;
             currentBed = bedNum;
             string bedText = string.Format("🛏️ บันทึกลงเตียง {0}", currentBed);
             if (btnSosInsert != null) btnSosInsert.Text = bedText;
@@ -15519,7 +15713,8 @@ if (diff.TotalSeconds <= 0) {
                 Anchor = AnchorStyles.Top | AnchorStyles.Right,
                 Location = new Point(895, 15)
             };
-            for (int i = 1; i <= 30; i++) {
+            int maxBeds = (context != null) ? context.TotalBeds : (Program.CurrentContext != null ? Program.CurrentContext.TotalBeds : 30);
+            for (int i = 1; i <= maxBeds; i++) {
                 cmbBedSelector.Items.Add(string.Format("เตียง {0:D2}", i));
             }
             cmbBedSelector.SelectedIndex = 0;
@@ -16129,7 +16324,8 @@ if (diff.TotalSeconds <= 0) {
                 lastActiveWindow = fg;
             }
 
-            if (bedNum >= 1 && bedNum <= 30) {
+            int maxBeds = (context != null) ? context.TotalBeds : (Program.CurrentContext != null ? Program.CurrentContext.TotalBeds : 30);
+            if (bedNum >= 1 && bedNum <= maxBeds) {
                 currentBed = bedNum;
                 if (cmbBedSelector != null && cmbBedSelector.SelectedIndex != bedNum - 1) {
                     cmbBedSelector.SelectedIndex = bedNum - 1;

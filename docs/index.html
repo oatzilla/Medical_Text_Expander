@@ -15,7 +15,7 @@
   <!-- FontAwesome Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   
-  <link rel="stylesheet" href="style.css?v=1.9.9">
+  <link rel="stylesheet" href="style.css?v=2.0.0">
 </head>
 <body>
   <!-- Top Navigation Bar -->
@@ -344,7 +344,7 @@
 
         <!-- Target Bed Selection -->
         <div class="swap-target-group">
-          <label for="swapTargetSelect" class="swap-label"><i class="fa-solid fa-hospital-user"></i> เลือกเตียงปลายทาง (1 - 30):</label>
+          <label for="swapTargetSelect" class="swap-label"><i class="fa-solid fa-hospital-user"></i> เลือกเตียงปลายทาง:</label>
           <select id="swapTargetSelect" class="swap-select">
             <!-- Populated dynamically via JS -->
           </select>
@@ -1010,13 +1010,18 @@
 
       <div class="modal-body" style="padding: 16px 20px; overflow-y: auto; flex: 1;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 10px;">
-          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items:center;">
             <button type="button" class="btn btn-primary btn-sm" id="btnOpenAddUserModal" style="background:#10b981; border:none;">
               <i class="fa-solid fa-user-plus"></i> เพิ่มผู้ใช้งานใหม่
             </button>
             <button type="button" class="btn btn-secondary btn-sm" id="btnOpenEmailApiModal" style="background:#0284c7; color:#fff; border:none;">
               <i class="fa-solid fa-envelope-circle-check"></i> ตั้งค่า Email API (OTP)
             </button>
+            <div style="display:inline-flex; align-items:center; gap:6px; background:var(--bg-hover); padding:3px 8px; border-radius:6px; border:1px solid var(--border-color);">
+              <label for="wardBedCountInput" style="font-size:12px; font-weight:600; color:var(--text-color); margin:0; white-space:nowrap;"><i class="fa-solid fa-bed"></i> เตียงวอร์ด:</label>
+              <input type="number" id="wardBedCountInput" min="1" max="60" value="30" style="width:50px; height:28px; text-align:center; font-weight:700; border-radius:4px; border:1px solid var(--border-color); background:var(--bg-card); color:var(--text-color); padding:0 2px;">
+              <button type="button" class="btn btn-primary btn-sm" id="btnSaveWardBedCount" style="height:28px; padding:0 8px; font-size:11px; font-weight:600;">บันทึก</button>
+            </div>
           </div>
           <div style="position:relative; width: 260px;">
             <i class="fa-solid fa-magnifying-glass" style="position:absolute; left:10px; top:50%; transform:translateY(-50%); color:var(--text-muted); font-size:12px;"></i>
@@ -1050,8 +1055,8 @@
           <div>
             <strong>คำแนะนำระบบหลายผู้ใช้:</strong>
             <ul style="margin: 4px 0 0 16px; padding:0;">
-              <li>บัญชี <strong>admin</strong> ครอบครองข้อมูลเตียง 1-30 หลักของวอร์ด</li>
-              <li>ผู้ใช้แต่ละคนจะมีชุดเตียง 1-30 แยกอิสระเป็นของตนเอง ไม่ปะปนกัน</li>
+              <li>บัญชี <strong>admin</strong> ครอบครองข้อมูลเตียงหลัก (1 - <span class="ward-total-beds-label">30</span>) ของวอร์ด</li>
+              <li>ผู้ใช้แต่ละคนจะมีชุดเตียงแยกอิสระเป็นของตนเอง ไม่ปะปนกัน</li>
               <li>ผู้ดูแลระบบ (Admin) สามารถกดปุ่ม <strong>[สลับดูเตียง]</strong> เพื่อเข้าไปดูและแก้ไขเตียงของพยาบาลทุกคนได้</li>
             </ul>
           </div>
@@ -1193,7 +1198,7 @@
   <div class="toast-container" id="toastContainer"></div>
 
   <!-- Application Logic -->
-  <script src="app.js?v=1.9.9.2"></script>
-  <script src="nic_noc.js?v=1.9.6.2"></script>
+  <script src="app.js?v=2.0.0"></script>
+  <script src="nic_noc.js?v=2.0.0"></script>
 </body>
 </html>

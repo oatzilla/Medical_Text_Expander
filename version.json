@@ -1,8 +1,8 @@
 {
-  "version": "1.9.9",
+  "version": "2.0.0",
   "downloadUrl": "https://github.com/oatzilla/Medical_Text_Expander/releases/latest/download/Medical_Text_Expander.exe",
   "download_url": "https://github.com/oatzilla/Medical_Text_Expander/releases/latest/download/Medical_Text_Expander.exe",
-  "releaseDate": "2026-10-09",
-  "release_date": "2026-10-09",
-  "changelog": "- บริการฟรี HTTP REST Email API (Resend / Brevo) สำหรับส่งรหัส OTP 6 หลักกู้คืนรหัสผ่าน:\r\n  1. รองรับ API Key ฟรีจาก Resend (3,000 ฉบับ/เดือน) และ Brevo (300 ฉบับ/วัน ~9,000 ฉบับ/เดือน) ตรวจจับผู้ให้บริการอัตโนมัติ (re_... / xkeysib-...)\r\n  2. ระบบกู้คืนรหัสผ่าน 2 ขั้นตอน (2-Step OTP Recovery) พร้อมหมดอายุใน 10 นาที และแจ้งเตือนความปลอดภัย\r\n  3. ระบบปลดล็อกฉุกเฉินวอร์ด (Master Ward PIN Fallback: 9844) สำหรับพยาบาลที่ไม่ได้ลงทะเบียนอีเมล หรือในกรณีเครือข่ายขัดข้อง\r\n  4. หน้าต่าง Admin ตั้งค่า Email API พร้อมปุ่มทดสอบส่งอีเมลทันที ซิงค์ข้อมูลข้าม Desktop และ Web ผ่าน Supabase Cloud Row 101"
+  "releaseDate": "2026-10-30",
+  "release_date": "2026-10-30",
+  "changelog": "- สถาปัตยกรรมปรับจำนวนเตียงหอผู้ป่วยแบบไดนามิก (Dynamic Ward Bed Architecture 1-60 เตียง, ค่าเริ่มต้น 30 เตียง): รองรับการขยาย/ลดจำนวนเตียงตามขนาดวอร์ด พร้อมคำนวณและปรับขนาดปุ่มแสดงผลอัตโนมัติ (Dynamic Responsive Grid)\r\n- ค่าเริ่มต้นอัตโนมัติพร้อมใช้งานทันที (Zero-Configuration Out-of-the-Box Defaults): กำหนดค่าเริ่มต้น Supabase URL, Key, GitHub Repo, FontSize 9.5, Admin PIN 9844 และสร้าง expander_settings.ini อัตโนมัติเมื่อย้ายไปรันเครื่องอื่น\r\n- ระบบรักษาความปลอดภัยและความลับขั้นสูง (Advanced Settings & Password Hash Protection): เข้ารหัสรหัสผ่านแอดมินด้วย SHA-256 (AdminPasswordHash) ปราศจาก Plaintext ในไฟล์ INI พร้อมซ่อน Mask Public API Key ใน UI และป้องกันการรั่วไหลด้วย .gitignore\r\n- ซิงค์โครงสร้างจำนวนเตียงข้ามระบบ (Cross-Platform Ward Beds Cloud Sync): ซิงค์ ward_config ผ่าน Supabase Cloud (Row 101) และเชื่อมโยงทั้ง Desktop WinForms และ Web & Mobile Portal 100%"
 }

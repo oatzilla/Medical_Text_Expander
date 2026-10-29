@@ -44,6 +44,41 @@ function normalizeToCRLF(text) {
 
 
 // State
+let totalBeds = 30;
+try {
+  const cachedBeds = localStorage.getItem('ward_total_beds');
+  if (cachedBeds) {
+    const tb = parseInt(cachedBeds, 10);
+    if (!isNaN(tb) && tb >= 1 && tb <= 60) totalBeds = tb;
+  }
+} catch {}
+
+function setTotalBeds(n, syncToCloud = true) {
+  const parsed = parseInt(n, 10);
+  if (isNaN(parsed) || parsed < 1 || parsed > 60) return;
+  const changed = (totalBeds !== parsed);
+  totalBeds = parsed;
+  try { localStorage.setItem('ward_total_beds', totalBeds.toString()); } catch {}
+
+  const inpBedCount = document.getElementById('wardBedCountInput');
+  if (inpBedCount) inpBedCount.value = totalBeds;
+  document.querySelectorAll('.ward-total-beds-label').forEach(el => el.textContent = totalBeds);
+
+  if (changed) {
+    initEmptyBeds();
+    loadCachedBeds();
+    if (activeBedNumber > totalBeds) activeBedNumber = 1;
+    renderBeds();
+    updateStats();
+    if (syncToCloud && typeof saveUsersCatalogToCloud === 'function') {
+      saveUsersCatalogToCloud(usersCatalogCache);
+    }
+    if (typeof fetchAllBeds === 'function' && getCurrentUser()) {
+      fetchAllBeds();
+    }
+  }
+}
+
 let bedsData = [];
 let prevContentMap = new Map();
 let currentFilter = 'all';
@@ -370,6 +405,9 @@ async function fetchUsersCatalogFromCloud() {
           if (Array.isArray(parsed.users) && parsed.users.length > 0) {
             usersCatalogCache = parsed.users;
           }
+          if (parsed.ward_config && typeof parsed.ward_config.total_beds === 'number') {
+            setTotalBeds(parsed.ward_config.total_beds, false);
+          }
           if (parsed.email_config) {
             emailConfigCache = {
               api_key: parsed.email_config.api_key || '',
@@ -397,6 +435,9 @@ async function fetchUsersCatalogFromCloud() {
       const parsed = JSON.parse(cached);
       if (parsed && Array.isArray(parsed.users)) {
         usersCatalogCache = parsed.users;
+      }
+      if (parsed && parsed.ward_config && typeof parsed.ward_config.total_beds === 'number') {
+        setTotalBeds(parsed.ward_config.total_beds, false);
       }
       if (parsed && parsed.email_config) {
         emailConfigCache = {
@@ -432,6 +473,7 @@ async function saveUsersCatalogToCloud(usersList) {
   usersCatalogCache = usersList;
   const payload = {
     version: 1,
+    ward_config: { total_beds: totalBeds },
     users: usersList,
     email_config: emailConfigCache
   };
@@ -478,7 +520,7 @@ async function ensureUserSlotRowsExist(userSlot, username) {
 
     const rowsToInsert = [];
     const nowIso = new Date().toISOString();
-    for (let i = 1; i <= 30; i++) {
+    for (let i = 1; i <= totalBeds; i++) {
       rowsToInsert.push({
         bed_number: (userSlot * 100) + i,
         content: '',
@@ -675,14 +717,14 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 });
 
-// Initialize 30 empty beds
+// Initialize empty beds
 function initEmptyBeds() {
   bedGeneration++;
   bedVersion = null;
   bedFullFetchAt = 0;
   bedRetryAt = 0;
   bedsData = [];
-  for (let i = 1; i <= 30; i++) {
+  for (let i = 1; i <= totalBeds; i++) {
     bedsData.push({
       bed_number: i,
       content: '',
@@ -1118,7 +1160,14 @@ function closeLoginModal() {
 function openUserManagementModal() {
   const modal = document.getElementById('userManagementModal');
   if (!modal) return;
-  fetchUsersCatalogFromCloud().then(() => renderUsersTable());
+  const inpBedCount = document.getElementById('wardBedCountInput');
+  if (inpBedCount) inpBedCount.value = totalBeds;
+  document.querySelectorAll('.ward-total-beds-label').forEach(el => el.textContent = totalBeds);
+  fetchUsersCatalogFromCloud().then(() => {
+    if (inpBedCount) inpBedCount.value = totalBeds;
+    document.querySelectorAll('.ward-total-beds-label').forEach(el => el.textContent = totalBeds);
+    renderUsersTable();
+  });
   renderUsersTable();
   modal.classList.add('open');
   modal.setAttribute('aria-hidden', 'false');
@@ -1152,8 +1201,8 @@ function renderUsersTable(filterText = '') {
       : '<span class="badge-role-user">👩‍⚕️ User</span>';
 
     const slotText = u.user_slot === 0
-      ? '<span style="font-weight:600; color:#0d9488;">เตียงหลัก (1-30)</span>'
-      : `<span>Slot ${u.user_slot} (${(u.user_slot * 100) + 1} - ${(u.user_slot * 100) + 30})</span>`;
+      ? `<span style="font-weight:600; color:#0d9488;">เตียงหลัก (1-${totalBeds})</span>`
+      : `<span>Slot ${u.user_slot} (${(u.user_slot * 100) + 1} - ${(u.user_slot * 100) + totalBeds})</span>`;
 
     let regBadge = '<span class="badge-reg-type">ระบบเดิม</span>';
     if (u.registered_via === 'app_self') {
@@ -1253,12 +1302,12 @@ window.handleDeleteUser = async function(username) {
     return;
   }
 
-  const deleteBeds = confirm(`ต้องการล้างข้อมูลเตียง Slot ${u.user_slot} (${(u.user_slot * 100) + 1} - ${(u.user_slot * 100) + 30}) บน Cloud ด้วยหรือไม่?\n\nกด [OK / ตกลง] เพื่อล้างข้อมูลเตียงทั้งหมดของผู้ใช้นี้\nกด [Cancel / ยกเลิก] เพื่อลบเฉพาะบัญชีแต่เก็บประวัติเตียงไว้`);
+  const deleteBeds = confirm(`ต้องการล้างข้อมูลเตียง Slot ${u.user_slot} (${(u.user_slot * 100) + 1} - ${(u.user_slot * 100) + totalBeds}) บน Cloud ด้วยหรือไม่?\n\nกด [OK / ตกลง] เพื่อล้างข้อมูลเตียงทั้งหมดของผู้ใช้นี้\nกด [Cancel / ยกเลิก] เพื่อลบเฉพาะบัญชีแต่เก็บประวัติเตียงไว้`);
 
   if (deleteBeds && u.user_slot > 0) {
     try {
       const minBed = (u.user_slot * 100) + 1;
-      const maxBed = (u.user_slot * 100) + 30;
+      const maxBed = (u.user_slot * 100) + totalBeds;
       await fetch(`${SUPABASE_URL}/rest/v1/bed_notes?bed_number=gte.${minBed}&bed_number=lte.${maxBed}`, {
         method: 'DELETE',
         headers: {
@@ -2212,6 +2261,21 @@ function setupEventListeners() {
     });
   }
 
+  const btnSaveBedCount = document.getElementById('btnSaveWardBedCount');
+  const inpBedCount = document.getElementById('wardBedCountInput');
+  if (btnSaveBedCount && inpBedCount) {
+    btnSaveBedCount.addEventListener('click', async () => {
+      const val = parseInt(inpBedCount.value, 10);
+      if (isNaN(val) || val < 1 || val > 60) {
+        showToast('กรุณาระบุจำนวนเตียงระหว่าง 1 ถึง 60', 'warning');
+        return;
+      }
+      setTotalBeds(val, true);
+      renderUsersTable();
+      showToast(`บันทึกจำนวนเตียงวอร์ดเป็น ${val} เตียงเรียบร้อยแล้ว (ซิงค์ Cloud Row 101)`, 'success');
+    });
+  }
+
   // Add / Edit User Modal
   const btnCloseAddEdit = document.getElementById('btnCloseAddEditUserModal');
   const btnCancelAddEdit = document.getElementById('btnCancelAddEditUser');
@@ -2406,7 +2470,7 @@ async function fetchAllBeds() {
   try {
     const slot = getActiveWorkspaceSlot();
     const startBed = slot === 0 ? 1 : (slot * 100) + 1;
-    const endBed = slot === 0 ? 30 : (slot * 100) + 30;
+    const endBed = slot === 0 ? totalBeds : (slot * 100) + totalBeds;
 
     const meta = await fetch(`${SUPABASE_URL}/rest/v1/bed_notes?bed_number=gte.${startBed}&bed_number=lte.${endBed}&select=bed_number,updated_at&order=bed_number.asc`, {
       signal: controller.signal,
@@ -2447,7 +2511,7 @@ async function fetchAllBeds() {
     bedRetryAt = 0;
     setCloudStatus(true);
 
-    if (slot > 0 && data.length < 30) {
+    if (slot > 0 && data.length < totalBeds) {
       ensureUserSlotRowsExist(slot, getActiveWorkspaceUser());
     }
 
@@ -2455,7 +2519,7 @@ async function fetchAllBeds() {
     const changedBeds = new Set();
     data.forEach(item => {
       const localBedNum = slot === 0 ? item.bed_number : item.bed_number - (slot * 100);
-      if (localBedNum >= 1 && localBedNum <= 30) {
+      if (localBedNum >= 1 && localBedNum <= totalBeds) {
         const prev = prevContentMap.get(localBedNum);
         if (prev !== undefined && prev !== (item.content || '')) {
           changedBeds.add(localBedNum);
@@ -2701,7 +2765,7 @@ function renderBeds(changedBeds = new Set()) {
 
 // Update Top Bar Census & Stats
 function updateStats() {
-  const total = 30;
+  const total = totalBeds;
   const occupied = bedsData.filter(b => b.content && b.content.trim().length > 0).length;
   const available = total - occupied;
 
@@ -3186,14 +3250,14 @@ window.openSwapModal = function(bedNum, defaultTargetBed = null) {
       : '(เตียงว่าง ไม่มีข้อมูลผู้ป่วย)';
   }
 
-  // Populate target bed dropdown (Bed 1 - 30 except source)
+  // Populate target bed dropdown (Bed 1 - totalBeds except source)
   const select = document.getElementById('swapTargetSelect');
   if (select) {
     select.innerHTML = '';
     let firstSelectIdx = 0;
     let optCount = 0;
 
-    for (let i = 1; i <= 30; i++) {
+    for (let i = 1; i <= totalBeds; i++) {
       if (i === bedNum) continue;
       const bData = bedsData.find(b => b.bed_number === i);
       const bContent = bData && bData.content ? bData.content.trim() : '';
@@ -3822,7 +3886,7 @@ function openTemplateModal(source = 'navbar') {
   // Setup Bed Target Selector
   if (targetBedSelect) {
     targetBedSelect.innerHTML = '';
-    for (let b = 1; b <= 30; b++) {
+    for (let b = 1; b <= totalBeds; b++) {
       const opt = document.createElement('option');
       opt.value = b;
       opt.textContent = `เตียง ${String(b).padStart(2, '0')}`;
