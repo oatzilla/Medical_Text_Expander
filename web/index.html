@@ -15,7 +15,7 @@
   <!-- FontAwesome Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   
-  <link rel="stylesheet" href="style.css?v=2.0.1">
+  <link rel="stylesheet" href="style.css?v=2.1.0">
 </head>
 <body>
   <!-- Top Navigation Bar -->
@@ -229,7 +229,7 @@
         <!-- Quick Templates Bar -->
         <div class="quick-templates-bar">
           <button type="button" class="btn-picker-trigger" id="btnOpenTemplatePicker" title="เปิดคลังเลือกข้อวินิจฉัยและกิจกรรมการพยาบาล">
-            <i class="fa-solid fa-book-medical"></i> เลือกข้อวินิจฉัย/DAR (118 เทมเพลต)
+            <i class="fa-solid fa-book-medical"></i> เลือกข้อวินิจฉัย/DAR (121 เทมเพลต)
           </button>
           <button type="button" class="btn-picker-trigger" id="btnOpenNicNocPicker" onclick="openNicNocModal(typeof activeBedNumber !== 'undefined' ? activeBedNumber : 1)" style="background: rgba(79, 70, 229, 0.12); color: #4338ca; border-color: rgba(79, 70, 229, 0.3);" title="เปิดระบบแผนการพยาบาลมาตรฐานสากล NANDA-I, NIC, NOC">
             <i class="fa-solid fa-stethoscope"></i> แผนการพยาบาล NIC/NOC
@@ -400,7 +400,7 @@
           <div class="modal-bed-badge template-header-badge"><i class="fa-solid fa-book-medical"></i> DAR</div>
           <div class="modal-title-row">
             <h2 class="modal-title">คลังข้อวินิจฉัยและกิจกรรมการพยาบาล</h2>
-            <span class="template-count-badge" id="templateCountBadge">118 เทมเพลต</span>
+            <span class="template-count-badge" id="templateCountBadge">121 เทมเพลต</span>
           </div>
         </div>
         <button class="modal-close-btn" id="templateModalCloseBtn" aria-label="Close template modal"><i class="fa-solid fa-xmark"></i></button>
@@ -518,7 +518,7 @@
           <div class="modal-bed-badge nicnoc-header-badge"><i class="fa-solid fa-stethoscope"></i> NIC/NOC</div>
           <div class="modal-title-row">
             <h2 class="modal-title">ระบบแผนการพยาบาลมาตรฐานสากล NANDA-I, NIC, NOC</h2>
-            <span class="template-count-badge" id="nicNocCountBadge">20 ข้อวินิจฉัย</span>
+            <span class="template-count-badge" id="nicNocCountBadge">22 ข้อวินิจฉัย</span>
           </div>
         </div>
         <button class="modal-close-btn" id="nicNocModalCloseBtn" aria-label="Close NIC/NOC modal"><i class="fa-solid fa-xmark"></i></button>
@@ -1198,7 +1198,7 @@
   <div class="toast-container" id="toastContainer"></div>
 
   <!-- Application Logic -->
-  <script src="app.js?v=2.0.1"></script>
-  <script src="nic_noc.js?v=2.0.1"></script>
+  <script src="app.js?v=2.1.0"></script>
+  <script src="nic_noc.js?v=2.1.0"></script>
 </body>
 </html>

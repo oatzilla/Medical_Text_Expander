@@ -14,9 +14,9 @@ using System.Security.Cryptography;
 [assembly: System.Reflection.AssemblyTitle("Medical Text Expander")]
 [assembly: System.Reflection.AssemblyDescription("Medical Text Expander for Hospital Ward")]
 [assembly: System.Reflection.AssemblyProduct("Medical Text Expander")]
-[assembly: System.Reflection.AssemblyVersion("2.0.1.0")]
-[assembly: System.Reflection.AssemblyFileVersion("2.0.1.0")]
-[assembly: System.Reflection.AssemblyInformationalVersion("2.0.1")]
+[assembly: System.Reflection.AssemblyVersion("2.1.0.0")]
+[assembly: System.Reflection.AssemblyFileVersion("2.1.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersion("2.1.0")]
 
 namespace MedicalTextExpander {
     public class TemplateItem {
@@ -262,7 +262,7 @@ namespace MedicalTextExpander {
     }
 
     public static class AppUpdater {
-        public const string DefaultVersion = "2.0.1";
+        public const string DefaultVersion = "2.1.0";
         private static string _resolvedVersion = null;
 
         public static string CurrentVersion {
@@ -2120,7 +2120,7 @@ namespace MedicalTextExpander {
                 }
 
                 // If missing bone cancer templates or total < 118, auto-sync from Cloud (Row 102 or GitHub Raw)
-                if (allowCloudSync && (templates.Count < 118 || !hasBoneCa)) {
+                if (allowCloudSync && (templates.Count < 121 || !hasBoneCa)) {
                     SyncTemplatesFromCloudDirect(false);
                 }
             } catch (Exception ex) {
@@ -7603,7 +7603,7 @@ namespace MedicalTextExpander {
             pnlQuickButtons.Controls.Add(lblQuick);
 
             Button btnDarCatalog = new Button();
-            btnDarCatalog.Text = "📋 คลังข้อวินิจฉัย/DAR (118 เทมเพลต)";
+            btnDarCatalog.Text = "📋 คลังข้อวินิจฉัย/DAR (121 เทมเพลต)";
             btnDarCatalog.Font = new Font("Segoe UI", 8.5f, FontStyle.Bold);
             btnDarCatalog.BackColor = Color.FromArgb(13, 148, 136);
             btnDarCatalog.ForeColor = Color.White;
@@ -9884,7 +9884,7 @@ namespace MedicalTextExpander {
             pnlTop.Controls.Add(txtSearch);
 
             lblSearchCount = new Label();
-            lblSearchCount.Text = "118 เทมเพลต";
+            lblSearchCount.Text = "121 เทมเพลต";
             lblSearchCount.ForeColor = Color.FromArgb(204, 251, 241);
             lblSearchCount.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
             lblSearchCount.AutoSize = true;
@@ -9948,7 +9948,7 @@ namespace MedicalTextExpander {
             pnlCategories.BackColor = Color.FromArgb(241, 245, 249);
             pnlCategories.Padding = new Padding(10, 5, 10, 5);
 
-            AddCategoryButton("all", "ทั้งหมด (118)");
+            AddCategoryButton("all", "ทั้งหมด (121)");
             AddCategoryButton("boneca", "[มะเร็ง/ฉายแสง] Bone Ca / RT");
             AddCategoryButton("palliative", "[ระยะสุดท้าย] Palliative / Comfort");
             AddCategoryButton("neuro", "[ระบบประสาท] Stroke / ICP / Seizure");
@@ -11204,7 +11204,7 @@ namespace MedicalTextExpander {
             grpCloudTpl.Controls.Add(lblCloudNotice);
 
             Button btnSyncTplNow = new Button();
-            btnSyncTplNow.Text = "☁️ ซิงค์คลัง 118 เทมเพลตจาก Cloud ทันที";
+            btnSyncTplNow.Text = "☁️ ซิงค์คลัง 121 เทมเพลตจาก Cloud ทันที";
             btnSyncTplNow.Location = new Point(16, 66);
             btnSyncTplNow.Size = new Size(320, 36);
             btnSyncTplNow.BackColor = Color.FromArgb(238, 242, 255);
@@ -15619,6 +15619,44 @@ if (diff.TotalSeconds <= 0) {
                 },
                 @"ประเมินผลลัพธ์ (NOC Evaluation): หลังให้การพยาบาล ผู้ป่วยนอนหลับพักผ่อนได้ สีหน้าสงบ ลมหายใจสม่ำเสมอ ญาติได้อยู่ดูแลข้างเตียงด้วยความสบายใจ"
             ));
+            list.Add(new NicNocDiagnosisItem(
+                @"00311",
+                @"การฟื้นฟูสภาพและสมรรถภาพทางกายในผู้ป่วยโรคหลอดเลือดสมอง (Stroke Rehabilitation & Functional Recovery)",
+                @"4. Activity/Rest (กิจกรรมและการพักผ่อน)",
+                @"ระบบประสาทและสมอง",
+                @"ความบกพร่องของระบบประสาทสั่งการ (Motor deficit) จากเนื้อสมองขาดเลือดหรือมีเลือดออกในสมอง, แขนขาอ่อนแรงครึ่งซีก (Hemiparesis/Hemiplegia), ภาวะเกร็งของกล้ามเนื้อ (Spasticity), และการสูญเสียการรับความรู้สึก",
+                @"ผู้ป่วยและญาติบอกว่า แขนขาข้างที่มีอาการขยับไม่ได้/ยกไม่ขึ้น พลิกตัวลำบาก กลืนน้ำแล้วสำลัก กลัวว่าจะกลับมาเดินไม่ได้ กังวลเรื่องการเป็นภาระของครอบครัว",
+                @"ผู้ป่วย Stroke มี Motor power แขนขาข้างซ้าย/ขวา Grade 1-2, ปากเบี้ยว สื่อสารไม่คล่อง (Dysphasia), มีข้อจำกัดในการเคลื่อนไหวบนเตียง Barthel ADL Index < 5 คะแนน (พึ่งพาผู้อื่นทั้งหมด), เสี่ยงต่อข้อไหล่หลุดหลวม (Shoulder subluxation) และปลายเท้าตก (Foot drop)",
+                @"การฟื้นฟูสมรรถภาพระบบประสาท (Neuro-rehabilitation & Mobility: NOC 0208 / NOC 0909) - แขนขาข้างที่อ่อนแรงได้รับการจัดท่าถูกต้อง (Functional position) ไม่เกิดภาวะแทรกซ้อน (ข้อติดแข็ง, แผลกดทับ, หัวไหล่หลุดหลวม), สามารถพลิกตะแคงตัวและฝึกนั่งทรงตัวข้างเตียงได้, กลืนอาหารปลอดภัยไม่สำลัก",
+                new List<NicNocActivityItem> {
+                    new NicNocActivityItem(@"จัดท่าแขนขาข้างที่อ่อนแรงให้อยู่ในท่าที่พร้อมทำงาน (Functional position) หนุนหมอนใต้ต้นแขนและมือเพื่อป้องกันข้อไหล่หลุดหลวม (Shoulder subluxation) และจัดปลายเท้าตั้งฉาก 90 องศาเพื่อป้องกันปลายเท้าตก (Foot drop)", @"all", true),
+                    new NicNocActivityItem(@"ทำและสอนญาติทำกายภาพบำบัดฟื้นฟูข้อต่อโดยขยับแขนขาทุกข้ออย่างนุ่มนวล (Passive ROM exercises) อย่างน้อยวันละ 2-3 รอบ รอบละ 10-15 ครั้ง เพื่อป้องกันข้อติดแข็งและกระตุ้นการไหลเวียนโลหิต", @"morning", true),
+                    new NicNocActivityItem(@"กระตุ้นและฝึกการพลิกตะแคงตัวบนเตียงทุก 2 ชั่วโมง (Bed mobility) ฝึกการใช้มือข้างดีช่วยพยุงมือข้างที่อ่อนแรง (Bobath concept) และฝึกการยกก้น (Bridging exercise) เตรียมพร้อมสำหรับการลุกนั่ง", @"all", true),
+                    new NicNocActivityItem(@"ประเมินความสามารถในการกลืน (Swallowing assessment / Water swallow test) ก่อนให้อาหาร/น้ำ จัดท่านั่งตัวตรง 90 องศา ก้มคอเล็กน้อย (Chin tuck) ขณะกลืน และดูแลอาหารดัดแปลงตามระดับการกลืนเพื่อป้องกันการสำลักลงปอด (Aspiration pneumonia)", @"morning", true),
+                    new NicNocActivityItem(@"ประสานงานร่วมกับทีมสหสาขาวิชาชีพ (นักกายภาพบำบัด นักกิจกรรมบำบัด และแพทย์เวชศาสตร์ฟื้นฟู) เพื่อวางแผนฟื้นฟูสมรรถภาพร่างกาย การทรงตัว และการฝึกพูด (Speech therapy)", @"afternoon", true),
+                    new NicNocActivityItem(@"ให้กำลังใจ เสริมสร้างแรงจูงใจในการฟื้นฟูสภาพ แนะนำญาติให้มีส่วนร่วมในการทำกิจกรรมบำบัด และจัดสิ่งแวดล้อมเพื่อป้องกันอุบัติเหตุพลัดตกเตียง", @"night", true)
+                },
+                @"ประเมินผลลัพธ์ (NOC Evaluation): แขนขาข้างที่อ่อนแรงได้รับการจัดท่า Functional position ถูกต้อง ปลายเท้าไม่ตก ไหล่ไม่หลุดหลวม สามารถฝึกทำ Passive ROM ได้ครบทุกข้อ ไม่มีข้อติดแข็ง เริ่มฝึกพลิกตัวและยกก้นบนเตียงได้ รับประทานอาหารทางสาย/อาหารดัดแปลงได้โดยไม่มีอาการสำลัก"
+            ));
+            list.Add(new NicNocDiagnosisItem(
+                @"00205",
+                @"การดูแลหลังได้รับสารทึบแสงและรังสีวินิจฉัย/รักษา (Post-Contrast Media & Radiation Nursing Care)",
+                @"11. Safety/Protection (ความปลอดภัย)",
+                @"หัตถการและรังสีวิทยา",
+                @"การได้รับสารทึบแสงทางหลอดเลือดดำหรือแดง (Intravascular iodinated contrast media) ในการตรวจ CT Scan / Angiography / Interventional Radiology และผลข้างเคียงจากรังสีวินิจฉัย/รังสีรักษา",
+                @"ผู้ป่วยบ่นร้อนวูบวาบตามร่างกาย คลื่นไส้ มีอาการคันตามผิวหนัง หรือบ่นปวดแสบตึงบริเวณที่ฉีดสารทึบแสง/หลอดเลือดดำ",
+                @"ผู้ป่วยเพิ่งกลับจากการตรวจทางรังสีวิทยาที่ใช้สารทึบแสง (Contrast-enhanced CT / CAG / PTA / Embolization), มีรอยฉีดสารทึบแสงที่แขน/รอยเจาะหลอดเลือด (Puncture site), ผลเลือดเดิม Scr... mg/dL, eGFR... mL/min, V/S: BP 124/78 mmHg, PR 82 bpm, SpO2 98%",
+                @"การทำงานของไตและปฏิกิริยาหลังได้รับสารทึบแสง/รังสี (Renal Function & Contrast Safety: NOC 0504 / NOC 1902) - ไม่เกิดภาวะไตวายเฉียบพลันจากสารทึบแสง (CIN), Urine output > 0.5-1 mL/kg/hr, ไม่เกิดปฏิกิริยาแพ้สารทึบแสงรุนแรง (Anaphylactoid reaction), บริเวณที่ฉีดสารทึบแสงไม่มีการรั่วซึม (Extravasation)",
+                new List<NicNocActivityItem> {
+                    new NicNocActivityItem(@"ประเมินและติดตามสัญญาณชีพแรกรับกลับจากห้องรังสีวินิจฉัย/ห้องปฏิบัติการสวนหลอดเลือด และตรวจวัดซ้ำทุก 1-2 ชั่วโมง สังเกตอาการแพ้สารทึบแสง (ผื่นลมพิษ, ตาบวม, แน่นหน้าอก, หายใจมีเสียงหวีด Stridor)", @"all", true),
+                    new NicNocActivityItem(@"ส่งเสริมและกระตุ้นการขับสารทึบแสงออกจากร่างกาย (Contrast clearance) โดยดูแลให้สารน้ำทางหลอดเลือดดำ (IV 0.9% NSS / Acetar 1-1.5 mL/kg/hr) ตามแผนการรักษา และกระตุ้นให้ผู้ป่วยดื่มน้ำเปล่ามากๆ 1,500 - 2,000 mL ใน 24 ชั่วโมงแรก (หากไม่มีข้อจำกัดเรื่องโรคหัวใจหรือไตวาย)", @"morning", true),
+                    new NicNocActivityItem(@"บันทึกและติดตามปริมาณน้ำเข้า-ออกอย่างเคร่งครัด (Strict I/O) โดยติดตาม Urine output ทุกชั่วโมงหรือทุกเวร (เป้าหมาย ≥ 0.5 mL/kg/hr หรือ > 50 mL/hr) และสังเกตสี/ลักษณะของปัสสาวะ", @"all", true),
+                    new NicNocActivityItem(@"ตรวจประเมินตำแหน่งที่ฉีดสารทึบแสงทางหลอดเลือดดำ (IV site) สังเกตอาการบวม แดง ร้อน ปวดตึง หากสงสัยสารทึบแสงรั่วออกนอกหลอดเลือด (Extravasation) ให้หยุดให้สารน้ำทันที ยกแขนสูง ประคบเย็น และรายงานแพทย์", @"all", true),
+                    new NicNocActivityItem(@"เฝ้าระวังผลการตรวจการทำงานของไต (Serum Creatinine & eGFR) ซ้ำใน 48-72 ชั่วโมงหลังได้รับสารทึบแสง เพื่อคัดกรองภาวะ Contrast-Induced Nephropathy (CIN)", @"afternoon", true),
+                    new NicNocActivityItem(@"สังเกตและบันทึกอาการข้างเคียงทางรังสี (คลื่นไส้ อาเจียน อ่อนเพลีย) จัดท่าศีรษะสูงป้องกันการสำลัก ดูแลให้ยาแก้อาเจียน (Antiemetic) ตามแผนการรักษา และให้ผู้ป่วยนอนหลับพักผ่อนอย่างเพียงพอ", @"night", true)
+                },
+                @"ประเมินผลลัพธ์ (NOC Evaluation): ผู้ป่วยไม่มีอาการแพ้สารทึบแสง ไม่มีผื่นหรือหายใจขัด สัญญาณชีพคงที่ ปัสสาวะออกดีต่อเนื่อง > 60 mL/hr สีเหลืองใส ตำแหน่งที่ฉีดสารทึบแสงปกติ ไม่บวม ไม่มีการรั่วซึม แขนขาอุ่นดี รับประทานน้ำและอาหารได้"
+            ));
             return list;
         }
     }
@@ -15673,7 +15711,7 @@ if (diff.TotalSeconds <= 0) {
         }
 
         private void InitializeUI() {
-            this.Text = "🩺 ระบบแผนการพยาบาลมาตรฐานสากล NANDA-I, NIC, NOC - Focus Charting (DAR) v1.9.6";
+            this.Text = "🩺 ระบบแผนการพยาบาลมาตรฐานสากล NANDA-I, NIC, NOC - Focus Charting (DAR) v2.1.0";
             this.Size = new Size(1020, 720);
             this.MinimumSize = new Size(880, 580);
             this.StartPosition = FormStartPosition.CenterScreen;

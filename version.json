@@ -1,8 +1,8 @@
 {
-  "version": "2.0.1",
+  "version": "2.1.0",
   "downloadUrl": "https://github.com/oatzilla/Medical_Text_Expander/releases/latest/download/Medical_Text_Expander.exe",
   "download_url": "https://github.com/oatzilla/Medical_Text_Expander/releases/latest/download/Medical_Text_Expander.exe",
   "releaseDate": "2026-10-30",
   "release_date": "2026-10-30",
-  "changelog": "- แก้ไขข้อผิดพลาด NullReferenceException ใน BedNotesForm.SelectBed ขณะเปิดโปรแกรม (Startup UI Lifecycle Guard): ป้องกันการเรียก SelectBed ก่อนที่ช่องบันทึกข้อมูลเตียง (txtNote) และส่วนหัว (lblBedTitle) จะถูกสร้างเสร็จสมบูรณ์ 100%"
+  "changelog": "- เพิ่มข้อวินิจฉัยและแผนการพยาบาล Stroke Rehabilitation (NANDA-I 00311 / .strokerehab): การฟื้นฟูสมรรถภาพผู้ป่วยโรคหลอดเลือดสมอง จัดท่า Functional position ป้องกันข้อไหล่หลุดหลวม (Shoulder subluxation) ปลายเท้าตก กายภาพบำบัด Bobath และฝึกการกลืนปลอดภัย\r\n- เพิ่มข้อวินิจฉัยและแผนการพยาบาลการดูแลหลังได้รับสารทึบแสงและรังสี (NANDA-I 00205 / .contrastcare / .postradcare): เฝ้าระวังอาการแพ้สารทึบแสง ป้องกันภาวะไตเสื่อมเฉียบพลัน (CIN) ติดตาม Strict I/O และการดูแลผิวหนัง/บรรเทาอาการข้างเคียงหลังได้รับรังสี\r\n- ขยายคลังข้อวินิจฉัยและกิจกรรมการพยาบาลรวมเป็น 121 เทมเพลต (Category 21 ใหม่) และแผนการพยาบาลสากล NANDA-I/NIC/NOC รวมเป็น 22 ข้อวินิจฉัย พร้อมซิงค์ Supabase Cloud (Row 102) ทั้งบน Desktop WinForms และ Web Portal 100%"
 }
