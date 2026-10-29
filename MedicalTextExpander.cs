@@ -14,9 +14,9 @@ using System.Security.Cryptography;
 [assembly: System.Reflection.AssemblyTitle("Medical Text Expander")]
 [assembly: System.Reflection.AssemblyDescription("Medical Text Expander for Hospital Ward")]
 [assembly: System.Reflection.AssemblyProduct("Medical Text Expander")]
-[assembly: System.Reflection.AssemblyVersion("2.0.0.0")]
-[assembly: System.Reflection.AssemblyFileVersion("2.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersion("2.0.0")]
+[assembly: System.Reflection.AssemblyVersion("2.0.1.0")]
+[assembly: System.Reflection.AssemblyFileVersion("2.0.1.0")]
+[assembly: System.Reflection.AssemblyInformationalVersion("2.0.1")]
 
 namespace MedicalTextExpander {
     public class TemplateItem {
@@ -262,7 +262,7 @@ namespace MedicalTextExpander {
     }
 
     public static class AppUpdater {
-        public const string DefaultVersion = "2.0.0";
+        public const string DefaultVersion = "2.0.1";
         private static string _resolvedVersion = null;
 
         public static string CurrentVersion {
@@ -7971,8 +7971,10 @@ namespace MedicalTextExpander {
             flowBeds.ResumeLayout();
             UpdateBedButtonSizes();
             RefreshAllBedButtons();
-            if (currentBed > total) currentBed = 1;
-            SelectBed(currentBed);
+            if (txtNote != null) {
+                if (currentBed > total) currentBed = 1;
+                SelectBed(currentBed);
+            }
         }
 
         public void ReloadBedButtons() {
@@ -8456,6 +8458,7 @@ namespace MedicalTextExpander {
         public void SelectBed(int bedNum) {
             int total = (context != null) ? context.TotalBeds : 30;
             if (bedNum < 1 || bedNum > total) return;
+            if (txtNote == null) return;
 
             if (isDirty) {
                 FlushSave();
@@ -8466,20 +8469,26 @@ namespace MedicalTextExpander {
 
             currentBed = bedNum;
             BedColorHelper.BedTheme curTheme = BedColorHelper.GetTheme(currentBed);
-            lblBedTitle.Text = string.Format("🛏️ ข้อมูลผู้ป่วย เตียง {0:D2}", currentBed);
-            lblBedTitle.ForeColor = curTheme.Primary;
+            if (lblBedTitle != null) {
+                lblBedTitle.Text = string.Format("🛏️ ข้อมูลผู้ป่วย เตียง {0:D2}", currentBed);
+                lblBedTitle.ForeColor = curTheme.Primary;
+            }
 
             isSuppressingEvents = true;
             txtNote.Text = BedNotesManager.NormalizeNewlines(manager.GetBedNote(currentBed));
             isSuppressingEvents = false;
 
             isDirty = false;
-            lblAutoSave.Text = "พร้อมใช้งาน (พิมพ์แล้วบันทึกอัตโนมัติทันที)";
-            lblAutoSave.ForeColor = Color.FromArgb(71, 85, 105);
+            if (lblAutoSave != null) {
+                lblAutoSave.Text = "พร้อมใช้งาน (พิมพ์แล้วบันทึกอัตโนมัติทันที)";
+                lblAutoSave.ForeColor = Color.FromArgb(71, 85, 105);
+            }
 
             UpdateCharCount();
             RefreshAllBedButtons();
-            txtNote.Focus();
+            try {
+                if (txtNote.CanFocus) txtNote.Focus();
+            } catch {}
         }
 
         public void RefreshAllBedButtons() {
@@ -8638,7 +8647,8 @@ namespace MedicalTextExpander {
         }
 
         private void UpdateCharCount() {
-            string text = txtNote.Text;
+            if (txtNote == null || lblCharCount == null) return;
+            string text = txtNote.Text ?? string.Empty;
             int chars = text.Length;
             int lines = text.Split(new char[] { '\n' }).Length;
             lblCharCount.Text = string.Format("{0} ตัวอักษร | {1} บรรทัด", chars, lines);

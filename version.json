@@ -1,8 +1,8 @@
 {
-  "version": "2.0.0",
+  "version": "2.0.1",
   "downloadUrl": "https://github.com/oatzilla/Medical_Text_Expander/releases/latest/download/Medical_Text_Expander.exe",
   "download_url": "https://github.com/oatzilla/Medical_Text_Expander/releases/latest/download/Medical_Text_Expander.exe",
   "releaseDate": "2026-10-30",
   "release_date": "2026-10-30",
-  "changelog": "- สถาปัตยกรรมปรับจำนวนเตียงหอผู้ป่วยแบบไดนามิก (Dynamic Ward Bed Architecture 1-60 เตียง, ค่าเริ่มต้น 30 เตียง): รองรับการขยาย/ลดจำนวนเตียงตามขนาดวอร์ด พร้อมคำนวณและปรับขนาดปุ่มแสดงผลอัตโนมัติ (Dynamic Responsive Grid)\r\n- ค่าเริ่มต้นอัตโนมัติพร้อมใช้งานทันที (Zero-Configuration Out-of-the-Box Defaults): กำหนดค่าเริ่มต้น Supabase URL, Key, GitHub Repo, FontSize 9.5, Admin PIN 9844 และสร้าง expander_settings.ini อัตโนมัติเมื่อย้ายไปรันเครื่องอื่น\r\n- ระบบรักษาความปลอดภัยและความลับขั้นสูง (Advanced Settings & Password Hash Protection): เข้ารหัสรหัสผ่านแอดมินด้วย SHA-256 (AdminPasswordHash) ปราศจาก Plaintext ในไฟล์ INI พร้อมซ่อน Mask Public API Key ใน UI และป้องกันการรั่วไหลด้วย .gitignore\r\n- ซิงค์โครงสร้างจำนวนเตียงข้ามระบบ (Cross-Platform Ward Beds Cloud Sync): ซิงค์ ward_config ผ่าน Supabase Cloud (Row 101) และเชื่อมโยงทั้ง Desktop WinForms และ Web & Mobile Portal 100%"
+  "changelog": "- แก้ไขข้อผิดพลาด NullReferenceException ใน BedNotesForm.SelectBed ขณะเปิดโปรแกรม (Startup UI Lifecycle Guard): ป้องกันการเรียก SelectBed ก่อนที่ช่องบันทึกข้อมูลเตียง (txtNote) และส่วนหัว (lblBedTitle) จะถูกสร้างเสร็จสมบูรณ์ 100%"
 }
